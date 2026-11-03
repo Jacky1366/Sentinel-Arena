@@ -39,14 +39,14 @@ Scaffolding plus data contract v0. Component logic is not implemented yet.
 
 ## Setup and tests
 
-Requires Python 3.11+.
+Requires Python 3.11+. After creating the venv, always run Python through
+`.venv/bin/python` so the project's dependencies are used.
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env        # fill in API keys; never commit .env
-pytest
+python3 -m venv .venv                          # one-time: create the venv
+.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env                           # fill in API keys; never commit .env
+.venv/bin/python -m pytest
 ```
 
 ## Layout

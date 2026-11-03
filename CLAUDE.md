@@ -59,7 +59,9 @@ tests/test_schemas.py   schema + taxonomy-drift tests
 
 ## Working notes
 
-- Python 3.11+. `pip install -r requirements.txt`, then `pytest`.
+- Python 3.11+. Always run Python via the project venv: `.venv/bin/python`
+  (e.g. `.venv/bin/python -m pip install -r requirements.txt`,
+  `.venv/bin/python -m pytest`). Never use the system `python3`.
 - Schemas hardcode taxonomy enums. If `config/taxonomy.json` changes, update the
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
