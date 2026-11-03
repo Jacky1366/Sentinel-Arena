@@ -179,7 +179,7 @@ Judge output, append-only.
 | `request_id` | uuid4 | Join key. |
 | `label` | CWE enum | Copied from Red's record (ground truth). |
 | `verdict` | taxonomy enum | Copied from Blue's record. |
-| `landed` | bool \| null | Did the attack actually succeed against the Target (Juice Shop challenge solved)? **From Stage 3 onward the Judge must never write `null` for `landed`.** |
+| `landed` | bool \| null | Did the attack actually succeed against the Target (Juice Shop challenge solved)? **From Stage 3 onward the Judge must never write `null` for `landed`, except the not-measurable case in §11** (a CWE whose `challenge_map` entry is empty), where `null` is required. |
 | `detected` | bool | `verdict != "benign"`. |
 | `type_correct` | bool | `verdict == label`. |
 | `replay_blocked` | bool \| null | Would Blue's rules block a replay of this request? Filled in a later stage. |
@@ -209,15 +209,27 @@ Stage 3. Until then this rule is documentation only.
 ## 7. Challenge map — `config/challenge_map.json`
 
 ```json
-{"CWE-89":["Login Admin"],"CWE-79":["DOM XSS"],"CWE-22":[]}
+{"CWE-89":["Login Admin","User Credentials"],
+ "CWE-79":[],
+ "CWE-22":["Poison Null Byte","Forgotten Developer Backup"]}
 ```
 
-Maps each CWE label to the Juice Shop challenges whose solving proves an attack
-landed. `CWE-22` is intentionally empty; it will be filled after querying
-`/api/Challenges`.
+Maps each CWE label to the exact Juice Shop challenge `name` string(s) whose solving
+proves an attack of that type landed. Names were verified against this version's
+`GET /api/Challenges`, each by sending one attack request and observing which
+challenge flipped to solved (one round = one request).
+
+**Multiple challenges per label.** An entry may list more than one name, and one
+request may solve several. The Judge marks `landed = true` if **any** mapped
+challenge for that label flips `false → true` across the round. (`Poison Null Byte`
+and `Forgotten Developer Backup` both flip from the one null-byte `/ftp` request.)
+
+`CWE-79` is **empty on purpose** (see §11): no XSS challenge can be both triggered by
+one HTTP request and observed by the proxy in this Docker deployment.
 
 **Note for later:** Juice Shop challenges stay solved. The Judge must diff challenge
-state before and after each round to attribute `landed` to that round.
+state before and after each round to attribute `landed` to that round, and must
+ignore any solved challenge whose name is not in this map (§6, Challenge scope).
 
 ---
 
@@ -279,3 +291,41 @@ the Judge's before/after challenge diff will see it.
 **Do not remove them from the benign set.** They are a deliberate false-positive
 test: a quote character and a 500 status look like SQL injection, but the request
 is benign, and Blue should still classify it as `benign`.
+
+---
+
+## 11. Not-measurable `landed`
+
+For any CWE whose `config/challenge_map.json` entry is **empty** (currently
+`CWE-79`), landing cannot be measured. For a round with such a label the Judge
+records `landed` as the **not-measurable state (`null`), not `false`**.
+
+- These rounds are **excluded** from `landed` and landing-rate statistics (a `null`
+  is neither a success nor a failure).
+- They are **included normally** in detection statistics (`detected`,
+  `type_correct`, FP/FN). Blue is still fully scored on whether it spots the attack
+  in the log; only "did it actually succeed against the Target" is unanswerable.
+
+This is the one case where the Judge writes `null` for `landed` from Stage 3 onward
+(§6).
+
+**Why `CWE-79` is empty.** In this Docker deployment every XSS challenge that a
+single HTTP request could trigger is marked `disabledEnv: "Docker"` (API-only,
+Reflected, HTTP-Header, Server-side, Client-side, and Video XSS) — the server
+sanitizes the payload instead of solving. The only XSS challenge enabled here,
+**DOM XSS**, is solved by a websocket event (`verifyLocalXssChallenge`), which a
+single HTTP request cannot send and the proxy HTTP log cannot observe. So no XSS
+challenge is both HTTP-triggerable and proxy-observable, and CWE-79 landing is
+not measurable without changing the deployment.
+
+---
+
+## 12. Future work
+
+- **Measuring CWE-79 (XSS) landing.** It would require either running Juice Shop
+  **outside Docker** (so the `disabledEnv: "Docker"` XSS challenges become solvable),
+  or driving a **websocket client** to trigger DOM XSS. The first breaks target
+  isolation (design principle 6); the second puts a non-HTTP channel outside the
+  proxy, breaking the proxy-log-only model (design principle 3) since the solve
+  would never appear in `proxy.jsonl`. Both are **out of scope for v0**; CWE-79
+  landing stays not-measurable (§11).
