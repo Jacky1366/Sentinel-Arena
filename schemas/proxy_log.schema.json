@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/proxy_log.schema.json",
   "title": "Proxy log line (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/proxy.jsonl, written by nginx. Blue's ONLY input. No schema_version/match_id because nginx writes it. Lines failing this schema (e.g. no valid request_id) are stray traffic: loaders skip and count them, never crash.",
+  "description": "One line of data/runs/<match_id>/proxy.jsonl (staged at data/runs/live/proxy.jsonl during a match), written by nginx. Blue's ONLY input. No schema_version/match_id because nginx writes it. A line whose request_id is missing or empty is stray traffic: loaders skip and count it, never crash. Any other line failing this schema (including a malformed request_id) is invalid.",
   "type": "object",
   "additionalProperties": false,
   "required": ["timestamp", "request_id", "method", "path", "query", "body", "status"],

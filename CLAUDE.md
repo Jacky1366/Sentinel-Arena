@@ -28,14 +28,15 @@ updating the contract and schemas first, and tell the designer.**
 7. Never commit secrets. API keys live only in `.env`.
 8. ALL arena traffic, both attack and benign, carries `X-Arena-Request-Id` and is
    sent by the same HTTP client. Otherwise header presence leaks ground truth to Blue.
-   Log lines without a valid `request_id` are stray traffic: loaders skip and count
-   them, never crash.
+   Log lines with a missing or empty `request_id` are stray traffic: loaders skip
+   and count them, never crash. Any other non-matching `request_id` is invalid.
 
 ## Directory map
 
 ```
 CLAUDE.md               this file
-README.md               overview, architecture diagram, how to run tests
+README.md               overview, architecture diagram, how to run tests and the stack
+docker-compose.yml      Juice Shop (internal only) + nginx proxy (127.0.0.1:8080)
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 schemas/                JSON Schema (draft 2020-12) per artifact
   red_attack.schema.json    Red ground truth (Blue never reads)
@@ -47,15 +48,37 @@ schemas/                JSON Schema (draft 2020-12) per artifact
 config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
-proxy/                  nginx reverse proxy + JSON log format (not yet implemented)
+proxy/nginx.conf        nginx: log + forward only, JSON log format (Stage 1)
+tools/validate_log.py   classify proxy log lines: valid / stray / invalid
+tools/smoke_test.sh     end-to-end check of the running stack
 red/                    Red attacker (not yet implemented)
 blue/                   Blue defender (not yet implemented)
 judge/                  deterministic scorer (not yet implemented)
 dashboard/              results viewer (not yet implemented)
+data/runs/live/         nginx writes proxy.jsonl here (staging, git-ignored)
 data/runs/<match_id>/   match output (git-ignored)
 data/golden/            golden run for demo (committed later)
 tests/test_schemas.py   schema + taxonomy-drift tests
+tests/test_validate_log.py  validate_log.py classification tests
 ```
+
+## How to run the stack
+
+```bash
+docker compose up -d --wait     # starts Juice Shop + nginx; returns once healthy
+tools/smoke_test.sh             # expects: 4 valid, 2 stray, 0 invalid
+.venv/bin/python tools/validate_log.py   # validate the whole live log
+docker compose down             # stop (the log in data/runs/live/ is kept)
+```
+
+- The proxy is at `http://127.0.0.1:8080`, loopback only. Juice Shop has no host
+  port; it is reachable only through nginx.
+- nginx appends to `data/runs/live/proxy.jsonl`.
+- Known limitation: nginx rejects paths that climb above the web root while
+  parsing the request line, so they log as stray (empty `request_id` and path) and
+  are invisible to Blue and the Judge. Red must never send them (contract §9).
+- The smoke test's request (f) may solve a challenge; run
+  `docker compose restart juice-shop` before a scored run.
 
 ## Working notes
 
@@ -66,5 +89,5 @@ tests/test_schemas.py   schema + taxonomy-drift tests
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Current scope is scaffolding only. Do not implement Red/Blue/Judge/proxy/dashboard
+- Stage 1 (Target + proxy) is implemented. Do not implement Red/Blue/Judge/dashboard
   logic until the designer asks.

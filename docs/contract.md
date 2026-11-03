@@ -27,8 +27,10 @@ schemas first, and telling the designer.**
 **ALL arena traffic, both attack and benign, carries `X-Arena-Request-Id` and is
 sent by the same HTTP client. Otherwise header presence leaks ground truth to Blue.**
 
-Proxy log lines without a valid `request_id` are **stray traffic**: loaders skip
-and count them, and never crash.
+A proxy log line whose `request_id` is **missing or empty** is **stray traffic**:
+loaders skip and count it, and never crash. Any other `request_id` that does not
+match the uuid4 pattern makes the line **invalid**. A malformed id means a bug in
+our own client, so it must fail loudly instead of being silently skipped.
 
 ---
 
@@ -92,12 +94,16 @@ Written by nginx. **Blue's ONLY input.**
 | Field | Type | Rationale |
 |---|---|---|
 | `timestamp` | UTC ISO 8601 | When the proxy saw the request. |
-| `request_id` | uuid4 (required) | Copied from `X-Arena-Request-Id`; join key. Lines without a valid value are stray traffic (see Traffic rule). |
+| `request_id` | uuid4 (required) | Copied from `X-Arena-Request-Id`; join key. Missing or empty = stray traffic; any other non-matching value = invalid (see Traffic rule). |
 | `method` | HTTP method enum | Part of what Blue observes. |
 | `path` | string starting with `/` | Rule field `path`. |
 | `query` | string (may be empty) | Rule field `query`. |
 | `body` | string (may be empty) | Rule field `body`. |
 | `status` | int 100–599 | Upstream response code; a weak signal Blue may use. |
+
+**Location.** nginx always writes to `data/runs/live/proxy.jsonl` (staging). The
+orchestrator moves it to `data/runs/<match_id>/proxy.jsonl` at the end of each
+match. The line format is identical.
 
 There is no `schema_version` or `match_id`, because nginx writes the line and the
 run directory implies the match. We control the format, so the Target is swappable.
@@ -181,6 +187,23 @@ Judge output, append-only.
 
 The Judge is pure deterministic code. It never uses an LLM.
 
+**Challenge scope.** The Judge considers only challenges listed in
+`config/challenge_map.json`; all other solved challenges are ignored.
+
+### Orphan rounds
+
+A Red record with **no proxy line carrying the same `request_id`** is an
+**orphan round**. This happens when the request never produced a logged
+`request_id`, for example when nginx rejects it before reading headers (§9).
+
+- The Judge marks the round as orphan.
+- Orphans are **excluded from all detection stats**. An orphan is **never counted
+  as a false negative**, because Blue never had a chance to see the request.
+- The Judge reports the **orphan count per match**.
+
+The `round_record` schema does not have an orphan field yet; it will be added in
+Stage 3. Until then this rule is documentation only.
+
 ---
 
 ## 7. Challenge map — `config/challenge_map.json`
@@ -211,3 +234,48 @@ state before and after each round to attribute `landed` to that round.
 | Round records | `data/runs/<match_id>/rounds.jsonl` | Judge | Dashboard | Red, Blue |
 
 Join key across red_attacks, proxy, verdicts, and rounds: **`request_id`**.
+
+The proxy log is staged at `data/runs/live/proxy.jsonl` during a match (see §3).
+
+---
+
+## 9. Known limitations
+
+### Requests that climb above the web root are invisible
+
+nginx percent-decodes and normalizes the request URI while it parses the request
+line, before it reads any headers and before any configuration applies. A path
+whose dot-segments climb above the root (for example `/ftp/..%2f..%2fetc/passwd`,
+which decodes to `/ftp/../../etc/passwd`) is rejected with **400** at that point
+and never forwarded to the Target.
+
+Because the headers were never read, the line is logged with an **empty
+`request_id` and an empty `path`**:
+
+```json
+{"timestamp":"...","request_id":"","method":"GET","path":"","query":"","body":"","status":400}
+```
+
+- The line is **stray** (Traffic rule, §0), so it is **invisible to Blue and the
+  Judge**. The Red record it belongs to becomes an orphan round (§6).
+- **Red must never send requests that climb above the web root.** CWE-22 payloads
+  must target Juice Shop's own traversal challenges (for example the `/ftp`
+  directory and its null-byte tricks), which stay inside the root.
+- Traversal that stays inside the root (for example `/ftp/..%2fftp/legal.md`) is
+  forwarded unchanged and logged with its raw path.
+
+---
+
+## 10. Notes for later stages
+
+### Stage 5: apostrophes in benign login traffic return 500
+
+Juice Shop's login query is deliberately SQL-injectable, so a benign login whose
+email contains an apostrophe (e.g. `O'Brien`) makes it return **500**. That 500
+**solves the "Error Handling" challenge** (verified on v20.3.0). It solves no
+challenge in `config/challenge_map.json`, so it cannot make a round `landed`, but
+the Judge's before/after challenge diff will see it.
+
+**Do not remove them from the benign set.** They are a deliberate false-positive
+test: a quote character and a 500 status look like SQL injection, but the request
+is benign, and Blue should still classify it as `benign`.
