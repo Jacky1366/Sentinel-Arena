@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/round_record.schema.json",
+  "title": "Judge round record (contract v0.1)",
+  "description": "One line of data/runs/<match_id>/rounds.jsonl. Append-only Judge output. detected = (verdict != 'benign'); type_correct = (verdict == label). landed may be null only before Stage 3.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "match_id", "round", "request_id", "label", "verdict", "landed", "detected", "type_correct", "replay_blocked", "benign_fp"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "match_id": { "type": "string", "pattern": "^m[0-9]{3,}$" },
+    "round": { "type": "integer", "minimum": 1 },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
+    "verdict": { "enum": ["CWE-89", "CWE-79", "CWE-22", "benign"] },
+    "landed": { "type": ["boolean", "null"] },
+    "detected": { "type": "boolean" },
+    "type_correct": { "type": "boolean" },
+    "replay_blocked": { "type": ["boolean", "null"] },
+    "benign_fp": { "type": ["boolean", "null"] }
+  }
+}

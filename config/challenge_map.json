@@ -1,0 +1,5 @@
+{
+  "CWE-89": ["Login Admin"],
+  "CWE-79": ["DOM XSS"],
+  "CWE-22": []
+}

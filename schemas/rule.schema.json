@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/rule.schema.json",
+  "title": "Blue detection rule (contract v0.1)",
+  "description": "A single rule inside rules.json. No per-rule schema_version or match_id; versioning lives on the file wrapper, provenance in created_match/created_round.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["rule_id", "label", "field", "match_type", "pattern", "created_match", "created_round"],
+  "properties": {
+    "rule_id": { "type": "string", "pattern": "^r-[0-9]{3,}$" },
+    "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
+    "field": { "enum": ["path", "query", "body"] },
+    "match_type": { "enum": ["regex"] },
+    "pattern": { "type": "string", "minLength": 1 },
+    "created_match": { "type": "string", "pattern": "^m[0-9]{3,}$" },
+    "created_round": { "type": "integer", "minimum": 1 }
+  }
+}
