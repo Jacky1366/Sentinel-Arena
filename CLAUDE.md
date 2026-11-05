@@ -36,44 +36,54 @@ updating the contract and schemas first, and tell the designer.**
 ```
 CLAUDE.md               this file
 README.md               overview, architecture diagram, how to run tests and the stack
-docker-compose.yml      Juice Shop (internal only) + nginx proxy (127.0.0.1:8080)
+docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :8081)
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
+docs/progress.md        human-readable build progress (not authoritative)
 schemas/                JSON Schema (draft 2020-12) per artifact
-  red_attack.schema.json    Red ground truth (Blue never reads)
-  proxy_log.schema.json     nginx log line (Blue's only input)
-  verdict.schema.json       Blue verdict
-  rule.schema.json          single Blue rule
-  rules_file.schema.json    rules.json wrapper (cross-match memory)
-  round_record.schema.json  Judge output
+  red_attack.schema.json          Red ground truth (Blue never reads)
+  proxy_log.schema.json           nginx log line (Blue's only input)
+  challenge_snapshot.schema.json  before/after solved state (measurement)
+  verdict.schema.json             Blue verdict
+  rule.schema.json                single Blue rule
+  rules_file.schema.json          rules.json wrapper (cross-match memory)
+  round_record.schema.json        Judge output
+  landed_fact.schema.json         Judge fact-1 intermediate (Stage 2)
 config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
-proxy/nginx.conf        nginx: log + forward only, JSON log format (Stage 1)
+proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
+red/payloads.json       scripted-Red attack set (data, verified empirically)
+red/scripted_red.py     write labeled record, then fire one attack via :8080
+runner/stage2_run.py    reset target, snapshot challenge state around each attack
+judge/fact1_landed.py   pure landed computation over artifacts (no network)
 tools/validate_log.py   classify proxy log lines: valid / stray / invalid
-tools/smoke_test.sh     end-to-end check of the running stack
-red/                    Red attacker (not yet implemented)
+tools/smoke_test.sh     Stage 1 end-to-end check of the running stack
+tools/stage2_check.py   Stage 2 end-to-end check (runner + Judge vs expected)
 blue/                   Blue defender (not yet implemented)
-judge/                  deterministic scorer (not yet implemented)
 dashboard/              results viewer (not yet implemented)
-data/runs/live/         nginx writes proxy.jsonl here (staging, git-ignored)
+data/runs/live/         nginx + runner write here (staging, git-ignored)
 data/runs/<match_id>/   match output (git-ignored)
 data/golden/            golden run for demo (committed later)
-tests/test_schemas.py   schema + taxonomy-drift tests
+tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
+tests/test_fact1_landed.py  Judge fact-1 unit tests (no Docker)
 ```
 
 ## How to run the stack
 
 ```bash
 docker compose up -d --wait     # starts Juice Shop + nginx; returns once healthy
-tools/smoke_test.sh             # expects: 4 valid, 2 stray, 0 invalid
+tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
+.venv/bin/python tools/stage2_check.py   # Stage 2: runner + Judge, all PASS
 .venv/bin/python tools/validate_log.py   # validate the whole live log
 docker compose down             # stop (the log in data/runs/live/ is kept)
 ```
 
-- The proxy is at `http://127.0.0.1:8080`, loopback only. Juice Shop has no host
-  port; it is reachable only through nginx.
-- nginx appends to `data/runs/live/proxy.jsonl`.
+- The arena proxy is at `http://127.0.0.1:8080` (Blue's input, logged). The Judge's
+  admin path is `http://127.0.0.1:8081/api/Challenges` (measurement, `access_log
+  off`). Both loopback only; Juice Shop has no host port.
+- nginx appends to `data/runs/live/proxy.jsonl`. `stage2_run.py` rotates that log
+  (`nginx -s reopen`) at the start of a run so it holds only the current match.
 - Known limitation: nginx rejects paths that climb above the web root while
   parsing the request line, so they log as stray (empty `request_id` and path) and
   are invisible to Blue and the Judge. Red must never send them (contract §9).
@@ -89,5 +99,5 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stage 1 (Target + proxy) is implemented. Do not implement Red/Blue/Judge/dashboard
-  logic until the designer asks.
+- Stages 1–2 are implemented (Target + proxy; scripted Red + Judge fact 1). Do not
+  implement Blue, further Judge facts, or the dashboard until the designer asks.

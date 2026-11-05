@@ -14,11 +14,11 @@ file artifacts defined in a data contract.
 |---|---|---|---|
 | 0 | Data contract v0 | Nov 2–3 | Done (Nov 2) |
 | 1 | Target + reverse proxy + challenge map | Nov 3–5 | Done (Nov 3) |
-| 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Next |
-| 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Pending |
+| 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
+| 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Next |
 | 4 | Integration + Progress Report | Nov 9–11 | Pending |
 
-Currently ~2 days ahead of plan. Next milestone: Progress Report (Nov 12).
+Currently ~3 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
 ## Completed
 
@@ -45,6 +45,26 @@ Currently ~2 days ahead of plan. Next milestone: Progress Report (Nov 12).
   - CWE-89 (SQLi): Login Admin, User Credentials
   - CWE-79 (XSS): none (not measurable, see limitations)
   - CWE-22 (path traversal): Poison Null Byte, Forgotten Developer Backup
+
+### Stage 2 — Scripted Red + Judge fact 1 (landed)
+- Scripted Red fires a data-driven attack set (`red/payloads.json`, 7 attacks
+  across the 3 CWEs plus a genuine-but-failing negative control). Each attack
+  writes its labeled ground-truth record *before* sending, so a failed send
+  leaves an orphan rather than losing the record. Every payload was verified
+  empirically against the running Juice Shop, not taken from writeups.
+- A separate **admin path** (nginx `:8081`, `access_log off`) lets the measurement
+  read challenge state without adding a line to `proxy.jsonl` — the measurement
+  never disturbs Blue's input. Verified: admin reads add zero log lines.
+- The runner resets the Target (restart → verified 0 solved), starts each run from
+  a clean proxy log, then per attack snapshots solved-state before/after to
+  `challenge_snapshots.jsonl`.
+- **Judge fact 1** (`landed`) is pure code over artifacts (no network): per attack
+  it computes `landed` ∈ {true, false, null} with a `landed_reason`
+  (`not_measurable` / `already_solved`) and the `newly_solved` evidence list, only
+  crediting challenges in the label's mapping.
+- End-to-end check (`tools/stage2_check.py`) passes on a fresh `docker compose up`:
+  all 7 attacks' (landed, reason) match expectations, each request_id appears
+  exactly once in `proxy.jsonl`, and no `/api/Challenges` line leaks into it.
 
 ## Measurement limitations (known and documented)
 
@@ -75,8 +95,8 @@ These are honest boundaries of the instrument, recorded in the contract:
   (Red labels every attack), never an LLM judgment — the determinism anchors the
   credibility of the whole track record.
 
-## Next: Stage 2
-- Scripted Red: hardcoded attack payloads (2–3 per CWE), each writing a labeled
-  attack record.
-- Judge fact 1 (`landed`): diff Juice Shop challenge state before/after each
-  round, considering only challenges in `challenge_map.json`.
+## Next: Stage 3
+- Blue v0: reads only the proxy log, emits a verdict per request, and invents
+  detection rules.
+- Judge fact 2: joins Blue verdicts with the landed facts into the full round
+  record (`detected`, `type_correct`, and the orphan field).

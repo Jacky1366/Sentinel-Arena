@@ -56,7 +56,8 @@ Requires Docker with Compose v2.
 
 ```bash
 docker compose up -d --wait     # starts Juice Shop + nginx; returns once healthy
-tools/smoke_test.sh             # expects: 4 valid, 2 stray, 0 invalid
+tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
+.venv/bin/python tools/stage2_check.py   # Stage 2: scripted Red + Judge, all PASS
 .venv/bin/python tools/validate_log.py   # validate the whole live log
 docker compose down             # stop (the log in data/runs/live/ is kept)
 ```
