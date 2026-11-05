@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/landed_fact.schema.json",
+  "title": "Judge fact-1 landed record (contract v0.1)",
+  "description": "One line of data/runs/<match_id>/landed.jsonl. Internal Judge intermediate produced in Stage 2: the landed fact for one attack, before Blue verdicts exist. Stage 3 joins it into the round record (contract 6.1). Red, Blue, and the Dashboard never read it. landed is null iff landed_reason is non-null.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "match_id", "round", "request_id", "label", "landed", "landed_reason", "newly_solved"],
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "match_id": { "type": "string", "pattern": "^m[0-9]{3,}$" },
+    "round": { "type": "integer", "minimum": 1 },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
+    "landed": { "type": ["boolean", "null"] },
+    "landed_reason": { "enum": [null, "not_measurable", "already_solved"] },
+    "newly_solved": { "type": "array", "items": { "type": "string" } }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "landed": { "type": "null" } } },
+      "then": { "properties": { "landed_reason": { "enum": ["not_measurable", "already_solved"] } } },
+      "else": { "properties": { "landed_reason": { "const": null } } }
+    }
+  ]
+}

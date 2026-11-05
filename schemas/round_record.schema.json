@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/round_record.schema.json",
   "title": "Judge round record (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/rounds.jsonl. Append-only Judge output. detected = (verdict != 'benign'); type_correct = (verdict == label). landed may be null only before Stage 3.",
+  "description": "One line of data/runs/<match_id>/rounds.jsonl. Append-only Judge output. detected = (verdict != 'benign'); type_correct = (verdict == label). landed is null only in the not_measurable (contract 11) and already_solved (contract 6.1) cases, always paired with a non-null landed_reason.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "match_id", "round", "request_id", "label", "verdict", "landed", "detected", "type_correct", "replay_blocked", "benign_fp"],
+  "required": ["schema_version", "match_id", "round", "request_id", "label", "verdict", "landed", "landed_reason", "newly_solved", "detected", "type_correct", "replay_blocked", "benign_fp"],
   "properties": {
     "schema_version": { "const": "0.1" },
     "match_id": { "type": "string", "pattern": "^m[0-9]{3,}$" },
@@ -17,9 +17,18 @@
     "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
     "verdict": { "enum": ["CWE-89", "CWE-79", "CWE-22", "benign"] },
     "landed": { "type": ["boolean", "null"] },
+    "landed_reason": { "enum": [null, "not_measurable", "already_solved"] },
+    "newly_solved": { "type": "array", "items": { "type": "string" } },
     "detected": { "type": "boolean" },
     "type_correct": { "type": "boolean" },
     "replay_blocked": { "type": ["boolean", "null"] },
     "benign_fp": { "type": ["boolean", "null"] }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "landed": { "type": "null" } } },
+      "then": { "properties": { "landed_reason": { "enum": ["not_measurable", "already_solved"] } } },
+      "else": { "properties": { "landed_reason": { "const": null } } }
+    }
+  ]
 }

@@ -20,10 +20,12 @@ CONFIG_DIR = ROOT / "config"
 SCHEMA_NAMES = [
     "red_attack",
     "proxy_log",
+    "challenge_snapshot",
     "verdict",
     "rule",
     "rules_file",
     "round_record",
+    "landed_fact",
 ]
 
 
@@ -101,10 +103,28 @@ VALID = {
         "label": "CWE-89",
         "verdict": "CWE-89",
         "landed": True,
+        "landed_reason": None,
+        "newly_solved": ["User Credentials"],
         "detected": True,
         "type_correct": True,
         "replay_blocked": None,
         "benign_fp": None,
+    },
+    "challenge_snapshot": {
+        "request_id": RID,
+        "before_solved": ["Login Admin"],
+        "after_solved": ["Login Admin", "User Credentials"],
+        "taken_at": "2026-11-04T01:02:03Z",
+    },
+    "landed_fact": {
+        "schema_version": "0.1",
+        "match_id": "m001",
+        "round": 4,
+        "request_id": RID,
+        "label": "CWE-22",
+        "landed": True,
+        "landed_reason": None,
+        "newly_solved": ["Poison Null Byte", "Forgotten Developer Backup"],
     },
 }
 
@@ -172,6 +192,30 @@ INVALID = {
         ("missing request_id", _drop("request_id")),
         ("detected null", _set("detected", None)),
         ("replay_blocked string", _set("replay_blocked", "no")),
+        ("missing landed_reason", _drop("landed_reason")),
+        ("missing newly_solved", _drop("newly_solved")),
+        ("newly_solved not array", _set("newly_solved", "Login Admin")),
+        ("landed_reason not in enum", _set("landed_reason", "mystery")),
+        # invariant: landed null requires a non-null reason
+        ("landed null but reason null", lambda r: {**r, "landed": None, "landed_reason": None}),
+        # invariant: boolean landed requires reason null
+        ("landed true but reason set", _set("landed_reason", "already_solved")),
+    ],
+    "challenge_snapshot": [
+        ("missing request_id", _drop("request_id")),
+        ("request_id not uuid4", _set("request_id", "nope")),
+        ("before_solved not array", _set("before_solved", "Login Admin")),
+        ("taken_at not UTC Z", _set("taken_at", "2026-11-04T01:02:03+00:00")),
+        ("extra property", _set("match_id", "m001")),
+    ],
+    "landed_fact": [
+        ("label not in taxonomy", _set("label", "CWE-78")),
+        ("label benign", _set("label", "benign")),
+        ("missing match_id", _drop("match_id")),
+        ("newly_solved not array", _set("newly_solved", "x")),
+        ("landed null but reason null", lambda r: {**r, "landed": None, "landed_reason": None}),
+        ("landed true but reason set", _set("landed_reason", "not_measurable")),
+        ("extra property", _set("verdict", "CWE-22")),
     ],
 }
 
@@ -206,8 +250,9 @@ def test_every_schema_has_enough_invalid_cases(name):
     assert len(INVALID[name]) >= 2
 
 
-def test_round_record_landed_may_be_null_pre_stage3():
-    rec = {**VALID["round_record"], "landed": None}
+def test_round_record_landed_null_requires_reason():
+    # landed null is allowed, but only paired with a non-null landed_reason.
+    rec = {**VALID["round_record"], "landed": None, "landed_reason": "not_measurable"}
     validator("round_record").validate(rec)
 
 
@@ -216,10 +261,30 @@ def test_rules_file_empty_rules_is_valid():
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "verdict", "round_record"):
+    for name in ("red_attack", "verdict", "round_record", "landed_fact"):
         required = SCHEMAS[name]["required"]
         assert "schema_version" in required and "match_id" in required, name
     assert "schema_version" in SCHEMAS["rules_file"]["required"]
+
+
+def test_measurement_artifacts_have_no_version_or_match_id():
+    # Proxy log and challenge snapshot are written outside the Judge/Red/Blue
+    # flow; the run directory implies the match, so they omit both fields.
+    for name in ("proxy_log", "challenge_snapshot"):
+        props = SCHEMAS[name]["properties"]
+        assert "schema_version" not in props and "match_id" not in props, name
+
+
+def test_landed_null_invariant_round_trip():
+    # landed null <-> reason non-null, for both schemas that carry the fields.
+    for name in ("round_record", "landed_fact"):
+        v = validator(name)
+        ok = {**VALID[name], "landed": None, "landed_reason": "already_solved"}
+        v.validate(ok)
+        bad_reason = {**VALID[name], "landed": None, "landed_reason": None}
+        assert not v.is_valid(bad_reason), name
+        bad_bool = {**VALID[name], "landed": False, "landed_reason": "already_solved"}
+        assert not v.is_valid(bad_bool), name
 
 
 @pytest.mark.parametrize("name", SCHEMA_NAMES)
@@ -235,7 +300,8 @@ def test_taxonomy_contents():
 
 @pytest.mark.parametrize(
     "name,field",
-    [("red_attack", "label"), ("rule", "label"), ("round_record", "label")],
+    [("red_attack", "label"), ("rule", "label"), ("round_record", "label"),
+     ("landed_fact", "label")],
 )
 def test_label_enums_match_taxonomy_cwes(name, field):
     assert sorted(SCHEMAS[name]["properties"][field]["enum"]) == sorted(CWE_LABELS)

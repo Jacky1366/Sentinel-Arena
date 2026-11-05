@@ -1,5 +1,11 @@
 # Sentinel Arena — Data Contract v0 (schema_version "0.1")
 
+*Revised 2026-11-04 (Stage 2): added the challenge-snapshot and landed-fact
+artifacts, and the round record's `landed_reason` / `newly_solved` fields. The
+`schema_version` stays `"0.1"`: the changes are purely additive, and **no round
+records exist yet** (the Judge has not run), so adding required fields breaks no
+stored data.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`, later) controls ordering.
@@ -15,10 +21,11 @@ schemas first, and telling the designer.**
 
 | Rule | Rationale |
 |---|---|
-| Every record carries `"schema_version": "0.1"`. Exceptions: the proxy log (nginx writes it), and individual rules (versioning lives on the `rules.json` wrapper). | Lets loaders reject or migrate old artifacts instead of silently misreading them. |
-| Every per-match record carries `match_id`. Format: `m` + ≥3 digits (e.g. `m001`). Exceptions: the proxy log and `rules.json` (cross-match). | Records stay self-describing when concatenated or copied out of their run directory. |
+| Every record carries `"schema_version": "0.1"`. Exceptions: the proxy log (nginx writes it), the challenge snapshot (measurement artifact, §3.1), and individual rules (versioning lives on the `rules.json` wrapper). | Lets loaders reject or migrate old artifacts instead of silently misreading them. |
+| Every per-match record carries `match_id`. Format: `m` + ≥3 digits (e.g. `m001`). Exceptions: the proxy log, the challenge snapshot (§3.1), and `rules.json` (cross-match). | Records stay self-describing when concatenated or copied out of their run directory. |
 | Timestamps are ISO 8601 UTC with a `Z` suffix, optional fractional seconds (`2026-11-02T22:15:03Z`). | One clock convention; no timezone ambiguity when joining Red and proxy times. |
 | One round = one attack = one HTTP request (v0 simplification). | Makes `request_id` a 1:1 join key and keeps scoring trivial to reason about. |
+| **Red labels must be truthful.** Every `red_attacks` record is a genuine attack of its stated CWE. Benign traffic is never a Red record — it belongs to the Stage 5 benign set. A label is ground truth, so a mislabel (e.g. labeling a non-attack `CWE-89`) would make the Judge score a correct Blue `benign` verdict as a false negative. | Ground truth must be trustworthy for every downstream score to mean anything. |
 | `request_id` is a lowercase UUID v4. It is **the join key** across `red_attacks`, `proxy`, `verdicts`, and `rounds`. | Lets the Judge align ground truth with Blue's view without trusting timestamps or order. |
 | All records use `additionalProperties: false`. | Prevents accidental leakage (e.g. a label slipping into the proxy log) and catches typos early. |
 
@@ -111,6 +118,34 @@ No label or other ground truth may ever appear here.
 
 ---
 
+## 3.1 Challenge snapshot — `data/runs/<match_id>/challenge_snapshots.jsonl`
+
+Written by the **measurement runner** (not the Judge), one line per attack. It
+captures which Juice Shop challenges were solved immediately **before** and
+**after** the attack, so the Judge can later attribute `landed` to that one round
+by pure computation (§6.1), without any network access of its own.
+
+```json
+{"request_id":"<uuid4>","before_solved":["Login Admin"],
+ "after_solved":["Login Admin","User Credentials"],"taken_at":"2026-11-04T01:02:03Z"}
+```
+
+| Field | Type | Rationale |
+|---|---|---|
+| `request_id` | uuid4 (required) | Join key to the Red record and proxy line for this attack. |
+| `before_solved` | array of strings | Exact challenge `name`s solved just before the attack fired. |
+| `after_solved` | array of strings | Exact challenge `name`s solved just after. `newly_solved = after − before`. |
+| `taken_at` | UTC ISO 8601 | When the *after* snapshot was taken; debugging and timeline. |
+
+Like the proxy log, this has **no `schema_version` or `match_id`**: it is an
+internal measurement artifact, keyed by `request_id`, and the run directory implies
+the match. The snapshots are read **only through the Judge's admin path** (nginx
+`:8081`, `access_log off`), so measuring challenge state never adds a line to
+`proxy.jsonl` — the measurement must not disturb what it measures. **Blue must
+never read this file.**
+
+---
+
 ## 4. Blue verdict — `data/runs/<match_id>/verdicts.jsonl`
 
 ```json
@@ -167,7 +202,8 @@ Judge output, append-only.
 
 ```json
 {"schema_version":"0.1","match_id":"m001","round":7,"request_id":"<uuid4>",
- "label":"CWE-89","verdict":"CWE-89","landed":true,"detected":true,
+ "label":"CWE-89","verdict":"CWE-89","landed":true,"landed_reason":null,
+ "newly_solved":["User Credentials"],"detected":true,
  "type_correct":true,"replay_blocked":null,"benign_fp":null}
 ```
 
@@ -179,7 +215,9 @@ Judge output, append-only.
 | `request_id` | uuid4 | Join key. |
 | `label` | CWE enum | Copied from Red's record (ground truth). |
 | `verdict` | taxonomy enum | Copied from Blue's record. |
-| `landed` | bool \| null | Did the attack actually succeed against the Target (Juice Shop challenge solved)? **From Stage 3 onward the Judge must never write `null` for `landed`, except the not-measurable case in §11** (a CWE whose `challenge_map` entry is empty), where `null` is required. |
+| `landed` | bool \| null | Did the attack actually succeed against the Target (Juice Shop challenge solved)? **From Stage 3 onward the Judge must never write `null` for `landed`, except the not-measurable / already-solved cases in §11 and §6.1**, where `null` is required. |
+| `landed_reason` | `null` \| `"not_measurable"` \| `"already_solved"` | Why `landed` is `null`. **Invariant: `landed` is `null` if and only if `landed_reason` is non-null.** When `landed` is a boolean, this is `null`. |
+| `newly_solved` | array of strings | Challenge `name`s that flipped `false → true` during this round (`after − before`, §3.1). Evidence for `landed`; may include challenges outside the label's mapping, which do not affect `landed`. |
 | `detected` | bool | `verdict != "benign"`. |
 | `type_correct` | bool | `verdict == label`. |
 | `replay_blocked` | bool \| null | Would Blue's rules block a replay of this request? Filled in a later stage. |
@@ -203,6 +241,43 @@ A Red record with **no proxy line carrying the same `request_id`** is an
 
 The `round_record` schema does not have an orphan field yet; it will be added in
 Stage 3. Until then this rule is documentation only.
+
+---
+
+## 6.1 Landed fact — `data/runs/<match_id>/landed.jsonl`
+
+An **internal Judge intermediate**, produced in Stage 2, one line per attack. It
+carries only the fact the Judge can know before Blue exists: did the attack land?
+Stage 3 joins it with the Blue verdicts to build the full round record (§6); it is
+**not** a downstream artifact and the Dashboard never reads it (§8). The round
+record stays the single source of truth for every downstream reader.
+
+```json
+{"schema_version":"0.1","match_id":"m001","round":4,"request_id":"<uuid4>",
+ "label":"CWE-22","landed":true,"landed_reason":null,
+ "newly_solved":["Poison Null Byte","Forgotten Developer Backup"]}
+```
+
+Fields are a subset of the round record: `schema_version`, `match_id`, `round`,
+`request_id`, `label`, `landed`, `landed_reason`, `newly_solved`, with the same
+`landed` / `landed_reason` invariant.
+
+**Computation (pure, deterministic).** For each attack with a snapshot line (§3.1),
+let `mapped = challenge_map[label]` and `newly_solved = after_solved − before_solved`:
+
+| Condition | `landed` | `landed_reason` |
+|---|---|---|
+| `mapped` is empty | `null` | `"not_measurable"` |
+| every name in `mapped` is already in `before_solved` | `null` | `"already_solved"` |
+| `newly_solved ∩ mapped` is non-empty | `true` | `null` |
+| otherwise | `false` | `null` |
+
+Only challenges in the label's mapping count toward `landed`; a solved challenge
+outside the mapping is recorded in `newly_solved` as evidence but never flips
+`landed` (§6, Challenge scope). The full `newly_solved` list is stored regardless.
+
+A Red record with **no snapshot line** is skipped and reported as an **orphan**
+(the attack never reached the Target to be measured); it produces no landed fact.
 
 ---
 
@@ -241,6 +316,8 @@ ignore any solved challenge whose name is not in this map (§6, Challenge scope)
 | Challenge map | `config/challenge_map.json` | Designer | Judge | Blue |
 | Red attacks | `data/runs/<match_id>/red_attacks.jsonl` | Red | Judge, Dashboard | **Blue** |
 | Proxy log | `data/runs/<match_id>/proxy.jsonl` | nginx proxy | Blue, Judge, Dashboard | — |
+| Challenge snapshots | `data/runs/<match_id>/challenge_snapshots.jsonl` | Measurement runner | Judge | **Blue** |
+| Landed fact | `data/runs/<match_id>/landed.jsonl` | Judge (Stage 2) | Judge (Stage 3 join) | Red, Blue, Dashboard |
 | Verdicts | `data/runs/<match_id>/verdicts.jsonl` | Blue | Judge, Dashboard | Red |
 | Rules | `rules.json` | Blue (match N) | Blue (match N+1), Judge (replay), Dashboard | Red |
 | Round records | `data/runs/<match_id>/rounds.jsonl` | Judge | Dashboard | Red, Blue |
@@ -306,8 +383,11 @@ records `landed` as the **not-measurable state (`null`), not `false`**.
   `type_correct`, FP/FN). Blue is still fully scored on whether it spots the attack
   in the log; only "did it actually succeed against the Target" is unanswerable.
 
-This is the one case where the Judge writes `null` for `landed` from Stage 3 onward
-(§6).
+This is one of the two cases where the Judge writes `null` for `landed` from
+Stage 3 onward (`landed_reason: "not_measurable"`). The other is `already_solved`
+(§6.1): a mapped challenge a prior round already solved cannot be re-attributed to
+this round, so landing is unmeasurable here too and is likewise excluded from
+landing stats while counting normally in detection stats.
 
 **Why `CWE-79` is empty.** In this Docker deployment every XSS challenge that a
 single HTTP request could trigger is marked `disabledEnv: "Docker"` (API-only,
