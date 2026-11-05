@@ -71,26 +71,61 @@ def reset_target(poll_timeout: float = 120.0) -> int:
             time.sleep(1.0)
 
 
-def rotate_proxy_log(out_dir: Path, poll_timeout: float = 15.0) -> None:
-    """Start this run with a clean live proxy log: remove it and tell nginx to
-    reopen, so proxy.jsonl holds only this run's lines (a match begins fresh)."""
+def rotate_proxy_log(out_dir: Path, poll_timeout: float = 15.0) -> Path | None:
+    """Start this run with a clean live proxy log, WITHOUT destroying evidence: a
+    non-empty existing log is moved to out_dir/archive/ before nginx reopens a fresh
+    proxy.jsonl. Returns the archive path (or None if there was nothing to keep).
+    A match begins fresh, but raw logs are never silently deleted."""
     log = out_dir / "proxy.jsonl"
-    log.unlink(missing_ok=True)
+    archived: Path | None = None
+    if log.exists() and log.stat().st_size > 0:
+        archive_dir = out_dir / "archive"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%f")[:-3] + "Z"
+        archived = archive_dir / f"proxy-{ts}.jsonl"
+        log.replace(archived)  # move: preserve the bytes, then nginx recreates
+    elif log.exists():
+        log.unlink()  # empty file: nothing to preserve
     _compose("exec", "-T", "nginx", "nginx", "-s", "reopen")
     deadline = time.monotonic() + poll_timeout
     while not log.exists() and time.monotonic() < deadline:
         time.sleep(0.2)
+    return archived
 
 
-def snapshot_after(before: list[str], settle: float, poll: float = 0.25) -> list[str]:
-    """Poll the after-snapshot: return as soon as state changes, else after `settle`
-    seconds (so no-change attacks don't block longer than necessary)."""
-    deadline = time.monotonic() + settle
-    after = solved_now()
-    while after == before and time.monotonic() < deadline:
-        time.sleep(poll)
-        after = solved_now()
-    return after
+def snapshot_after(before, settle: float, poll: float = 0.25, stable_polls: int = 3,
+                   poll_fn=solved_now, sleep_fn=time.sleep, clock=time.monotonic):
+    """Snapshot solved-state after an attack, robust to a single attack solving
+    several challenges at slightly different times.
+
+    Wait for the first change from `before`, then keep polling until the solved set
+    is unchanged for `stable_polls` consecutive reads, so a challenge that registers
+    late is captured in THIS round (not leaked into the next round's diff). If
+    nothing changes within `settle` seconds, return `before` unchanged. The whole
+    wait is capped by `settle`.
+
+    poll_fn/sleep_fn/clock are injectable for testing without a live Target.
+    """
+    deadline = clock() + settle
+    after = poll_fn()
+    # Phase 1: wait for the first observable change.
+    while after == before and clock() < deadline:
+        sleep_fn(poll)
+        after = poll_fn()
+    if after == before:
+        return after  # no change at all within the settle window
+    # Phase 2: wait for the solved set to stop growing/changing.
+    last = after
+    stable = 0
+    while stable < stable_polls and clock() < deadline:
+        sleep_fn(poll)
+        current = poll_fn()
+        if current == last:
+            stable += 1
+        else:
+            last = current
+            stable = 0
+    return last
 
 
 def run(match_id: str, out_dir: Path, settle: float) -> list[dict]:
@@ -105,7 +140,9 @@ def run(match_id: str, out_dir: Path, settle: float) -> list[dict]:
           f"({'clean' if reset_count == 0 else 'NOT CLEAN'})")
     if reset_count != 0:
         raise SystemExit("refusing to run: restart did not reset challenge state")
-    rotate_proxy_log(out_dir)
+    archived = rotate_proxy_log(out_dir)
+    if archived is not None:
+        print(f"previous proxy log archived: {archived.relative_to(REPO)}")
 
     attacks = scripted_red.load_attacks()
     results = []

@@ -56,8 +56,11 @@ Currently ~3 days ahead of plan. Next milestone: Progress Report (Nov 12).
   read challenge state without adding a line to `proxy.jsonl` — the measurement
   never disturbs Blue's input. Verified: admin reads add zero log lines.
 - The runner resets the Target (restart → verified 0 solved), starts each run from
-  a clean proxy log, then per attack snapshots solved-state before/after to
-  `challenge_snapshots.jsonl`.
+  a clean proxy log (the previous log is **archived, never deleted**), then per
+  attack snapshots solved-state before/after to `challenge_snapshots.jsonl`. The
+  after-snapshot waits for the solved set to stabilize, so an attack that solves
+  several challenges at slightly different times has them all attributed to the one
+  round instead of leaking into the next.
 - **Judge fact 1** (`landed`) is pure code over artifacts (no network): per attack
   it computes `landed` ∈ {true, false, null} with a `landed_reason`
   (`not_measurable` / `already_solved`) and the `newly_solved` evidence list, only

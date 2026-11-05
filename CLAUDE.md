@@ -83,7 +83,8 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   admin path is `http://127.0.0.1:8081/api/Challenges` (measurement, `access_log
   off`). Both loopback only; Juice Shop has no host port.
 - nginx appends to `data/runs/live/proxy.jsonl`. `stage2_run.py` rotates that log
-  (`nginx -s reopen`) at the start of a run so it holds only the current match.
+  (`nginx -s reopen`) at the start of a run so it holds only the current match; the
+  previous log is archived to `data/runs/live/archive/`, never deleted.
 - Known limitation: nginx rejects paths that climb above the web root while
   parsing the request line, so they log as stray (empty `request_id` and path) and
   are invisible to Blue and the Judge. Red must never send them (contract §9).
