@@ -33,6 +33,18 @@ COMPARE = ["label", "verdict", "detected", "type_correct", "detected_reason",
            "landed", "landed_reason"]
 
 
+def tripwire_failures(rounds: list[dict]) -> list[str]:
+    """Harness self-checks: conditions that mean the measurement misbehaved, not
+    that a side won/lost. A scripted run should never trip these (contract §6.1)."""
+    fails = []
+    offenders = [r["round"] for r in rounds if r.get("landed_reason") == "snapshot_missing"]
+    if offenders:
+        fails.append(
+            f"snapshot_missing in round(s) {offenders}: a snapshot was dropped at "
+            f"runtime. A scripted run must never produce this (contract §6.1 tripwire).")
+    return fails
+
+
 def main() -> int:
     challenge_map = json.loads((REPO / "config" / "challenge_map.json").read_text())
 
@@ -82,6 +94,10 @@ def main() -> int:
     dupes = {rid: n for rid, n in seen.items() if n != 1}
     if dupes:
         fails.append(f"request_id not 1:1 in rounds.jsonl: {dupes}")
+
+    # Tripwire: a scripted run must never drop a snapshot. snapshot_missing means
+    # the measurement harness misbehaved -> fail loudly (contract §6.1).
+    fails.extend(tripwire_failures(rounds))
 
     print()
     if fails:
