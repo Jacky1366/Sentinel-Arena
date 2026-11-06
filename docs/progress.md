@@ -15,10 +15,10 @@ file artifacts defined in a data contract.
 | 0 | Data contract v0 | Nov 2–3 | Done (Nov 2) |
 | 1 | Target + reverse proxy + challenge map | Nov 3–5 | Done (Nov 3) |
 | 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
-| 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Next |
-| 4 | Integration + Progress Report | Nov 9–11 | Pending |
+| 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
+| 4 | Integration + Progress Report | Nov 9–11 | Next |
 
-Currently ~3 days ahead of plan. Next milestone: Progress Report (Nov 12).
+Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
 ## Completed
 
@@ -69,6 +69,28 @@ Currently ~3 days ahead of plan. Next milestone: Progress Report (Nov 12).
   all 7 attacks' (landed, reason) match expectations, each request_id appears
   exactly once in `proxy.jsonl`, and no `/api/Challenges` line leaks into it.
 
+### Stage 3 — Blue v0 + Judge fact 2 + round record
+- **Blue v0** (`blue/run_blue.py --engine scripted`) reads **only** the proxy log
+  and emits one verdict per logged request. Signatures are generic OWASP-style
+  patterns for CWE-89/22/79 over the URL-decoded path+query+body (double-decoding
+  for `%2500`), written without reference to Red's payloads. An information-wall
+  test enforces that Blue opens no file but the proxy log, and that the request id
+  is never a classification feature. The engine is pluggable so a `claude` engine
+  can be added later without touching the Judge or the verdict format.
+- **Judge fact 2** (`judge/fact2_detected.py`, pure) uses Red records as the spine:
+  per request_id it derives `detected` / `type_correct` / `detected_reason`,
+  handling the no-verdict and orphan cases, ignoring verdicts with no Red record,
+  and raising on duplicate verdicts for one request_id.
+- **Round record** (`judge/round_record.py`) joins fact 1 + fact 2 into
+  `rounds.jsonl`, one line per Red record, validating every line against the schema
+  before writing (raise, never write a partial/invalid line). The orphan definition
+  is reconciled: "no proxy line" is authoritative (contract §6); fact 1's
+  "no snapshot" case is renamed "unmeasured".
+- **End-to-end** (`tools/stage3_check.py`) runs runner → fact 1 → Blue → round
+  record and compares to `tools/stage3_expected.json` (expectations reasoned out
+  before the first run). Passes 3× on a fresh `docker compose up`. No AI API calls
+  in this stage — zero token cost.
+
 ## Measurement limitations (known and documented)
 
 These are honest boundaries of the instrument, recorded in the contract:
@@ -77,12 +99,24 @@ These are honest boundaries of the instrument, recorded in the contract:
    the web root while parsing the request line, before logging — so these
    requests have no request_id and are stray. Red must never send them.
 2. **Orphan rounds.** A Red record with no matching proxy line is marked orphan,
-   excluded from all detection stats, and never counted as a miss.
+   excluded from **all** statistics (detection and landing), and never counted as a
+   miss. A send failure is infrastructure failure, not attack failure, so its
+   fact-1 `landed=false` must not lower Red's landing rate.
 3. **XSS landing is not measurable.** All HTTP-triggerable XSS challenges are
    disabled in Juice Shop's Docker deployment, and the one enabled XSS (DOM XSS)
    is solved via a websocket a single HTTP request can't reach. So CWE-79
    `landed` is recorded as `null` (not `false`) and excluded from landing stats —
    but CWE-79 **detection** is measured normally.
+4. **Detection rate is gameable until Stage 5.** With attack-only traffic, a Blue
+   that labels *everything* an attack scores a perfect detection rate. False
+   positives are only measurable once benign traffic and fact 4 (`benign_fp`)
+   arrive in Stage 5. Until then, detection numbers are an upper bound, not a
+   capability claim.
+5. **Stage 3 results are a pipe check, not a capability claim.** Scripted Blue v0's
+   signatures and the Red payload set were written by the same author, so passing
+   the end-to-end check proves the pipeline is wired correctly — not that Blue is
+   good. Real capability must be measured on **held-out** attacks Blue's author
+   never saw.
 
 ## Methodology notes (for the report)
 
@@ -98,8 +132,7 @@ These are honest boundaries of the instrument, recorded in the contract:
   (Red labels every attack), never an LLM judgment — the determinism anchors the
   credibility of the whole track record.
 
-## Next: Stage 3
-- Blue v0: reads only the proxy log, emits a verdict per request, and invents
-  detection rules.
-- Judge fact 2: joins Blue verdicts with the landed facts into the full round
-  record (`detected`, `type_correct`, and the orphan field).
+## Next: Stage 4
+- Orchestrator (`run_match.py`): sequence runner → Judge fact 1 → Blue → round
+  record into one match, moving `data/runs/live/` into `data/runs/<match_id>/`.
+- Progress Report: a committed golden run plus the Match-1 picture.

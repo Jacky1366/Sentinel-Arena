@@ -55,11 +55,16 @@ proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log 
 red/payloads.json       scripted-Red attack set (data, verified empirically)
 red/scripted_red.py     write labeled record, then fire one attack via :8080
 runner/stage2_run.py    reset target, snapshot challenge state around each attack
+blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
+blue/run_blue.py        Blue v0: classify proxy-log requests (pluggable engine)
 judge/fact1_landed.py   pure landed computation over artifacts (no network)
+judge/fact2_detected.py pure detected/type_correct computation (no network)
+judge/round_record.py   join fact 1 + fact 2 -> rounds.jsonl (validated)
 tools/validate_log.py   classify proxy log lines: valid / stray / invalid
 tools/smoke_test.sh     Stage 1 end-to-end check of the running stack
 tools/stage2_check.py   Stage 2 end-to-end check (runner + Judge vs expected)
-blue/                   Blue defender (not yet implemented)
+tools/stage3_check.py   Stage 3 end-to-end check (full pipeline vs expected)
+tools/stage3_expected.json  reasoned Stage 3 expectations (not observed output)
 dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx + runner write here (staging, git-ignored)
 data/runs/<match_id>/   match output (git-ignored)
@@ -67,6 +72,9 @@ data/golden/            golden run for demo (committed later)
 tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
 tests/test_fact1_landed.py  Judge fact-1 unit tests (no Docker)
+tests/test_snapshot_stability.py  runner snapshot stability (no Docker)
+tests/test_fact2_detected.py  Judge fact-2 + round-record join (no Docker)
+tests/test_blue_scripted.py   Blue decoding + information-wall tests (no Docker)
 ```
 
 ## How to run the stack
@@ -75,6 +83,7 @@ tests/test_fact1_landed.py  Judge fact-1 unit tests (no Docker)
 docker compose up -d --wait     # starts Juice Shop + nginx; returns once healthy
 tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
 .venv/bin/python tools/stage2_check.py   # Stage 2: runner + Judge, all PASS
+.venv/bin/python tools/stage3_check.py   # Stage 3: full pipeline (Blue + round record)
 .venv/bin/python tools/validate_log.py   # validate the whole live log
 docker compose down             # stop (the log in data/runs/live/ is kept)
 ```
@@ -100,5 +109,6 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stages 1–2 are implemented (Target + proxy; scripted Red + Judge fact 1). Do not
-  implement Blue, further Judge facts, or the dashboard until the designer asks.
+- Stages 1–3 are implemented (Target + proxy; scripted Red + Judge fact 1; Blue v0 +
+  Judge fact 2 + round record). Do not implement the orchestrator, further Judge
+  facts, or the dashboard until the designer asks.
