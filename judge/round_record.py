@@ -8,8 +8,10 @@ and writes nothing, so rounds.jsonl is never partial or invalid.
 
   - landed / landed_reason / newly_solved come from the landed fact (fact 1).
   - verdict / detected / type_correct / detected_reason come from fact 2.
-  - A Red record with no landed fact is UNMEASURED (no snapshot, contract 6.1); in a
-    normal run this never happens, so the Judge raises rather than guess.
+  - A Red record with no landed fact is snapshot_missing (no snapshot, contract 6.1): the
+    round record is still emitted with landed=null, landed_reason="snapshot_missing"
+    (excluded from landing stats), while detection is scored normally from fact 2,
+    because the request was on Blue's input. In a normal run this never happens.
 """
 
 from __future__ import annotations
@@ -44,9 +46,9 @@ def build_round_records(run_dir: Path) -> list[dict]:
         rid = record["request_id"]
         landed = landed_by_id.get(rid)
         if landed is None:
-            raise ValueError(
-                f"no landed fact for request_id {rid} (round {record.get('round')}): "
-                f"the attack was unmeasured (no snapshot). Refusing to emit a round record.")
+            # snapshot_missing (no snapshot): landing is unknown, excluded from landing
+            # stats, but detection is still scored from the proxy line + verdict.
+            landed = {"landed": None, "landed_reason": "snapshot_missing", "newly_solved": []}
         detect = fact2[rid]
         round_record = {
             "schema_version": "0.1",

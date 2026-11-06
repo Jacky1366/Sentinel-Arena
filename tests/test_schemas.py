@@ -273,7 +273,16 @@ def test_every_schema_has_enough_invalid_cases(name):
 
 def test_round_record_landed_null_requires_reason():
     # landed null is allowed, but only paired with a non-null landed_reason.
-    rec = {**VALID["round_record"], "landed": None, "landed_reason": "not_measurable"}
+    for reason in ("not_measurable", "already_solved", "snapshot_missing"):
+        rec = {**VALID["round_record"], "landed": None, "landed_reason": reason}
+        validator("round_record").validate(rec)
+
+
+def test_round_record_snapshot_missing_shape_valid():
+    # snapshot_missing: landing null/snapshot_missing, but detection scored normally.
+    rec = {**VALID["round_record"], "landed": None, "landed_reason": "snapshot_missing",
+           "newly_solved": [], "detected": True, "type_correct": True,
+           "detected_reason": None, "verdict": "CWE-89"}
     validator("round_record").validate(rec)
 
 

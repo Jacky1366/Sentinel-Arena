@@ -13,6 +13,18 @@ orphan cases (§6). The Blue verdict's ordering field is renamed `round → log_
 from Red. Orphan rounds are now excluded from **all** statistics (§6). Still
 `schema_version "0.1"`: additive, and no round records or verdicts exist yet.*
 
+*Revised 2026-11-05 (Stage 3, follow-up): a **snapshot-missing** round (a proxy line
+exists but there is no snapshot) no longer makes the Judge raise. The round record is
+emitted with `landed = null`, `landed_reason = "snapshot_missing"` (new value), and
+is excluded from landing stats — but **detection is still scored normally**, because
+Blue saw the proxy line. This **reverses the Stage-3 Step-0 decision** to raise on a
+missing landed fact. Rationale: distinguish **ambiguous** data (duplicate verdicts,
+schema-invalid records — the Judge must not guess, so it raises) from **incomplete**
+data (a missing snapshot — record it with a reason and exclude only the affected
+stat). Raising on incomplete data would discard the whole match, including the valid
+detection results from every other round. A scripted run should never produce
+`snapshot_missing`; `tools/stage3_check.py` fails if one appears (an alarm, §6.1).*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`, later) controls ordering.
@@ -226,8 +238,8 @@ Judge output, append-only.
 | `request_id` | uuid4 | Join key. |
 | `label` | CWE enum | Copied from Red's record (ground truth). |
 | `verdict` | taxonomy enum \| null | Copied from Blue's verdict. **`null`** when there is no Blue verdict for this request (no-verdict or orphan, see `detected_reason`). |
-| `landed` | bool \| null | Did the attack actually succeed against the Target? **The Judge writes `null` only in the not-measurable / already-solved cases (§11, §6.1).** An orphan keeps whatever fact 1 computed, but is excluded from landing stats (see below). |
-| `landed_reason` | `null` \| `"not_measurable"` \| `"already_solved"` | Why `landed` is `null`. **Invariant: `landed` is `null` iff `landed_reason` is non-null.** |
+| `landed` | bool \| null | Did the attack actually succeed against the Target? **The Judge writes `null` only in the not-measurable (§11), already-solved (§6.1), and snapshot-missing (§6.1) cases.** An orphan keeps whatever fact 1 computed, but is excluded from landing stats (see below). |
+| `landed_reason` | `null` \| `"not_measurable"` \| `"already_solved"` \| `"snapshot_missing"` | Why `landed` is `null`. `"snapshot_missing"` is a runtime measurement failure (no snapshot), synthesized by the round-record join when a proxy line exists but there is no snapshot (fact 1 never emits it) — distinct from `"not_measurable"`, which is a by-design limitation (e.g. XSS, §11). **Invariant: `landed` is `null` iff `landed_reason` is non-null.** |
 | `newly_solved` | array of strings | Challenge `name`s that flipped `false → true` this round (`after − before`, §3.1). Evidence for `landed`. |
 | `detected` | bool \| null | `verdict != "benign"` when a verdict exists; `false` when the request was logged but got no verdict; **`null`** for an orphan (Blue never saw it). |
 | `type_correct` | bool \| null | `verdict == label`, but **only meaningful when `detected` is `true`**. `null` whenever `detected` is not `true` (benign verdict, no-verdict, or orphan). |
@@ -256,7 +268,7 @@ A Red record with **no proxy line carrying the same `request_id`** is an **orpha
 round** — this is the single authoritative definition of orphan. It happens when a
 request never produced a logged `request_id`: the send failed, or nginx rejected it
 before reading headers (§9). (Fact 1's separate "no snapshot line" case is called
-**unmeasured**, not orphan — §6.1 — and does not arise in a normal run, where the
+**snapshot-missing**, not orphan — §6.1 — and does not arise in a normal run, where the
 runner snapshots every attack.)
 
 - The Judge marks the round orphan: `detected = null`, `type_correct = null`,
@@ -304,11 +316,25 @@ Only challenges in the label's mapping count toward `landed`; a solved challenge
 outside the mapping is recorded in `newly_solved` as evidence but never flips
 `landed` (§6, Challenge scope). The full `newly_solved` list is stored regardless.
 
-A Red record with **no snapshot line** is skipped and reported as **unmeasured**
-(fact 1 could not measure it); it produces no landed fact. This is distinct from an
-**orphan** (§6, no proxy line), the authoritative term used for scoring. In a normal
-run the runner snapshots every attack, so the unmeasured case does not arise; it is
-a defensive guard against malformed artifacts.
+A Red record with **no snapshot line** is **snapshot-missing**: fact 1 cannot measure
+landing for it and emits no landed fact. This is distinct from an **orphan** (§6, no
+proxy line). In a normal run the runner snapshots every attack, so the
+snapshot-missing case does not arise; it is a defensive guard against incomplete
+artifacts (a runtime measurement failure, not a by-design limitation like §11).
+
+When the round-record join meets a snapshot-missing Red record, it **does not raise**
+(this is *incomplete* data, not *ambiguous* data — contrast duplicate verdicts or
+schema-invalid records, where the Judge must not guess and raises). It emits the
+round record with `landed = null`, `landed_reason = "snapshot_missing"`,
+`newly_solved = []`, and that row is **excluded from landing stats**. Detection is
+scored **normally** from the proxy line and verdict (fact 2): the attack *was* on
+Blue's input, so whether Blue caught it is a real result even though its landing is
+unknown. (If the record is also an orphan — no proxy line — detection takes the
+orphan shape, §6.)
+
+Because a scripted run should never drop a snapshot, `tools/stage3_check.py`
+**fails** if any round record has `landed_reason == "snapshot_missing"`: it is an
+alarm that the measurement harness misbehaved, not an acceptable outcome.
 
 ---
 

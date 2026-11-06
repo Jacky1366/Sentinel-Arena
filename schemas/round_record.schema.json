@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/round_record.schema.json",
   "title": "Judge round record (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/rounds.jsonl. Append-only Judge output, one per Red record (Red is the spine). detected = (verdict != 'benign') when a verdict exists; type_correct = (verdict == label) only when detected is true. landed is null only in the not_measurable (contract 11) and already_solved (contract 6.1) cases. verdict/detected/type_correct are null for the no-verdict and orphan cases (contract 6). See the field-relationship table in contract 6.",
+  "description": "One line of data/runs/<match_id>/rounds.jsonl. Append-only Judge output, one per Red record (Red is the spine). detected = (verdict != 'benign') when a verdict exists; type_correct = (verdict == label) only when detected is true. landed is null only in the not_measurable (contract 11), already_solved (contract 6.1), and snapshot_missing (contract 6.1) cases. verdict/detected/type_correct are null for the no-verdict and orphan cases (contract 6). See the field-relationship table in contract 6.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "match_id", "round", "request_id", "label", "verdict", "landed", "landed_reason", "newly_solved", "detected", "type_correct", "detected_reason", "replay_blocked", "benign_fp"],
@@ -17,7 +17,7 @@
     "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
     "verdict": { "enum": ["CWE-89", "CWE-79", "CWE-22", "benign", null] },
     "landed": { "type": ["boolean", "null"] },
-    "landed_reason": { "enum": [null, "not_measurable", "already_solved"] },
+    "landed_reason": { "enum": [null, "not_measurable", "already_solved", "snapshot_missing"] },
     "newly_solved": { "type": "array", "items": { "type": "string" } },
     "detected": { "type": ["boolean", "null"] },
     "type_correct": { "type": ["boolean", "null"] },
@@ -29,7 +29,7 @@
     {
       "comment": "landed null iff landed_reason non-null",
       "if": { "properties": { "landed": { "type": "null" } } },
-      "then": { "properties": { "landed_reason": { "enum": ["not_measurable", "already_solved"] } } },
+      "then": { "properties": { "landed_reason": { "enum": ["not_measurable", "already_solved", "snapshot_missing"] } } },
       "else": { "properties": { "landed_reason": { "const": null } } }
     },
     {

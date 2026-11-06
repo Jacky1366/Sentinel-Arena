@@ -146,11 +146,27 @@ def test_round_record_orphan_shape(tmp_path):
     assert r["landed"] is False  # kept for audit; stats layer excludes orphans
 
 
-def test_round_record_missing_landed_fact_raises(tmp_path):
+def test_round_record_snapshot_missing_proxy_present_no_snapshot(tmp_path):
+    # Proxy line + verdict exist, but there is NO landed fact (no snapshot).
+    # Landing is snapshot_missing (null, excluded from landing stats); detection is
+    # still scored normally because Blue saw the proxy line.
     _write(tmp_path, attacks=[_attack(R1, "CWE-89", 1)], proxy=[_proxy(R1)],
            verdicts=[_verdict(R1, "CWE-89", 1)], landed=[])
-    with pytest.raises(ValueError, match="no landed fact"):
-        round_record.build_round_records(tmp_path)
+    rounds = round_record.build_round_records(tmp_path)
+    r = rounds[0]
+    VALIDATOR.validate(r)
+    assert r["landed"] is None and r["landed_reason"] == "snapshot_missing"
+    assert r["newly_solved"] == []
+    assert r["detected"] is True and r["type_correct"] is True  # scored normally
+
+
+def test_round_record_snapshot_missing_and_orphan(tmp_path):
+    # No snapshot AND no proxy line: landing snapshot_missing, detection orphan-shaped.
+    _write(tmp_path, attacks=[_attack(R1, "CWE-89", 1)], proxy=[], verdicts=[], landed=[])
+    r = round_record.build_round_records(tmp_path)[0]
+    VALIDATOR.validate(r)
+    assert r["landed"] is None and r["landed_reason"] == "snapshot_missing"
+    assert r["detected"] is None and r["detected_reason"] == "orphan"
 
 
 def test_round_record_duplicate_verdict_raises(tmp_path):
