@@ -116,3 +116,70 @@ def test_blue_reads_only_the_proxy_log(tmp_path, monkeypatch):
     # ...and nothing from the forbidden set was ever opened.
     for p in opened:
         assert not any(name in p for name in FORBIDDEN), f"Blue opened forbidden file: {p}"
+
+
+def _plant_decoys(run_dir: Path):
+    """Write ground-truth / measurement files whose contents, IF Blue read them,
+    would flip its verdicts. Blue must ignore them entirely."""
+    # red_attacks says the UNION request is 'benign' and the home page is 'CWE-22'
+    # -- the opposite of what Blue's signatures produce.
+    (run_dir / "red_attacks.jsonl").write_text("\n".join(json.dumps(x) for x in [
+        {"schema_version": "0.1", "match_id": "m001", "round": 1, "request_id": RID,
+         "label": "CWE-22", "payload": "x", "endpoint": "/x", "method": "GET",
+         "timestamp": "2026-11-05T00:00:00Z"},
+        {"schema_version": "0.1", "match_id": "m001", "round": 2, "request_id": RID2,
+         "label": "CWE-89", "payload": "x", "endpoint": "/x", "method": "GET",
+         "timestamp": "2026-11-05T00:00:00Z"},
+    ]) + "\n", encoding="utf-8")
+    (run_dir / "challenge_snapshots.jsonl").write_text(json.dumps(
+        {"request_id": RID, "before_solved": [], "after_solved": ["Login Admin"],
+         "taken_at": "2026-11-05T00:00:00Z"}) + "\n", encoding="utf-8")
+    (run_dir / "landed_fact.jsonl").write_text(json.dumps(
+        {"schema_version": "0.1", "match_id": "m001", "round": 1, "request_id": RID,
+         "label": "CWE-22", "landed": True, "landed_reason": None,
+         "newly_solved": ["Poison Null Byte"]}) + "\n", encoding="utf-8")
+    (run_dir / "landed.jsonl").write_text((run_dir / "landed_fact.jsonl").read_text(),
+                                          encoding="utf-8")
+    (run_dir / "challenge_map.json").write_text(json.dumps(
+        {"CWE-89": ["Login Admin"], "CWE-79": [], "CWE-22": ["Poison Null Byte"]}),
+        encoding="utf-8")
+
+
+def test_blue_ignores_decoy_ground_truth_files(tmp_path, monkeypatch):
+    log = tmp_path / "proxy.jsonl"
+    log.write_text("\n".join(json.dumps(x) for x in [
+        _proxy_line(RID, path="/rest/products/search", query="q=1 UNION SELECT a"),
+        _proxy_line(RID2, path="/"),
+    ]) + "\n", encoding="utf-8")
+
+    # Baseline: classify with no decoy files present.
+    baseline = run_blue.classify_log(log, "m001", "scripted")
+
+    # Plant decoys in the SAME directory, then classify again while recording opens.
+    _plant_decoys(tmp_path)
+    opened: list[str] = []
+    real_builtin_open = builtins.open
+    real_path_open = Path.open
+
+    def rec_builtin(file, *a, **k):
+        opened.append(str(file))
+        return real_builtin_open(file, *a, **k)
+
+    def rec_path(self, *a, **k):
+        opened.append(str(self))
+        return real_path_open(self, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", rec_builtin)
+    monkeypatch.setattr(Path, "open", rec_path)
+    with_decoys = run_blue.classify_log(log, "m001", "scripted")
+    monkeypatch.undo()
+
+    # Output is identical with vs without the decoys...
+    assert with_decoys == baseline
+    # ...and Blue never opened any decoy file.
+    decoys = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed_fact.jsonl",
+              "landed.jsonl", "challenge_map.json"]
+    for p in opened:
+        assert not any(name in p for name in decoys), f"Blue opened a decoy: {p}"
+    # Sanity: the signature-based verdicts are what we expect (not the decoy labels).
+    assert with_decoys[0]["verdict"] == "CWE-89" and with_decoys[1]["verdict"] == "benign"
