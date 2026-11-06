@@ -6,6 +6,13 @@ artifacts, and the round record's `landed_reason` / `newly_solved` fields. The
 records exist yet** (the Judge has not run), so adding required fields breaks no
 stored data.*
 
+*Revised 2026-11-05 (Stage 3): the round record gains `detected_reason`, and
+`detected` / `type_correct` / `verdict` become nullable to carry the no-verdict and
+orphan cases (§6). The Blue verdict's ordering field is renamed `round → log_seq`
+(§4) so it is never confused with the round record's `round`, which always comes
+from Red. Orphan rounds are now excluded from **all** statistics (§6). Still
+`schema_version "0.1"`: additive, and no round records or verdicts exist yet.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`, later) controls ordering.
@@ -149,18 +156,22 @@ never read this file.**
 ## 4. Blue verdict — `data/runs/<match_id>/verdicts.jsonl`
 
 ```json
-{"schema_version":"0.1","match_id":"m001","round":7,"request_id":"<uuid4>",
+{"schema_version":"0.1","match_id":"m001","log_seq":7,"request_id":"<uuid4>",
  "verdict":"CWE-89","reason":"tautology in email field"}
 ```
 
 | Field | Type | Rationale |
 |---|---|---|
 | `schema_version` | `"0.1"` | Versioning. |
-| `match_id` | string | Provenance. |
-| `round` | int ≥ 1 | Ordering. |
+| `match_id` | string | Provenance. Supplied to Blue as a parameter; the proxy log does not carry it. |
+| `log_seq` | int ≥ 1 | Blue's own 1-based index into the proxy log it read. **Not** the round: the Judge joins on `request_id` only and takes `round` from Red. Named distinctly so the two orderings are never confused. |
 | `request_id` | uuid4 | Join key back to the proxy line Blue judged. |
 | `verdict` | taxonomy enum (4 values) | Blue's classification. The only field the Judge scores. |
 | `reason` | string | **For humans only. The Judge never reads it.** |
+
+Blue reads **only** the proxy log. `match_id` is provenance (a constant passed in),
+never a classification feature; `request_id` is copied through as the join key and
+is never used to classify.
 
 ---
 
@@ -203,44 +214,61 @@ Judge output, append-only.
 ```json
 {"schema_version":"0.1","match_id":"m001","round":7,"request_id":"<uuid4>",
  "label":"CWE-89","verdict":"CWE-89","landed":true,"landed_reason":null,
- "newly_solved":["User Credentials"],"detected":true,
- "type_correct":true,"replay_blocked":null,"benign_fp":null}
+ "newly_solved":["User Credentials"],"detected":true,"type_correct":true,
+ "detected_reason":null,"replay_blocked":null,"benign_fp":null}
 ```
 
 | Field | Type | Rationale |
 |---|---|---|
 | `schema_version` | `"0.1"` | Versioning. |
 | `match_id` | string | Provenance. |
-| `round` | int ≥ 1 | Ordering. |
+| `round` | int ≥ 1 | Ordering. Always from Red's record (the spine). |
 | `request_id` | uuid4 | Join key. |
 | `label` | CWE enum | Copied from Red's record (ground truth). |
-| `verdict` | taxonomy enum | Copied from Blue's record. |
-| `landed` | bool \| null | Did the attack actually succeed against the Target (Juice Shop challenge solved)? **From Stage 3 onward the Judge must never write `null` for `landed`, except the not-measurable / already-solved cases in §11 and §6.1**, where `null` is required. |
-| `landed_reason` | `null` \| `"not_measurable"` \| `"already_solved"` | Why `landed` is `null`. **Invariant: `landed` is `null` if and only if `landed_reason` is non-null.** When `landed` is a boolean, this is `null`. |
-| `newly_solved` | array of strings | Challenge `name`s that flipped `false → true` during this round (`after − before`, §3.1). Evidence for `landed`; may include challenges outside the label's mapping, which do not affect `landed`. |
-| `detected` | bool | `verdict != "benign"`. |
-| `type_correct` | bool | `verdict == label`. |
+| `verdict` | taxonomy enum \| null | Copied from Blue's verdict. **`null`** when there is no Blue verdict for this request (no-verdict or orphan, see `detected_reason`). |
+| `landed` | bool \| null | Did the attack actually succeed against the Target? **The Judge writes `null` only in the not-measurable / already-solved cases (§11, §6.1).** An orphan keeps whatever fact 1 computed, but is excluded from landing stats (see below). |
+| `landed_reason` | `null` \| `"not_measurable"` \| `"already_solved"` | Why `landed` is `null`. **Invariant: `landed` is `null` iff `landed_reason` is non-null.** |
+| `newly_solved` | array of strings | Challenge `name`s that flipped `false → true` this round (`after − before`, §3.1). Evidence for `landed`. |
+| `detected` | bool \| null | `verdict != "benign"` when a verdict exists; `false` when the request was logged but got no verdict; **`null`** for an orphan (Blue never saw it). |
+| `type_correct` | bool \| null | `verdict == label`, but **only meaningful when `detected` is `true`**. `null` whenever `detected` is not `true` (benign verdict, no-verdict, or orphan). |
+| `detected_reason` | `null` \| `"no_verdict"` \| `"orphan"` | Why `detected` is not a normal boolean-from-verdict. `null` when a verdict exists. **Invariant: `detected` is `null` iff `detected_reason == "orphan"`.** `"no_verdict"` pairs with `detected == false`. |
 | `replay_blocked` | bool \| null | Would Blue's rules block a replay of this request? Filled in a later stage. |
 | `benign_fp` | bool \| null | Benign false-positive tracking. Filled in a later stage. |
 
 The Judge is pure deterministic code. It never uses an LLM.
+
+**Field relationships (the Judge enforces these; the schema enforces the null
+pairings).**
+
+| Case | `verdict` | `detected` | `type_correct` | `detected_reason` |
+|---|---|---|---|---|
+| Verdict present, flagged as attack | a CWE | `true` | `true` / `false` | `null` |
+| Verdict present, called benign | `benign` | `false` | `null` | `null` |
+| Logged request, no verdict | `null` | `false` | `null` | `"no_verdict"` |
+| Orphan (no proxy line) | `null` | `null` | `null` | `"orphan"` |
 
 **Challenge scope.** The Judge considers only challenges listed in
 `config/challenge_map.json`; all other solved challenges are ignored.
 
 ### Orphan rounds
 
-A Red record with **no proxy line carrying the same `request_id`** is an
-**orphan round**. This happens when the request never produced a logged
-`request_id`, for example when nginx rejects it before reading headers (§9).
+A Red record with **no proxy line carrying the same `request_id`** is an **orphan
+round** — this is the single authoritative definition of orphan. It happens when a
+request never produced a logged `request_id`: the send failed, or nginx rejected it
+before reading headers (§9). (Fact 1's separate "no snapshot line" case is called
+**unmeasured**, not orphan — §6.1 — and does not arise in a normal run, where the
+runner snapshots every attack.)
 
-- The Judge marks the round as orphan.
-- Orphans are **excluded from all detection stats**. An orphan is **never counted
-  as a false negative**, because Blue never had a chance to see the request.
+- The Judge marks the round orphan: `detected = null`, `type_correct = null`,
+  `detected_reason = "orphan"`, `verdict = null`.
+- **Orphans are excluded from ALL statistics — detection AND landing**, not just
+  detection. A send failure is an *infrastructure* failure, not an attack failure,
+  so a fact-1 `landed = false` on an orphan must never lower Red's landing rate, and
+  Blue never saw the request so it is never a false negative. This is enforced at
+  the **statistics layer** (fact 1 itself is unchanged and may still carry a
+  `landed` value for the row); the round record keeps that value for audit, but any
+  rate computation drops orphan rows first.
 - The Judge reports the **orphan count per match**.
-
-The `round_record` schema does not have an orphan field yet; it will be added in
-Stage 3. Until then this rule is documentation only.
 
 ---
 
@@ -276,8 +304,11 @@ Only challenges in the label's mapping count toward `landed`; a solved challenge
 outside the mapping is recorded in `newly_solved` as evidence but never flips
 `landed` (§6, Challenge scope). The full `newly_solved` list is stored regardless.
 
-A Red record with **no snapshot line** is skipped and reported as an **orphan**
-(the attack never reached the Target to be measured); it produces no landed fact.
+A Red record with **no snapshot line** is skipped and reported as **unmeasured**
+(fact 1 could not measure it); it produces no landed fact. This is distinct from an
+**orphan** (§6, no proxy line), the authoritative term used for scoring. In a normal
+run the runner snapshots every attack, so the unmeasured case does not arise; it is
+a defensive guard against malformed artifacts.
 
 ---
 

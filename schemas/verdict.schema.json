@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/verdict.schema.json",
   "title": "Blue verdict (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/verdicts.jsonl. 'reason' is for humans only; the Judge never reads it.",
+  "description": "One line of data/runs/<match_id>/verdicts.jsonl. Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round (the Judge joins on request_id and takes round from Red). 'reason' is for humans only; the Judge never reads it.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "match_id", "round", "request_id", "verdict", "reason"],
+  "required": ["schema_version", "match_id", "log_seq", "request_id", "verdict", "reason"],
   "properties": {
     "schema_version": { "const": "0.1" },
     "match_id": { "type": "string", "pattern": "^m[0-9]{3,}$" },
-    "round": { "type": "integer", "minimum": 1 },
+    "log_seq": { "type": "integer", "minimum": 1 },
     "request_id": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"

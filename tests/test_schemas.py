@@ -88,7 +88,7 @@ VALID = {
     "verdict": {
         "schema_version": "0.1",
         "match_id": "m001",
-        "round": 7,
+        "log_seq": 7,
         "request_id": RID,
         "verdict": "CWE-89",
         "reason": "tautology in email field",
@@ -107,6 +107,7 @@ VALID = {
         "newly_solved": ["User Credentials"],
         "detected": True,
         "type_correct": True,
+        "detected_reason": None,
         "replay_blocked": None,
         "benign_fp": None,
     },
@@ -168,6 +169,8 @@ INVALID = {
         ("verdict not in taxonomy", _set("verdict", "SQLi")),
         ("missing request_id", _drop("request_id")),
         ("missing schema_version", _drop("schema_version")),
+        ("missing log_seq", _drop("log_seq")),
+        ("legacy round field not allowed", _set("round", 7)),
         ("extra property", _set("confidence", 0.9)),
     ],
     "rule": [
@@ -190,16 +193,34 @@ INVALID = {
         ("label not in taxonomy", _set("label", "XSS")),
         ("verdict not in taxonomy", _set("verdict", "malicious")),
         ("missing request_id", _drop("request_id")),
-        ("detected null", _set("detected", None)),
         ("replay_blocked string", _set("replay_blocked", "no")),
         ("missing landed_reason", _drop("landed_reason")),
         ("missing newly_solved", _drop("newly_solved")),
+        ("missing detected_reason", _drop("detected_reason")),
         ("newly_solved not array", _set("newly_solved", "Login Admin")),
         ("landed_reason not in enum", _set("landed_reason", "mystery")),
-        # invariant: landed null requires a non-null reason
+        ("detected_reason not in enum", _set("detected_reason", "lost")),
+        # landed invariant
         ("landed null but reason null", lambda r: {**r, "landed": None, "landed_reason": None}),
-        # invariant: boolean landed requires reason null
         ("landed true but reason set", _set("landed_reason", "already_solved")),
+        # detected invariant: detected true requires detected_reason null and bool type_correct
+        ("detected true but reason no_verdict", _set("detected_reason", "no_verdict")),
+        ("detected true but type_correct null", _set("type_correct", None)),
+        # orphan shape: detected null requires reason orphan + type_correct null + verdict null
+        ("detected null without orphan shape", _set("detected", None)),
+        ("detected null but reason not orphan",
+         lambda r: {**r, "detected": None, "type_correct": None, "verdict": None,
+                    "detected_reason": "no_verdict"}),
+        ("detected null but verdict present",
+         lambda r: {**r, "detected": None, "type_correct": None,
+                    "detected_reason": "orphan"}),
+        # no_verdict shape: detected false, verdict null, type_correct null
+        ("no_verdict but verdict present",
+         lambda r: {**r, "detected": False, "type_correct": None,
+                    "detected_reason": "no_verdict"}),
+        # benign-verdict miss: detected false, reason null => verdict must be benign
+        ("detected false reason null but verdict is a CWE",
+         lambda r: {**r, "detected": False, "type_correct": None}),
     ],
     "challenge_snapshot": [
         ("missing request_id", _drop("request_id")),
@@ -256,6 +277,22 @@ def test_round_record_landed_null_requires_reason():
     validator("round_record").validate(rec)
 
 
+def test_round_record_four_valid_detected_shapes():
+    v = validator("round_record")
+    base = VALID["round_record"]
+    # 1. verdict present, flagged as attack (the base example).
+    v.validate(base)
+    # 2. verdict present, called benign -> a miss.
+    v.validate({**base, "verdict": "benign", "detected": False,
+                "type_correct": None, "detected_reason": None})
+    # 3. logged request, no verdict.
+    v.validate({**base, "verdict": None, "detected": False,
+                "type_correct": None, "detected_reason": "no_verdict"})
+    # 4. orphan (no proxy line); landed kept for audit but excluded from stats.
+    v.validate({**base, "verdict": None, "detected": None,
+                "type_correct": None, "detected_reason": "orphan"})
+
+
 def test_rules_file_empty_rules_is_valid():
     validator("rules_file").validate({"schema_version": "0.1", "rules": []})
 
@@ -307,9 +344,16 @@ def test_label_enums_match_taxonomy_cwes(name, field):
     assert sorted(SCHEMAS[name]["properties"][field]["enum"]) == sorted(CWE_LABELS)
 
 
-@pytest.mark.parametrize("name", ["verdict", "round_record"])
-def test_verdict_enums_match_full_taxonomy(name):
-    assert sorted(SCHEMAS[name]["properties"]["verdict"]["enum"]) == sorted(TAXONOMY)
+def test_verdict_enum_matches_full_taxonomy():
+    # Blue's verdict is always one of the four taxonomy values.
+    assert sorted(SCHEMAS["verdict"]["properties"]["verdict"]["enum"]) == sorted(TAXONOMY)
+
+
+def test_round_record_verdict_enum_is_taxonomy_plus_null():
+    # The round record also allows null (no-verdict / orphan rounds, contract 6).
+    enum = SCHEMAS["round_record"]["properties"]["verdict"]["enum"]
+    assert None in enum
+    assert sorted(v for v in enum if v is not None) == sorted(TAXONOMY)
 
 
 def test_challenge_map_keys_match_taxonomy_cwes():
