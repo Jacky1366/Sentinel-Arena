@@ -83,9 +83,17 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
   and raising on duplicate verdicts for one request_id.
 - **Round record** (`judge/round_record.py`) joins fact 1 + fact 2 into
   `rounds.jsonl`, one line per Red record, validating every line against the schema
-  before writing (raise, never write a partial/invalid line). The orphan definition
-  is reconciled: "no proxy line" is authoritative (contract §6); fact 1's
-  "no snapshot" case is renamed "unmeasured".
+  before writing. The orphan definition is reconciled: "no proxy line" is
+  authoritative (contract §6); fact 1's "no snapshot" case is renamed
+  "snapshot-missing".
+- **Incomplete vs ambiguous data** (reverses the Stage-3 Step-0 "fail loud"
+  decision): the join still **raises** on *ambiguous* data (duplicate verdicts,
+  schema-invalid records — it must not guess), but on *incomplete* data (a missing
+  snapshot) it records the round with `landed=null, landed_reason="snapshot_missing"`
+  and scores detection normally, rather than discarding the whole match (and every
+  other round's valid detection result). `snapshot_missing` is a runtime failure,
+  kept distinct from the by-design `not_measurable` (§11). A scripted run should
+  never produce one, so `stage3_check.py` fails if it sees one (a tripwire).
 - **End-to-end** (`tools/stage3_check.py`) runs runner → fact 1 → Blue → round
   record and compares to `tools/stage3_expected.json` (expectations reasoned out
   before the first run). Passes 3× on a fresh `docker compose up`. No AI API calls
@@ -117,6 +125,17 @@ These are honest boundaries of the instrument, recorded in the contract:
    the end-to-end check proves the pipeline is wired correctly — not that Blue is
    good. Real capability must be measured on **held-out** attacks Blue's author
    never saw.
+
+## Stage 6 tripwires (harness self-checks)
+
+Conditions that mean the harness itself misbehaved, not that a side won/lost. A run
+that trips one is invalid and must be investigated, never scored. Stage 6 will
+centralize these; some are already enforced.
+
+- **`snapshot_missing` appears** in any round record — a snapshot was dropped at
+  runtime, so landing is unknown. A scripted run should never produce one;
+  `tools/stage3_check.py` already fails on it.
+- (more to be added as later stages surface them)
 
 ## Methodology notes (for the report)
 
