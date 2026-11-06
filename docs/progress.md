@@ -128,9 +128,19 @@ These are honest boundaries of the instrument, recorded in the contract:
 
 ## Stage 6 tripwires (harness self-checks)
 
-Conditions that mean the harness itself misbehaved, not that a side won/lost. A run
-that trips one is invalid and must be investigated, never scored. Stage 6 will
-centralize these; some are already enforced.
+Conditions that mean the harness itself misbehaved, not that a side won/lost. What
+happens when one trips depends on the context:
+
+- **Scripted checks** (`tools/stage3_check.py`): a tripwire is a **FAIL**. A scripted
+  run with known inputs should never trip one, so tripping means a real bug.
+- **Real matches** (Stage 5+): a tripwire **flags** the run — it is recorded in
+  `anomalies.jsonl` for human review, the affected stat is excluded per the contract,
+  and the rest of the match is still scored. We do not discard a whole match's valid
+  results over incomplete data. The one exception: a tripwire that reveals a **Judge
+  bug** forces a re-score — bump the Judge version and note which results used the old
+  one.
+
+Stage 6 will centralize these; some are already enforced.
 
 - **`snapshot_missing` appears** in any round record — a snapshot was dropped at
   runtime, so landing is unknown. A scripted run should never produce one;
