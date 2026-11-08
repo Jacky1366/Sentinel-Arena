@@ -109,3 +109,19 @@ def test_stats_never_mutate_input():
     ms.compute(MIXED)
     ms.format_summary(MIXED, _manifest())
     assert MIXED == before
+
+
+def test_summary_cost_line_and_stopped_line():
+    from stats import cost
+    m = {**_manifest(), "schema_version": "0.2", "cost": cost.summarize([], {"models": {}}),
+         "budget": {"limits": {}, "stopped_by": None}}
+    text = ms.format_summary(MIXED, m)
+    assert "cost $0.00 (0 API calls)" in text and "STOPPED" not in text
+    stopped = {**m, "status": "stopped",
+               "budget": {"limits": {}, "stopped_by": {"scope": "blue", "reason": "max_usd"}}}
+    text = ms.format_summary(MIXED, stopped)
+    assert "STOPPED by the AI budget: blue max_usd" in text and "FAILED" not in text
+
+
+def test_summary_of_v0_1_manifest_has_no_cost_line():
+    assert "cost $" not in ms.format_summary(MIXED, _manifest())

@@ -8,6 +8,9 @@ checks the resulting data/runs/<match_id>/:
   - every landed fact matches payloads.json expectations
   - match.json is schema-valid, status "completed", and every artifact's sha256 and
     size recompute to what match.json recorded (and match.json lists every file)
+  - match.json is schema_version 0.2 and shows the scripted match's AI side:
+    models all null, $0 cost, 0 API calls, no api_calls.jsonl, budget not hit,
+    and the price table it recorded is the current config/prices.json
   - every request_id appears exactly once in the frozen proxy.jsonl, and it has
     no /api/Challenges line
   - post-freeze probe: one arena request (same HTTP client as Red) lands in
@@ -25,8 +28,6 @@ import time
 import uuid
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
-
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "tools"))
@@ -35,6 +36,7 @@ import stage2_check  # noqa: E402
 import stage3_check  # noqa: E402
 from red import scripted_red  # noqa: E402
 from runner import match_ops  # noqa: E402
+from stats import cost as cost_stats  # noqa: E402
 
 
 def check(name: str, ok: bool, fails: list[str], detail: str = "") -> None:
@@ -49,8 +51,7 @@ def check_manifest(match_dir: Path) -> list[str]:
     if not path.is_file():
         return ["match.json missing"]
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    errs = [e.message for e in Draft202012Validator(run_match.MANIFEST_SCHEMA)
-            .iter_errors(manifest)]
+    errs = run_match.validate_manifest(manifest)
     print()
     check("match.json schema-valid", not errs, fails, str(errs))
     check("match.json status completed", manifest.get("status") == "completed", fails,
@@ -64,6 +65,21 @@ def check_manifest(match_dir: Path) -> list[str]:
           f"recorded {sorted(recorded)} vs on disk {sorted(recomputed)}")
     bad = [n for n in recorded if recomputed.get(n) != recorded[n]]
     check("artifacts: sha256 + bytes recompute", not bad, fails, f"mismatch: {bad}")
+    # Stage 5.1: the scripted match makes no AI calls and says so.
+    check("match.json schema_version 0.2", manifest.get("schema_version") == "0.2", fails,
+          str(manifest.get("schema_version")))
+    check("models all null (scripted)",
+          manifest.get("models") == {"red": None, "blue": None, "analyst": None}, fails,
+          str(manifest.get("models")))
+    cost = manifest.get("cost") or {}
+    check("cost zero, 0 API calls", cost.get("total_usd") == 0 and cost.get("attempts") == 0
+          and cost.get("refused") == 0, fails, str(cost))
+    check("budget not hit", (manifest.get("budget") or {}).get("stopped_by") is None, fails,
+          str(manifest.get("budget")))
+    check("no api_calls.jsonl", not (match_dir / "api_calls.jsonl").exists(), fails)
+    ref = cost_stats.price_table_ref()
+    check("price_table sha256 matches config/prices.json",
+          manifest.get("price_table") == ref, fails, f"{manifest.get('price_table')} vs {ref}")
     return fails
 
 

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/prices.schema.json",
+  "title": "Price table (contract 6.4)",
+  "description": "config/prices.json: USD per million tokens per model, with optional tiers by prompt size. A tier applies to a call when its max_prompt_tokens is null or >= the call's prompt tokens (input + cached_input + cache_write). Only entries under models are callable; placeholders never are. A null price means unknown.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "as_of", "currency", "unit", "models", "placeholders"],
+  "$defs": {
+    "date": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+    "price": { "type": ["number", "null"], "minimum": 0 },
+    "tier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_prompt_tokens", "input", "cached_input", "cache_write", "output"],
+      "properties": {
+        "max_prompt_tokens": { "type": ["integer", "null"], "minimum": 1 },
+        "input": { "type": "number", "minimum": 0 },
+        "cached_input": { "$ref": "#/$defs/price" },
+        "cache_write": { "$ref": "#/$defs/price" },
+        "output": { "type": "number", "minimum": 0 }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "as_of", "source", "verified", "tiers"],
+      "properties": {
+        "provider": { "enum": ["openai", "anthropic", "gemini", "fake"] },
+        "as_of": { "$ref": "#/$defs/date" },
+        "source": { "type": "string", "minLength": 1 },
+        "verified": { "type": "boolean" },
+        "note": { "type": "string" },
+        "tiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/tier" }
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema_version": { "const": "0.1" },
+    "as_of": { "$ref": "#/$defs/date" },
+    "currency": { "const": "USD" },
+    "unit": { "const": "per_million_tokens" },
+    "models": { "type": "object", "additionalProperties": { "$ref": "#/$defs/entry" } },
+    "placeholders": { "type": "object", "additionalProperties": { "$ref": "#/$defs/entry" } }
+  }
+}

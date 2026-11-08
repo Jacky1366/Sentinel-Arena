@@ -39,6 +39,9 @@ README.md               overview, architecture diagram, how to run tests and the
 docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :8081)
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
+docs/stage5_decisions.md  locked Stage 5 decisions D1–D13 + sub-stage map
+docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
+.githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
 schemas/                JSON Schema (draft 2020-12) per artifact
   red_attack.schema.json          Red ground truth (Blue never reads)
   proxy_log.schema.json           nginx log line (Blue's only input)
@@ -47,17 +50,25 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   rule.schema.json                single Blue rule
   rules_file.schema.json          rules.json wrapper (cross-match memory)
   round_record.schema.json        Judge output
-  match_manifest.schema.json      match.json (orchestrator manifest)
+  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.2
+  match_manifest_v0_1.schema.json frozen 0.1 manifest schema (validators dispatch on version)
+  api_call.schema.json            one api_calls.jsonl line (attempt or refusal)
+  prices.schema.json              config/prices.json
   landed_fact.schema.json         Judge fact-1 intermediate (Stage 2)
 config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
+  prices.json           USD per million tokens per model (designer-maintained, dated)
+  llm.json              models per agent, timeouts/retries, required per-agent + match caps
+agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl
+agents/prompting.py     stable-prefix-first prompt builder + safe JSON parsing
 proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
 red/payloads.json       scripted-Red attack set (data, verified empirically)
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
 red/scripted_red.py     write labeled record, then fire one attack via :8080
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary)
+stats/cost.py           pure cost over api_calls.jsonl + price table
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
 blue/run_blue.py        Blue v0: classify proxy-log requests (pluggable engine)
 judge/fact1_landed.py   pure landed computation over artifacts (no network)
@@ -82,6 +93,11 @@ tests/test_blue_scripted.py   Blue decoding + information-wall tests (no Docker)
 tests/test_match_stats.py     summary stats denominators (no Docker)
 tests/test_run_match_failure.py  orchestrator failure/lock/rotate/freeze (no Docker)
 tests/test_stage3_tripwire.py snapshot_missing tripwire (no Docker)
+tests/llm_fakes.py          fake provider / prices / config for the LLM tests
+tests/test_llm_client.py    retries, caps, refusals, usage per attempt (fake provider)
+tests/test_prompting.py     byte-identical prompt prefix, JSON helper
+tests/test_cost.py          cost math, tiers, net cache savings
+tests/test_key_hygiene.py   a sentinel key never reaches any output
 ```
 
 ## How to run the stack
@@ -124,8 +140,14 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stages 1–4 are implemented (Target + proxy; scripted Red + Judge fact 1; Blue v0 +
-  Judge fact 2 + round record; `run_match.py` orchestrator + `match.json`). Do not
-  implement further Judge facts, benign traffic, or the dashboard until the designer
-  asks.
+- Stages 1–4 and 5.1 are implemented (Target + proxy; scripted Red + Judge fact 1;
+  Blue v0 + Judge fact 2 + round record; `run_match.py` orchestrator + `match.json`;
+  the AI body `agents/llm_client.py` + cost tracking, no real calls yet). Follow the
+  sub-stage map in `docs/stage5_decisions.md`; do not start a sub-stage until the
+  designer asks.
+- Every AI call goes through `agents/llm_client.py`. API keys only from
+  `ARENA_*_API_KEY`, passed explicitly; never rely on an SDK's default variable
+  (`docs/ops.md`). Model ids come from config / CLI, never hardcoded in agent logic.
+- The pre-commit hook must stay enabled (`git config core.hooksPath .githooks`).
+  Test fixtures must never contain key-shaped strings (build them at runtime).
 - Bump `judge.JUDGE_VERSION` on any change to Judge logic.

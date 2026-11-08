@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.1",
+  "as_of": "2026-11-08",
+  "currency": "USD",
+  "unit": "per_million_tokens",
+  "models": {
+    "claude-haiku-5-5": {
+      "provider": "anthropic",
+      "as_of": "2026-11-08",
+      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
+      "verified": false,
+      "tiers": [
+        {"max_prompt_tokens": 100000, "input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50},
+        {"max_prompt_tokens": null, "input": 0.50, "cached_input": 0.05, "cache_write": 0.625, "output": 2.50}
+      ]
+    },
+    "claude-sonnet-5-5": {
+      "provider": "anthropic",
+      "as_of": "2026-11-08",
+      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
+      "verified": false,
+      "tiers": [
+        {"max_prompt_tokens": null, "input": 2, "cached_input": 0.10, "cache_write": null, "output": 10}
+      ]
+    },
+    "claude-opus-5-5": {
+      "provider": "anthropic",
+      "as_of": "2026-11-08",
+      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
+      "verified": false,
+      "tiers": [
+        {"max_prompt_tokens": null, "input": 4, "cached_input": 0.20, "cache_write": null, "output": 20}
+      ]
+    },
+    "gpt-6.1-sol": {
+      "provider": "openai",
+      "as_of": "2026-11-08",
+      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
+      "verified": false,
+      "tiers": [
+        {"max_prompt_tokens": null, "input": 2, "cached_input": 0.10, "cache_write": null, "output": 10}
+      ]
+    }
+  },
+  "placeholders": {
+    "GPT-6 Luna": {
+      "note": "MODEL ID UNCONFIRMED - not callable. Confirm the id before Stage 5.6, then move this entry into models under that id.",
+      "provider": "openai",
+      "as_of": "2026-11-08",
+      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
+      "verified": false,
+      "tiers": [
+        {"max_prompt_tokens": null, "input": 0.10, "cached_input": null, "cache_write": null, "output": 0.50}
+      ]
+    }
+  }
+}

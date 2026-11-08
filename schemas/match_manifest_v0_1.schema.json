@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/match_manifest_v0_1.schema.json",
+  "title": "Match manifest, schema_version 0.1 (frozen; contract 6.2)",
+  "description": "FROZEN. Manifests written before Stage 5.1 (e.g. the committed scripted baseline run) carry schema_version 0.1 and are validated by this schema. New manifests are 0.2 (match_manifest.schema.json). Validators dispatch on schema_version. data/runs/<match_id>/match.json: one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed or failed (contract 6.2). failed_step and error are null iff status is completed. artifacts lists every other file in the match directory with its sha256 and size, so anyone can verify the frozen files were never changed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "started_at",
+    "finished_at",
+    "status",
+    "failed_step",
+    "error",
+    "judge_version",
+    "blue_engine",
+    "red_source",
+    "git",
+    "images",
+    "artifacts"
+  ],
+  "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "image_id",
+        "repo_digest"
+      ],
+      "properties": {
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image_id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "repo_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "started_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "finished_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed"
+      ]
+    },
+    "failed_step": {
+      "enum": [
+        null,
+        "reset",
+        "rotate",
+        "red",
+        "freeze",
+        "judge_fact1",
+        "blue",
+        "judge_rounds"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "judge_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "blue_engine": {
+      "enum": [
+        "scripted"
+      ]
+    },
+    "red_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "dirty"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "juice_shop",
+        "nginx"
+      ],
+      "properties": {
+        "juice_shop": {
+          "$ref": "#/$defs/image"
+        },
+        "nginx": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "const": "match.json"
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "failed_step": {
+            "const": null
+          },
+          "error": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "failed_step": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  ]
+}

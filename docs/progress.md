@@ -18,6 +18,7 @@ file artifacts defined in a data contract.
 | 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
 | 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7; verified + merged Nov 8) |
 | — | Progress Report | Nov 12 | In progress |
+| 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -169,6 +170,55 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 - **Merged** fast-forward into `main` (`059e7d4..e71f2d7`) and pushed, so the
   baseline manifest's commit `828e4e9` stays in `main`'s history. 227 tests pass.
 
+### Stage 5.1 — Repo safety, Stage 5 decisions, LLM client + cost tracking
+No real API calls in this step: every test uses a fake provider (zero token cost).
+
+- **Stage 5 decisions locked** in `docs/stage5_decisions.md` (D1–D13, plus the
+  sub-stage map below), so later prompts cite them instead of repeating them. New
+  this step: **D13**, a call refused by the body is an *instrument* failure, so
+  requests left without a verdict for that reason will be excluded from detection
+  stats like orphans (contract field in 5.4).
+- **Repo safety.** Keys are read only from `ARENA_OPENAI_API_KEY`,
+  `ARENA_ANTHROPIC_API_KEY`, `ARENA_GEMINI_API_KEY` (`.env.example`) and passed
+  explicitly to each SDK, never via the SDK default names: an exported
+  `ANTHROPIC_API_KEY` would make Claude Code itself bill that key. A gitleaks
+  pre-commit hook (`.githooks/pre-commit`, fails closed) was shown to block a staged
+  file holding a key-shaped fake string; the file was unstaged and deleted, never
+  committed. A full-history scan found no leaks. GitHub secret scanning + push
+  protection is the server-side layer (enabled by the designer). `docs/ops.md`
+  holds the setup, the key-leak playbook (revoke → rotate → check usage) and the
+  exit-code table.
+- **`agents/llm_client.py`, the single exit for every AI call.** Provider-agnostic
+  `complete()`; Anthropic and OpenAI adapters with lazily imported SDKs (pinned SDKs
+  arrive in 5.4 / 5.6) and usage mappings flagged "verify at first real call";
+  timeout on every call; exponential backoff (honouring Retry-After) only for
+  timeout / 429 / 5xx / connection errors; retries exhausted → a structured failure,
+  never a crash. Required per-agent caps (red, blue, analyst) plus a match total;
+  before each attempt the worst case (input estimated from the built prompt at 1
+  token per 3 chars + `max_output_tokens`, at the applicable price tier) must fit
+  every cap, so Red can never spend Blue's share. Missing price, missing key or
+  unpriced usage also refuse the call. `agents/prompting.py`: a stable-prefix-first
+  prompt builder that rejects volatile values in the system prompt, and a JSON
+  helper that never raises.
+- **Cost as evidence.** `api_calls.jsonl` (contract §6.3): one line per attempt and
+  per refusal, token counts only (no keys, no prompt text). `config/prices.json`
+  (§6.4): seeded with the designer's prices, all `verified: false`, tiered for
+  Haiku 5.5; GPT-6 Luna is a clearly marked placeholder that is never callable.
+  `stats/cost.py` (pure) derives cost per agent / model / match, failed attempts
+  separately, and cache savings net of the write premium (may be negative).
+- **`match.json` → schema_version 0.2** (first version bump): `models`, `budget`
+  (limits + `stopped_by`), `price_table` (as_of + sha256), `cost`, and status
+  `"stopped"` with exit code 4. The committed scripted baseline run stays valid as
+  0.1; validation dispatches on `schema_version`. The terminal summary gains a cost
+  line.
+- **Verified (Nov 8):** 383 tests pass (fake provider: each cap stops a simulated
+  runaway loop; a sentinel key never reaches `api_calls.jsonl`, `match.json`, the
+  terminal or exception text; consecutive prompts share a byte-identical prefix).
+  `tools/stage4_check.py` PASSes on a fresh stack (match `20261108T233329Z-b1cd`):
+  `match.json` is 0.2 with models all null, `cost $0.00 (0 API calls)`, no
+  `api_calls.jsonl`, and the per-round results are identical to the scripted
+  baseline run, so scripted behaviour is unchanged.
+
 ## Measurement limitations (known and documented)
 
 These are honest boundaries of the instrument, recorded in the contract:
@@ -248,13 +298,19 @@ Stage 6 will centralize these; some are already enforced.
 
 ## Next
 - **Progress Report** (Nov 12).
-- **Stage 5 — AI brains** (Nov 13–19):
-  - Red agent loop on the ChatGPT API: history, JSON-only output, round/token caps,
-    retry, scope guard → `red_guard.jsonl`.
-  - Blue `--engine claude` on the same verdict schema, with a separate no-verdict
-    rate.
-  - Blue rule invention + hot-load.
-  - Judge fact 3 (replay) and fact 4 (benign false positives), with a
-    benign-traffic set.
-  - Variant / held-out attacks for any AI-vs-baseline comparison.
-  - Revisit the CWE-22 challenge map (round-5 finding).
+- **Stage 5 — AI brains** (Nov 13–19), sub-stages (`docs/stage5_decisions.md`):
+  - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
+  - **5.2** Benign traffic + fact 4a (verdict-level false positives).
+  - **5.3** Rule engine + facts 3 (offline replay) / 4b (rule-level false positives).
+  - **5.4** AI Blue (`--engine claude`): first real call, Anthropic SDK pinned; verify
+    the usage mapping; the `budget_exhausted` reason (D13); a separate no-verdict rate.
+  - **5.5** Blue rule invention + hot-load.
+  - **5.6** AI Red (OpenAI SDK pinned; confirm the GPT-6 Luna id first): agent loop
+    with history, JSON-only output, round/token caps, retry, scope guard →
+    `red_guard.jsonl`.
+  - **5.7** Integration + provider-side caching.
+  - Also in Stage 5: variant / held-out attacks for any AI-vs-baseline comparison;
+    revisit the CWE-22 challenge map (round-5 finding).
+- Designer: verify `config/prices.json` against the official pricing pages (incl. the
+  Haiku 5.5 tier boundary definition); recalibrate the dev caps from
+  `api_calls.jsonl` after the first real runs.

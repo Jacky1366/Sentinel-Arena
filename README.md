@@ -37,8 +37,11 @@ Components never call each other; they exchange JSON/JSONL files defined in
 
 Stages 0–4 done: data contract, Juice Shop behind a logging-only proxy, scripted
 Red + Judge (landed, detected, round record), scripted Blue v0, and a one-command
-match (`run_match.py`). AI-driven Red/Blue, benign traffic, and the dashboard are not
-implemented yet. See [`docs/progress.md`](docs/progress.md).
+match (`run_match.py`). Stage 5.1 done: the AI body (`agents/llm_client.py`) with
+budget caps and cost tracking, tested with a fake provider (no real calls yet).
+AI-driven Red/Blue, benign traffic, and the dashboard are not implemented yet. See
+[`docs/progress.md`](docs/progress.md) and
+[`docs/stage5_decisions.md`](docs/stage5_decisions.md).
 
 ## Setup and tests
 
@@ -48,9 +51,16 @@ Requires Python 3.11+. After creating the venv, always run Python through
 ```bash
 python3 -m venv .venv                          # one-time: create the venv
 .venv/bin/python -m pip install -r requirements.txt
-cp .env.example .env                           # fill in API keys; never commit .env
+cp .env.example .env                           # fill in ARENA_* API keys; never commit .env
+brew install gitleaks                          # secret scanner (macOS; see docs/ops.md)
+git config core.hooksPath .githooks            # one-time: enable the pre-commit hook
 .venv/bin/python -m pytest
 ```
+
+API keys use `ARENA_*` names only, never the SDKs' default names: an exported
+`ANTHROPIC_API_KEY` would make Claude Code itself bill that key. The pre-commit
+hook blocks commits that stage a secret. See [`docs/ops.md`](docs/ops.md) for the
+key-leak playbook and `run_match.py` exit codes.
 
 ## How to run the stack
 

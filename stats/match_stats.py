@@ -22,6 +22,8 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from stats import cost
+
 DETECTION_FOOTER = ("Note: the detection rate is an UPPER BOUND until benign traffic "
                     "and false-positive scoring exist (Stage 5). With attack-only "
                     "traffic, flagging everything scores 100%.")
@@ -132,8 +134,14 @@ def format_summary(rounds: list[dict], manifest: dict) -> str:
         f"judge {manifest['judge_version']}  blue={manifest['blue_engine']}  "
         f"git {manifest['git']['commit'][:10]}{' (dirty)' if manifest['git']['dirty'] else ''}",
     ]
-    if manifest["status"] != "completed":
+    if manifest["status"] == "failed":
         lines.append(f"FAILED at step '{manifest['failed_step']}': {manifest['error']}")
+    stop = (manifest.get("budget") or {}).get("stopped_by")
+    if stop is not None:
+        lines.append(f"STOPPED by the AI budget: {stop['scope']} {stop['reason']} "
+                     f"(calls the body refused are instrument failures, D13)")
+    if "cost" in manifest:  # schema_version 0.2 manifests
+        lines.append(cost.format_cost_line(manifest["cost"]))
     if not rounds:
         lines.append("(no round records)")
         return "\n".join(lines)

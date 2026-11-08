@@ -391,3 +391,75 @@ def test_freeze_raises_without_any_log(tmp_path):
     live.mkdir(), match.mkdir()
     with pytest.raises(FileNotFoundError):
         match_ops.freeze_proxy_log(live, match, reopen=fake_reopen(live))
+
+
+# ---- Stage 5.1: manifest 0.2, budget, cost ---------------------------------
+
+def test_scripted_match_manifest_v0_2_zero_cost(dirs):
+    code, match_dir, out = go(FakeOps(dirs[0]), dirs)
+    m = manifest_of(match_dir)
+    assert code == 0 and m["schema_version"] == "0.2"
+    assert m["models"] == {"red": None, "blue": None, "analyst": None}
+    assert m["budget"]["stopped_by"] is None
+    assert m["budget"]["limits"]["blue"] == {"max_calls": 100, "max_tokens": 300000,
+                                             "max_usd": 0.25}
+    assert m["cost"]["total_usd"] == 0 and m["cost"]["attempts"] == 0
+    assert m["price_table"]["path"] == "config/prices.json"
+    assert not (match_dir / "api_calls.jsonl").exists()
+    assert "cost $0.00 (0 API calls)" in out
+
+
+def _red_with_ai_calls(max_calls):
+    """A Red that also makes fake AI calls through the real client and budget."""
+    from llm_fakes import FakeAdapter, MESSAGES, SYSTEM, config, make_client
+
+    class AIRed(FakeOps):
+        def red(self, match_id, match_dir, payloads, settle):
+            super().red(match_id, match_dir, payloads, settle)
+            client, _ = make_client(FakeAdapter(), cfg=config(red={"max_calls": max_calls}))
+            for i in range(1, 4):
+                client.complete("red", "fake-small", SYSTEM, MESSAGES, run_dir=match_dir,
+                                round=i)
+    return AIRed
+
+
+def test_budget_refusal_marks_match_stopped_exit_4(dirs):
+    code, match_dir, out = go(_red_with_ai_calls(max_calls=2)(dirs[0]), dirs)
+    m = manifest_of(match_dir)
+    assert code == 4 and m["status"] == "stopped"
+    assert m["failed_step"] is None and m["error"] is None
+    assert m["budget"]["stopped_by"] == {"scope": "red", "reason": "max_calls"}
+    assert (m["cost"]["attempts"], m["cost"]["refused"]) == (2, 1)
+    assert "api_calls.jsonl" in m["artifacts"]
+    assert (match_dir / "rounds.jsonl").exists()  # the rest of the match still ran
+    assert "STOPPED by the AI budget: red max_calls" in out
+
+
+def test_ai_calls_within_budget_complete(dirs):
+    code, match_dir, out = go(_red_with_ai_calls(max_calls=10)(dirs[0]), dirs)
+    m = manifest_of(match_dir)
+    assert code == 0 and m["status"] == "completed" and m["cost"]["attempts"] == 3
+    assert "cost $0.0001 (3 API calls)" in out or "(3 API calls" in out
+
+
+def test_failure_after_a_cap_is_failed_and_keeps_stopped_by(dirs):
+    AIRed = _red_with_ai_calls(max_calls=1)
+
+    class Both(AIRed):
+        def blue(self, *a, **k):
+            raise RuntimeError("blue broke")
+    code, match_dir, _ = go(Both(dirs[0]), dirs)
+    m = manifest_of(match_dir)
+    assert code == 1 and m["status"] == "failed" and m["failed_step"] == "blue"
+    assert m["budget"]["stopped_by"] == {"scope": "red", "reason": "max_calls"}
+
+
+def test_bad_llm_config_refused_at_preflight(dirs):
+    from agents import llm_client
+
+    class BadConfig(FakeOps):
+        def llm_setup(self):
+            raise llm_client.ConfigError("caps: missing scope 'analyst'")
+    code, match_dir, out = go(BadConfig(dirs[0]), dirs)
+    assert code == 2 and match_dir is None and "PREFLIGHT FAILED" in out
+    assert not (dirs[0] / "match.lock").exists()

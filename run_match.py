@@ -14,8 +14,9 @@ call each other; each step reads and writes file artifacts (docs/contract.md).
   6. red         scripted Red + before/after snapshots -> data/runs/<match_id>/
   7. freeze      move live/proxy.jsonl into the match dir, nginx reopens
   8. judge_fact1 -> blue -> judge_rounds, on the FROZEN directory
-  9. match.json  written LAST (status, provenance, sha256 of every artifact)
- 10. summary     a pure read of rounds.jsonl + match.json
+  9. match.json  written LAST (status, provenance, models, budget, cost, sha256
+                 of every artifact), schema_version 0.2
+ 10. summary     a pure read of rounds.jsonl + match.json (incl. a cost line)
 
 If any step from 4 on fails, the match is still finalized: whatever this match
 produced is in data/runs/<match_id>/, match.json says status "failed" with the
@@ -23,8 +24,13 @@ failed step and error, the lock is released, and the exit code is non-zero. A
 failed match never leaves its artifacts in live/. Incomplete data
 (snapshot_missing) is not a failure; ambiguous data (the Judge raises) is.
 
-Exit codes: 0 completed, 1 match failed, 2 preflight refused, 3 lock held.
-No AI API calls: zero token cost.
+A match is "stopped" when the AI body refused a call (a budget cap, a missing
+price or key) or saw usage it cannot price: everything still runs and is
+finalized, and match.json says which cap in budget.stopped_by (contract §6.2).
+Key values never reach match.json or the terminal (llm_client.redact).
+
+Exit codes (docs/ops.md): 0 completed, 1 match failed, 2 preflight refused,
+3 lock held, 4 stopped by the budget. The scripted match makes no AI API calls.
 """
 
 from __future__ import annotations
@@ -39,18 +45,36 @@ import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, ValidationError
 
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 from blue import run_blue  # noqa: E402
+from agents import llm_client  # noqa: E402
 from judge import JUDGE_VERSION, fact1_landed, round_record  # noqa: E402
 from red import scripted_red  # noqa: E402
 from runner import match_ops  # noqa: E402
+from stats import cost as cost_stats  # noqa: E402
 from stats import match_stats  # noqa: E402
 
-MANIFEST_SCHEMA = json.loads(
-    (REPO / "schemas" / "match_manifest.schema.json").read_text(encoding="utf-8"))
+
+def _schema(name: str) -> dict:
+    return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
+
+
+MANIFEST_VERSION = "0.2"
+MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest")}
+MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
+PRICES_SCHEMA = _schema("prices")
+EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
+
+
+def validate_manifest(manifest: dict) -> list[str]:
+    """Schema errors, dispatching on schema_version (0.1 manifests stay valid)."""
+    schema = MANIFEST_SCHEMAS.get(manifest.get("schema_version"))
+    if schema is None:
+        return [f"unknown match.json schema_version {manifest.get('schema_version')!r}"]
+    return [e.message for e in Draft202012Validator(schema).iter_errors(manifest)]
 
 
 def new_match_id() -> str:
@@ -98,6 +122,14 @@ class Ops:
         status = subprocess.run(["git", "status", "--porcelain"], cwd=REPO, check=True,
                                 capture_output=True, text=True).stdout
         return {"commit": commit, "dirty": bool(status.strip())}
+
+    def llm_setup(self) -> tuple[dict, dict, dict]:
+        """(llm config, price table, price-table ref). Read even for a scripted
+        match: match.json always records the caps and the table in force."""
+        config = llm_client.load_config()
+        prices = cost_stats.load_prices()
+        Draft202012Validator(PRICES_SCHEMA).validate(prices)
+        return config, prices, cost_stats.price_table_ref()
 
     def reset(self) -> int:
         return match_ops.reset_target()
@@ -164,12 +196,14 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
     try:
         images = ops.preflight()
         match_ops.check_live_clean(live_dir)
+        llm_config, prices, price_ref = ops.llm_setup()
         provenance = {
             "red_source": {"path": _display_path(payloads), "sha256": sha256_file(payloads)},
             "git": ops.git_info(),
         }
-    except (match_ops.PreflightError, OSError, subprocess.CalledProcessError) as exc:
-        out(f"PREFLIGHT FAILED: {exc}")
+    except (match_ops.PreflightError, OSError, subprocess.CalledProcessError, ValueError,
+            ValidationError) as exc:
+        out(f"PREFLIGHT FAILED: {llm_client.redact(str(exc))}")
         return 2, None
 
     # 2-3. Lock, then the match exists.
@@ -223,9 +257,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         step = "done"
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 - finalize on ANY failure
         failed_step = step
-        error = f"{type(exc).__name__}: {exc}"
+        error = llm_client.redact(f"{type(exc).__name__}: {exc}")
         out(f"MATCH FAILED at step '{step}': {error}")
-        out(traceback.format_exc().rstrip())
+        out(llm_client.redact(traceback.format_exc().rstrip()))
         # Only this match's artifacts move. The proxy log is this match's once it was
         # rotated; before that, live/proxy.jsonl is earlier traffic and stays for the
         # next rotation to archive.
@@ -234,31 +268,39 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
                 ops.freeze(live_dir, match_dir)
                 out(f"proxy log moved to {_display_path(match_dir / 'proxy.jsonl')}")
             except Exception as fexc:  # noqa: BLE001
-                error += f" | finalize could not freeze the proxy log: " \
-                         f"{type(fexc).__name__}: {fexc}"
-                out(f"WARNING: could not freeze the proxy log: {fexc}")
-                error += _fallback_freeze(ops, live_dir, match_dir, out)
+                error += llm_client.redact(f" | finalize could not freeze the proxy log: "
+                                           f"{type(fexc).__name__}: {fexc}")
+                out(f"WARNING: could not freeze the proxy log: {llm_client.redact(str(fexc))}")
+                error += llm_client.redact(_fallback_freeze(ops, live_dir, match_dir, out))
 
     # 9. match.json, written LAST, then release the lock.
     try:
+        calls = cost_stats.read_calls(match_dir / llm_client.API_CALLS)
+        stop = llm_client.stopped_by(calls, prices)
+        status = "failed" if failed_step is not None else \
+            "stopped" if stop is not None else "completed"
         manifest = {
-            "schema_version": "0.1",
+            "schema_version": MANIFEST_VERSION,
             "match_id": match_id,
             "started_at": started_at,
             "finished_at": match_ops.utc_now(),
-            "status": "completed" if failed_step is None else "failed",
+            "status": status,
             "failed_step": failed_step,
             "error": error,
             "judge_version": JUDGE_VERSION,
             "blue_engine": engine,
             **provenance,
             "images": images,
+            # Scripted Red and Blue call no model. AI engines fill these (5.4+).
+            "models": {"red": None, "blue": None, "analyst": None},
+            "budget": {"limits": llm_client.caps_limits(llm_config), "stopped_by": stop},
+            "price_table": price_ref,
+            "cost": cost_stats.summarize(calls, prices),
             "artifacts": artifact_hashes(match_dir),
         }
         (match_dir / "match.json").write_text(json.dumps(manifest, indent=2) + "\n",
                                               encoding="utf-8")
-        schema_errors = [e.message for e in Draft202012Validator(MANIFEST_SCHEMA)
-                         .iter_errors(manifest)]
+        schema_errors = validate_manifest(manifest)
     finally:
         match_ops.release_lock(live_dir)
 
@@ -270,7 +312,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
     out("")
     out(match_stats.format_summary(
         match_stats.read_rounds(match_dir / "rounds.jsonl"), manifest))
-    return (0 if manifest["status"] == "completed" else 1), match_dir
+    return EXIT[manifest["status"]], match_dir
 
 
 def main(argv: list[str] | None = None) -> int:
