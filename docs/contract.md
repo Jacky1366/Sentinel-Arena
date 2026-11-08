@@ -36,6 +36,11 @@ Deleting an **empty** proxy log on rotation is documented as the one deliberate
 exception to "never delete raw evidence" (§3). Still `schema_version "0.1"`: every
 change is additive or widening, and all existing records stay valid.*
 
+*Revised 2026-11-08 (terminology only, no semantic change): the committed reference
+match in `data/golden/scripted-baseline-match/` is called the **scripted baseline
+run**. "Golden run" is reserved for the later recorded AI-vs-AI demo match. No
+format, path or rule changes; `schema_version` stays `"0.1"`.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`) controls ordering.
@@ -396,7 +401,7 @@ match, completed or failed. One JSON object (not JSONL). Schema:
 | `judge_version` | semver string | `judge.JUDGE_VERSION` that scored `rounds.jsonl`. Bumped on any Judge logic change, so results scored by older logic are identifiable. |
 | `blue_engine` | `"scripted"` | Which Blue engine produced `verdicts.jsonl`. |
 | `red_source` | `{path, sha256}` | The exact attack set fired. |
-| `git` | `{commit, dirty}` | Code provenance. `dirty` counts untracked files too. A committed golden run must say `false`. |
+| `git` | `{commit, dirty}` | Code provenance. `dirty` counts untracked files too. A committed reference run (the scripted baseline run, and later the golden run) must say `false`. |
 | `images` | `{juice_shop, nginx}`: `{image, image_id, repo_digest}` | Read from the **running** containers (`docker inspect`), not the compose file. `repo_digest` is `null` for a locally built image. |
 | `artifacts` | `{name: {sha256, bytes}}` | Every other file in the match directory (never `match.json` itself). Lets anyone verify the frozen files were not changed afterwards. |
 
@@ -442,7 +447,7 @@ state before and after each round to attribute `landed` to that round, and must
 ignore any solved challenge whose name is not in this map (§6, Challenge scope).
 
 **Known item: an attack can solve a challenge outside the map (recorded 2026-11-07,
-not yet acted on).** In the Stage 4 golden run (`data/golden/scripted-baseline-match/`),
+not yet acted on).** In the Stage 4 scripted baseline run (`data/golden/scripted-baseline-match/`),
 round 5 (CWE-22, `GET /ftp/coupons_2013.md.bak%2500.md`) produced
 `landed = null, landed_reason = "already_solved"` (both mapped CWE-22 challenges were
 solved by round 4), yet `newly_solved = ["Forgotten Sales Backup"]`, a challenge
@@ -450,7 +455,7 @@ that is **not** in the CWE-22 entry. The Judge behaved as designed: only mapped
 challenges are credited, and the unmapped solve is kept as raw evidence in
 `newly_solved`. The consequence is that landing is slightly **under-counted**: a real
 traversal that did something new is scored as unmeasurable. The map, the Stage 3
-expectations, and the golden run are deliberately **left unchanged** for now; revisit
+expectations, and the scripted baseline run are deliberately **left unchanged** for now; revisit
 when variant attacks are designed. This is exactly the planned "`newly_solved`
 outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 

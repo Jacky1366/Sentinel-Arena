@@ -243,6 +243,8 @@ Stage 6 will centralize these; some are already enforced.
 - **Terminology.** `data/golden/scripted-baseline-match/` is the **scripted baseline
   run**: a reference / regression anchor, no AI. **"Golden run"** is reserved for the
   later recorded AI-vs-AI demo match. Docs use these terms consistently.
+  The directory keeps the name `data/golden/` because it holds committed reference
+  runs, and the AI demo golden run will also live there.
 
 ## Next
 - **Progress Report** (Nov 12).

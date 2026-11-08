@@ -1,4 +1,4 @@
-# Golden run: scripted baseline match
+# Scripted baseline run
 
 This folder is a copy of one complete match, `20261108T054250Z-ffa1`. It was made by
 `.venv/bin/python run_match.py`, called from `tools/stage4_check.py`, which passed.

@@ -72,7 +72,7 @@ tools/stage4_check.py   Stage 4 end-to-end check (run_match + frozen match dir)
 dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
-data/golden/scripted-baseline-match/  committed golden run (see its README)
+data/golden/scripted-baseline-match/  committed scripted baseline run (see its README)
 tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
 tests/test_fact1_landed.py  Judge fact-1 unit tests (no Docker)
