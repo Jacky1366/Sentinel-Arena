@@ -119,7 +119,9 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
   artifacts are in its directory, `match.json` says `failed` with the step and error,
   the lock is released, exit is non-zero. A failed match never leaves artifacts in
   `live/`. The Judge raising on ambiguous data is a failure; `snapshot_missing` is not.
-  Covered by Docker-free tests that inject a failure at every step.
+  If the freeze itself fails, finalize still moves the log into the match dir and
+  makes one best-effort nginx reopen; the log is marked "NOT FROZEN" only if that
+  reopen also fails. Covered by Docker-free tests that inject a failure at every step.
 - **`match.json` manifest** (new contract artifact, §6.2): status, `judge_version`
   (`JUDGE_VERSION = "0.1.0"`), Blue engine, payload sha256, git commit + dirty flag,
   the image versions **actually running** (from `docker inspect`), and sha256 + size
@@ -139,6 +141,15 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
   unaffected**. The real bug was the **silent give-up**: if the fresh log never
   appeared, rotate continued anyway. Rotate and freeze now raise instead. Deleting an
   *empty* log on rotation is kept as a documented exception (it holds no evidence).
+- **Finding: an attack solved a challenge outside the map (golden run, round 5).**
+  `GET /ftp/coupons_2013.md.bak%2500.md` (CWE-22) scored `landed=null /
+  already_solved` (both mapped CWE-22 challenges fell in round 4), but its
+  `newly_solved` is `["Forgotten Sales Backup"]`, which is not in the CWE-22 map. The
+  Judge behaved as designed (only mapped challenges are credited) and the raw
+  evidence was kept, but landing is slightly **under-counted**. Deliberately not
+  changed yet (challenge map, Stage 3 expectations and golden run stay as they are);
+  revisit when variant attacks are designed. It is exactly the planned
+  "`newly_solved` outside the map" tripwire below. Recorded in contract §7.
 
 ## Measurement limitations (known and documented)
 
@@ -186,6 +197,10 @@ Stage 6 will centralize these; some are already enforced.
 - **`snapshot_missing` appears** in any round record — a snapshot was dropped at
   runtime, so landing is unknown. A scripted run should never produce one;
   `tools/stage3_check.py` already fails on it.
+- **`newly_solved` contains a challenge outside the label's map** — the attack did
+  something the map does not credit, so landing may be under-counted (or the map is
+  incomplete). Not enforced yet. First seen in the Stage 4 golden run, round 5
+  (`Forgotten Sales Backup` from a CWE-22 attack); see contract §7.
 - (more to be added as later stages surface them)
 
 ## Methodology notes (for the report)

@@ -111,6 +111,9 @@ class Ops:
     def freeze(self, live_dir: Path, match_dir: Path) -> None:
         match_ops.freeze_proxy_log(live_dir, match_dir)
 
+    def reopen(self, live_dir: Path) -> None:
+        match_ops.reopen_and_confirm(live_dir)
+
     # Pure file steps: each component's own CLI entry point, pointed at the frozen
     # match directory.
     def judge_fact1(self, match_dir: Path) -> None:
@@ -122,6 +125,32 @@ class Ops:
 
     def judge_rounds(self, match_dir: Path) -> None:
         round_record.main(["--run-dir", str(match_dir)])
+
+
+def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
+    """Finalize after a failed freeze. Never leave this match's log in live/: move it
+    with a plain rename if it is still there, then try one best-effort nginx reopen.
+    The log is "not frozen" only if that reopen also fails (nginx may then keep
+    appending to the moved file until the next rotate). Returns text for `error`."""
+    src, dst = live_dir / "proxy.jsonl", match_dir / "proxy.jsonl"
+    note = ""
+    if src.exists() and not dst.exists():
+        try:
+            src.replace(dst)
+            note += " | fallback: proxy log moved to the match dir"
+        except OSError as exc:
+            return f" | fallback: proxy log left in live/: {exc}"
+    if not dst.exists():
+        return note + " | fallback: no proxy log to move"
+    try:
+        ops.reopen(live_dir)
+    except Exception as exc:  # noqa: BLE001
+        out(f"WARNING: best-effort nginx reopen failed: {exc}")
+        return (note + f" | best-effort nginx reopen failed ({type(exc).__name__}: "
+                f"{exc}): proxy log NOT FROZEN, nginx may keep appending to it until "
+                f"the next rotate")
+    out(f"proxy log frozen by fallback: {_display_path(dst)}")
+    return note + " | best-effort nginx reopen succeeded: proxy log frozen"
 
 
 def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
@@ -208,15 +237,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
                 error += f" | finalize could not freeze the proxy log: " \
                          f"{type(fexc).__name__}: {fexc}"
                 out(f"WARNING: could not freeze the proxy log: {fexc}")
-                # Still never leave this match's log in live/. Without a reopen,
-                # nginx may keep appending to the moved file until the next rotate.
-                src, dst = live_dir / "proxy.jsonl", match_dir / "proxy.jsonl"
-                if src.exists() and not dst.exists():
-                    try:
-                        src.replace(dst)
-                        error += " | proxy log moved WITHOUT nginx reopen: not frozen"
-                    except OSError as mexc:
-                        error += f" | proxy log left in live/: {mexc}"
+                error += _fallback_freeze(ops, live_dir, match_dir, out)
 
     # 9. match.json, written LAST, then release the lock.
     try:

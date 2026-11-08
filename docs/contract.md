@@ -405,7 +405,11 @@ finalized: everything **this match produced** is in the match directory,
 `match.json` says `"failed"` with `failed_step` and `error`, the lock is released,
 and the exit code is non-zero. The proxy log counts as this match's only once it was
 rotated; before that, `live/proxy.jsonl` is earlier traffic and is left for the next
-rotation to archive. The Judge **raising** on ambiguous data (duplicate verdicts,
+rotation to archive. If the **freeze** itself fails, finalize retries it; if that
+also fails, it moves the log into the match directory with a plain rename and makes
+**one best-effort `nginx -s reopen`** (confirmed by a fresh live log). Only if that
+reopen also fails does `error` mark the log **NOT FROZEN** (nginx may keep appending
+to it until the next rotation). The Judge **raising** on ambiguous data (duplicate verdicts,
 schema-invalid records) is a failure; **incomplete** data (`snapshot_missing`, §6.1)
 is not. Preflight and lock refusals happen before a match exists: non-zero exit, no
 match directory, no `match.json`.
@@ -436,6 +440,19 @@ one HTTP request and observed by the proxy in this Docker deployment.
 **Note for later:** Juice Shop challenges stay solved. The Judge must diff challenge
 state before and after each round to attribute `landed` to that round, and must
 ignore any solved challenge whose name is not in this map (§6, Challenge scope).
+
+**Known item: an attack can solve a challenge outside the map (recorded 2026-11-07,
+not yet acted on).** In the Stage 4 golden run (`data/golden/scripted-baseline-match/`),
+round 5 (CWE-22, `GET /ftp/coupons_2013.md.bak%2500.md`) produced
+`landed = null, landed_reason = "already_solved"` (both mapped CWE-22 challenges were
+solved by round 4), yet `newly_solved = ["Forgotten Sales Backup"]`, a challenge
+that is **not** in the CWE-22 entry. The Judge behaved as designed: only mapped
+challenges are credited, and the unmapped solve is kept as raw evidence in
+`newly_solved`. The consequence is that landing is slightly **under-counted**: a real
+traversal that did something new is scored as unmeasurable. The map, the Stage 3
+expectations, and the golden run are deliberately **left unchanged** for now; revisit
+when variant attacks are designed. This is exactly the planned "`newly_solved`
+outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 
 ---
 

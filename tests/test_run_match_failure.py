@@ -92,6 +92,16 @@ class FakeOps(run_match.Ops):
         match_ops.freeze_proxy_log(live_dir, match_dir, reopen=fake_reopen(live_dir),
                                    poll_timeout=0.1)
 
+    def reopen(self, live_dir):
+        self.calls.append("reopen")
+        match_ops.reopen_and_confirm(live_dir, reopen=fake_reopen(live_dir),
+                                     poll_timeout=0.1)
+
+
+def broken_reopen(self, live_dir):
+    """nginx never creates a fresh log (e.g. reopen signal not delivered)."""
+    match_ops.reopen_and_confirm(live_dir, reopen=lambda: None, poll_timeout=0.05)
+
 
 def failing(step: str, exc: BaseException = RuntimeError("injected failure")):
     """A FakeOps whose `step` raises (after the fake did nothing for that step)."""
@@ -208,14 +218,52 @@ def test_freeze_reopen_never_works_file_still_moved_and_reported(dirs):
         def freeze(self, live_dir, match_dir):
             match_ops.freeze_proxy_log(live_dir, match_dir, reopen=lambda: None,
                                        poll_timeout=0.05)
+        reopen = broken_reopen
 
     code, match_dir, _ = go(BrokenNginx(live), dirs)
     assert code == 1
     m = manifest_of(match_dir)
     assert m["failed_step"] == "freeze"
     assert "finalize could not freeze" in m["error"]
+    assert "NOT FROZEN" in m["error"]
     assert (match_dir / "proxy.jsonl").exists() and not (live / "proxy.jsonl").exists()
     assert not (live / match_ops.LOCK_NAME).exists()
+
+
+def test_fallback_move_then_reopen_succeeds_is_frozen(dirs):
+    # freeze fails BEFORE moving; finalize moves the log, then the best-effort
+    # reopen works -> frozen, and live/ gets a fresh empty log.
+    live, _ = dirs
+    ops = failing("freeze")(live)
+    code, match_dir, out = go(ops, dirs)
+    assert code == 1
+    m = assert_finalized(live, match_dir)
+    assert m["failed_step"] == "freeze"
+    assert "fallback: proxy log moved to the match dir" in m["error"]
+    assert "best-effort nginx reopen succeeded: proxy log frozen" in m["error"]
+    assert "NOT FROZEN" not in m["error"]
+    assert ops.calls[-1] == "reopen"
+    assert len((match_dir / "proxy.jsonl").read_text().splitlines()) == len(ATTACKS)
+    assert (live / "proxy.jsonl").read_text() == ""  # fresh log from the reopen
+
+
+def test_fallback_move_then_reopen_fails_is_not_frozen(dirs):
+    # freeze fails BEFORE moving; finalize moves the log, the reopen also fails ->
+    # the log is in the match dir but marked NOT FROZEN.
+    live, _ = dirs
+
+    class FreezeAndReopenBroken(failing("freeze")):
+        reopen = broken_reopen
+
+    code, match_dir, out = go(FreezeAndReopenBroken(live), dirs)
+    assert code == 1
+    m = assert_finalized(live, match_dir)
+    assert "fallback: proxy log moved to the match dir" in m["error"]
+    assert "best-effort nginx reopen failed" in m["error"]
+    assert "NOT FROZEN" in m["error"]
+    assert "reopen succeeded" not in m["error"]
+    assert (match_dir / "proxy.jsonl").exists() and not (live / "proxy.jsonl").exists()
+    assert "best-effort nginx reopen failed" in out
 
 
 def test_reset_not_clean_refuses(dirs):

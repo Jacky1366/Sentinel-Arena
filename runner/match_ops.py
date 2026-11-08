@@ -202,6 +202,15 @@ def _wait_for_fresh_log(log: Path, poll_timeout: float, sleep_fn=time.sleep,
         sleep_fn(0.2)
 
 
+def reopen_and_confirm(live_dir: Path, reopen=nginx_reopen, poll_timeout: float = 15.0,
+                       sleep_fn=time.sleep, clock=time.monotonic) -> None:
+    """Make nginx reopen its log and confirm a fresh live/proxy.jsonl exists. Only
+    then is a previously moved log final (nginx appends to a moved file until it
+    reopens). Raises if the fresh file does not appear."""
+    reopen()
+    _wait_for_fresh_log(live_dir / "proxy.jsonl", poll_timeout, sleep_fn, clock)
+
+
 def _archive_name() -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%f")[:-3] + "Z"
     return f"proxy-{ts}.jsonl"
@@ -225,8 +234,7 @@ def rotate_proxy_log(live_dir: Path = LIVE, reopen=nginx_reopen,
         log.replace(archived)  # rename: nginx appends here until it reopens
     elif log.exists():
         log.unlink()  # empty file: no evidence to preserve
-    reopen()
-    _wait_for_fresh_log(log, poll_timeout, sleep_fn, clock)
+    reopen_and_confirm(live_dir, reopen, poll_timeout, sleep_fn, clock)
     return archived
 
 
@@ -245,8 +253,7 @@ def freeze_proxy_log(live_dir: Path, match_dir: Path, reopen=nginx_reopen,
         src.replace(dst)
     elif not dst.exists():
         raise FileNotFoundError(f"no live proxy log at {src} to freeze")
-    reopen()
-    _wait_for_fresh_log(src, poll_timeout, sleep_fn, clock)
+    reopen_and_confirm(live_dir, reopen, poll_timeout, sleep_fn, clock)
     return dst
 
 
