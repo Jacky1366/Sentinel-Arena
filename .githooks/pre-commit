@@ -1,0 +1,13 @@
+#!/bin/sh
+# Sentinel Arena pre-commit hook: block commits that stage a secret.
+# Enable once per clone:  git config core.hooksPath .githooks   (docs/ops.md)
+# Fails CLOSED: if gitleaks is missing, the commit is blocked.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+    echo "pre-commit: gitleaks is not installed, so the commit is blocked." >&2
+    echo "Install it (macOS: brew install gitleaks), see docs/ops.md." >&2
+    exit 1
+fi
+
+# Scan only what is staged. --redact keeps a found secret out of the terminal.
+exec gitleaks git --staged --redact --no-banner --verbose
