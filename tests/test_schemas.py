@@ -26,6 +26,7 @@ SCHEMA_NAMES = [
     "rules_file",
     "round_record",
     "landed_fact",
+    "match_manifest",
 ]
 
 
@@ -53,6 +54,9 @@ def validator(name: str) -> Draft202012Validator:
 # --------------------------------------------------------------------------
 
 RID = "3f2b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
+SHA = "a" * 64
+IMAGE = {"image": "nginx:1.30.6-alpine", "image_id": "sha256:" + "b" * 64,
+         "repo_digest": "nginx@sha256:" + "c" * 64}
 
 RULE = {
     "rule_id": "r-007",
@@ -126,6 +130,22 @@ VALID = {
         "landed": True,
         "landed_reason": None,
         "newly_solved": ["Poison Null Byte", "Forgotten Developer Backup"],
+    },
+    "match_manifest": {
+        "schema_version": "0.1",
+        "match_id": "20261109T153012Z-a1b2",
+        "started_at": "2026-11-09T15:30:12.001Z",
+        "finished_at": "2026-11-09T15:31:40.512Z",
+        "status": "completed",
+        "failed_step": None,
+        "error": None,
+        "judge_version": "0.1.0",
+        "blue_engine": "scripted",
+        "red_source": {"path": "red/payloads.json", "sha256": SHA},
+        "git": {"commit": "0" * 40, "dirty": False},
+        "images": {"juice_shop": {**IMAGE, "image": "bkimminich/juice-shop:v20.3.0"},
+                   "nginx": IMAGE},
+        "artifacts": {"proxy.jsonl": {"sha256": SHA, "bytes": 1234}},
     },
 }
 
@@ -238,6 +258,27 @@ INVALID = {
         ("landed true but reason set", _set("landed_reason", "not_measurable")),
         ("extra property", _set("verdict", "CWE-22")),
     ],
+    "match_manifest": [
+        ("status not in enum", _set("status", "running")),
+        ("completed but failed_step set", _set("failed_step", "red")),
+        ("completed but error set", _set("error", "boom")),
+        ("failed without failed_step",
+         lambda r: {**r, "status": "failed", "error": "boom"}),
+        ("failed without error",
+         lambda r: {**r, "status": "failed", "failed_step": "red"}),
+        ("failed_step not a step", lambda r: {**r, "status": "failed",
+                                              "failed_step": "lunch", "error": "x"}),
+        ("finished_at not UTC Z", _set("finished_at", "2026-11-09T15:31:40+00:00")),
+        ("git commit not 40-hex", _set("git", {"commit": "abc", "dirty": False})),
+        ("missing artifacts", _drop("artifacts")),
+        ("artifacts lists match.json itself",
+         _set("artifacts", {"match.json": {"sha256": SHA, "bytes": 1}})),
+        ("artifact sha256 malformed",
+         _set("artifacts", {"proxy.jsonl": {"sha256": "xyz", "bytes": 1}})),
+        ("missing images", _drop("images")),
+        ("bad match_id", _set("match_id", "2026-11-09")),
+        ("extra property", _set("notes", "x")),
+    ],
 }
 
 
@@ -302,12 +343,32 @@ def test_round_record_four_valid_detected_shapes():
                 "type_correct": None, "detected_reason": "orphan"})
 
 
+def test_match_manifest_failed_shape_valid():
+    validator("match_manifest").validate({
+        **VALID["match_manifest"], "status": "failed", "failed_step": "blue",
+        "error": "ValueError: duplicate verdict"})
+
+
+@pytest.mark.parametrize("match_id,ok", [
+    ("m001", True), ("m12345", True), ("20261109T153012Z-a1b2", True),
+    ("m01", False), ("20261109T153012Z", False), ("20261109T153012Z-A1B2", False),
+    ("20261109T153012-a1b2", False), ("x20261109T153012Z-a1b2", False),
+])
+def test_match_id_accepts_both_forms(match_id, ok):
+    # Contract §0: legacy m+digits, or the run_match.py timestamp form.
+    for name in ("red_attack", "verdict", "round_record", "landed_fact", "match_manifest"):
+        rec = {**VALID[name], "match_id": match_id}
+        assert validator(name).is_valid(rec) is ok, (name, match_id)
+    rule = {**RULE, "created_match": match_id}
+    assert validator("rule").is_valid(rule) is ok, ("rule", match_id)
+
+
 def test_rules_file_empty_rules_is_valid():
     validator("rules_file").validate({"schema_version": "0.1", "rules": []})
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "verdict", "round_record", "landed_fact"):
+    for name in ("red_attack", "verdict", "round_record", "landed_fact", "match_manifest"):
         required = SCHEMAS[name]["required"]
         assert "schema_version" in required and "match_id" in required, name
     assert "schema_version" in SCHEMAS["rules_file"]["required"]

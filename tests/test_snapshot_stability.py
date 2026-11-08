@@ -1,4 +1,4 @@
-"""Tests for runner.stage2_run.snapshot_after stability polling.
+"""Tests for runner.match_ops.snapshot_after stability polling.
 
 A single attack can solve several challenges at slightly different times (round 4
 solves two). snapshot_after must keep polling until the solved set stops changing,
@@ -9,13 +9,12 @@ injected.
 
 from __future__ import annotations
 
-import importlib.util
+import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-_spec = importlib.util.spec_from_file_location("stage2_run", REPO / "runner" / "stage2_run.py")
-stage2 = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(stage2)
+sys.path.insert(0, str(REPO))
+from runner import match_ops  # noqa: E402
 
 
 class FakeClock:
@@ -48,7 +47,7 @@ def make_poll_fn(values):
 
 def run(before, values, settle=100.0, stable_polls=3):
     clk = FakeClock()
-    return stage2.snapshot_after(
+    return match_ops.snapshot_after(
         before, settle=settle, poll=0.25, stable_polls=stable_polls,
         poll_fn=make_poll_fn(values), sleep_fn=clk.sleep, clock=clk,
     )

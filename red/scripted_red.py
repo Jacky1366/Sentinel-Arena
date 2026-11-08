@@ -8,7 +8,7 @@ proxy (127.0.0.1:8080). Per the contract:
 - Every request carries X-Arena-Request-Id and is sent by the same HTTP client.
 - One round = one attack = one request. No retries in Stage 2. Timeouts always.
 
-This module is imported by runner/stage2_run.py (which interleaves challenge
+This module is imported by runner/match_ops.py (which interleaves challenge
 snapshots around each send). It can also be run standalone to fire the whole set
 without snapshots:  .venv/bin/python red/scripted_red.py
 """
@@ -73,6 +73,24 @@ def red_record(attack: dict, request_id: str, match_id: str, round_num: int) -> 
     }
 
 
+def send_request(method: str, target: str, request_id: str, body: str | None = None,
+                 timeout: float = DEFAULT_TIMEOUT) -> int:
+    """THE arena HTTP client. Every arena request (attack, benign, or a harness
+    probe) goes through here, so all traffic looks alike to Blue apart from its
+    content (CLAUDE.md principle 8). Returns the status; raises on send failure."""
+    headers = {"X-Arena-Request-Id": request_id}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    conn = http.client.HTTPConnection(ARENA_HOST, ARENA_PORT, timeout=timeout)
+    try:
+        conn.request(method, target, body=body, headers=headers)
+        resp = conn.getresponse()
+        resp.read()
+        return resp.status
+    finally:
+        conn.close()
+
+
 def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DIR,
              timeout: float = DEFAULT_TIMEOUT) -> dict:
     """Write the Red record, then fire one attack. Returns a result dict; on a send
@@ -85,23 +103,16 @@ def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DI
     with (out_dir / "red_attacks.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
 
-    headers = {"X-Arena-Request-Id": request_id}
     body = None
     if attack.get("json_body") is not None:
         body = json.dumps(attack["json_body"])
-        headers["Content-Type"] = "application/json"
 
     status, error = None, None
-    conn = http.client.HTTPConnection(ARENA_HOST, ARENA_PORT, timeout=timeout)
     try:
-        conn.request(attack["method"], request_target(attack), body=body, headers=headers)
-        resp = conn.getresponse()
-        resp.read()
-        status = resp.status
+        status = send_request(attack["method"], request_target(attack), request_id,
+                              body=body, timeout=timeout)
     except Exception as exc:  # noqa: BLE001 - any failure -> orphan, no retry
         error = f"{type(exc).__name__}: {exc}"
-    finally:
-        conn.close()
 
     return {
         "request_id": request_id,
@@ -118,13 +129,14 @@ def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DI
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Fire the scripted Red attack set.")
     parser.add_argument("--match-id", default=DEFAULT_MATCH)
-    parser.add_argument("--out-dir", type=Path, default=OUT_DIR)
+    parser.add_argument("--run-dir", type=Path, default=OUT_DIR,
+                        help="where red_attacks.jsonl is written (default: data/runs/live)")
     parser.add_argument("--payloads", type=Path, default=PAYLOADS)
     args = parser.parse_args(argv)
 
     attacks = load_attacks(args.payloads)
     for i, attack in enumerate(attacks, start=1):
-        res = send_one(attack, args.match_id, i, args.out_dir)
+        res = send_one(attack, args.match_id, i, args.run_dir)
         where = res["status"] if res["error"] is None else res["error"]
         print(f"round {i} {res['label']:7} {res['request_id']} -> {where}")
     return 0

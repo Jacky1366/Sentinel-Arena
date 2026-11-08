@@ -12,7 +12,7 @@
     "field": { "enum": ["path", "query", "body"] },
     "match_type": { "enum": ["regex"] },
     "pattern": { "type": "string", "minLength": 1 },
-    "created_match": { "type": "string", "pattern": "^m[0-9]{3,}$" },
+    "created_match": { "type": "string", "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$" },
     "created_round": { "type": "integer", "minimum": 1 }
   }
 }

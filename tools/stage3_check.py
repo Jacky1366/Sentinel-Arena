@@ -1,11 +1,10 @@
-"""Stage 3 end-to-end check.
+"""Stage 3 end-to-end check: full pipeline vs reasoned expectations.
 
-Requires the stack up (docker compose up -d --wait). Runs the full pipeline:
-
-    Stage 2 runner  ->  Judge fact 1 (landed)  ->  Blue v0  ->  Judge round record
-
-then validates rounds.jsonl against the schema and compares each round's fields to
-tools/stage3_expected.json (expectations derived by reasoning, in their own file).
+Requires the stack up (docker compose up -d --wait). Runs one match through
+run_match.py (runner -> Judge fact 1 -> Blue -> round record, on the frozen match
+directory), then validates rounds.jsonl against the schema and compares each
+round's fields to tools/stage3_expected.json (expectations derived by reasoning,
+in their own file).
 
 If a live result differs from the expectation, this STOPS and reports the diff. It
 never edits the expectations to make the check pass. Exits non-zero on any problem.
@@ -21,12 +20,9 @@ from jsonschema import Draft202012Validator
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
-from blue import run_blue  # noqa: E402
-from judge import fact1_landed, round_record  # noqa: E402
-from runner import stage2_run  # noqa: E402
+sys.path.insert(0, str(REPO / "tools"))
+import stage2_check  # noqa: E402
 
-RUN_DIR = REPO / "data" / "runs" / "live"
-MATCH_ID = "m001"
 EXPECTED = json.loads((REPO / "tools" / "stage3_expected.json").read_text())["rounds"]
 SCHEMA = json.loads((REPO / "schemas" / "round_record.schema.json").read_text())
 COMPARE = ["label", "verdict", "detected", "type_correct", "detected_reason",
@@ -45,23 +41,12 @@ def tripwire_failures(rounds: list[dict]) -> list[str]:
     return fails
 
 
-def main() -> int:
-    challenge_map = json.loads((REPO / "config" / "challenge_map.json").read_text())
-
-    # Full pipeline.
-    stage2_run.run(MATCH_ID, RUN_DIR, settle=3.0)
-    facts, _ = fact1_landed.judge_run(RUN_DIR, challenge_map)
-    (RUN_DIR / "landed.jsonl").write_text(
-        "".join(json.dumps(f) + "\n" for f in facts), encoding="utf-8")
-    run_blue.main(["--engine", "scripted", "--match-id", MATCH_ID])
-    rounds = round_record.build_round_records(RUN_DIR)
-    (RUN_DIR / "rounds.jsonl").write_text(
-        "".join(json.dumps(r) + "\n" for r in rounds), encoding="utf-8")
-
+def check_rounds(match_dir: Path) -> list[str]:
+    """Schema validity, per-round fields vs expectations, request_id 1:1, tripwire."""
+    rounds = stage2_check._read_jsonl(match_dir / "rounds.jsonl")
     validator = Draft202012Validator(SCHEMA)
     fails: list[str] = []
 
-    # Schema validity + one record per Red round.
     by_round = {}
     for r in rounds:
         for e in validator.iter_errors(r):
@@ -78,16 +63,17 @@ def main() -> int:
             print(f"{rnd:>3} (missing)")
             continue
         diffs = {k: (got.get(k), exp[k]) for k in COMPARE if got.get(k) != exp[k]}
-        ok = not diffs
-        if not ok:
+        if diffs:
             fails.append(f"round {rnd}: " + ", ".join(
                 f"{k} got {g!r} expected {e!r}" for k, (g, e) in diffs.items()))
         print(f"{rnd:>3} {got['label']:7} {str(got['verdict']):7} "
               f"{str(got['detected']):5} {str(got['type_correct']):5} "
               f"{str(got['landed']):6} {str(got['landed_reason']):15} "
-              f"{'PASS' if ok else 'FAIL'}")
+              f"{'PASS' if not diffs else 'FAIL'}")
+    extra = sorted(set(by_round) - set(EXPECTED), key=int)
+    if extra:
+        fails.append(f"unexpected extra round(s): {extra}")
 
-    # request_id appears exactly once across the round records.
     seen: dict[str, int] = {}
     for r in rounds:
         seen[r["request_id"]] = seen.get(r["request_id"], 0) + 1
@@ -95,18 +81,17 @@ def main() -> int:
     if dupes:
         fails.append(f"request_id not 1:1 in rounds.jsonl: {dupes}")
 
-    # Tripwire: a scripted run must never drop a snapshot. snapshot_missing means
-    # the measurement harness misbehaved -> fail loudly (contract §6.1).
+    # Tripwire: a scripted run must never drop a snapshot (contract §6.1).
     fails.extend(tripwire_failures(rounds))
+    return fails
 
-    print()
-    if fails:
-        print(f"RESULT: FAIL ({len(fails)} problem(s)) -- STOP, do not edit expectations")
-        for f in fails:
-            print(f"  - {f}")
-        return 1
-    print(f"RESULT: PASS ({len(rounds)} round records match expected)")
-    return 0
+
+def main() -> int:
+    match_dir, fails = stage2_check.run_and_require_match()
+    if match_dir is not None:
+        print(f"\nchecking {match_dir}")
+        fails += check_rounds(match_dir)
+    return stage2_check.report(fails, f"{len(EXPECTED)} round records match expected")
 
 
 if __name__ == "__main__":

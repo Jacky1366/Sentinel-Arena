@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-03*
+*Last updated: 2026-11-07*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -16,7 +16,7 @@ file artifacts defined in a data contract.
 | 1 | Target + reverse proxy + challenge map | Nov 3–5 | Done (Nov 3) |
 | 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
 | 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
-| 4 | Integration + Progress Report | Nov 9–11 | Next |
+| 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7) |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -99,6 +99,47 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
   before the first run). Passes 3× on a fresh `docker compose up`. No AI API calls
   in this stage — zero token cost.
 
+### Stage 4 — Integration: one-command match
+- **`run_match.py`** runs a whole scripted match on a running stack and leaves a
+  frozen, self-describing `data/runs/<match_id>/` (`match_id` = UTC timestamp + 4
+  hex, e.g. `20261108T054013Z-0594`). Sequence: preflight (containers Up, Juice Shop
+  healthy, no leftovers in `live/`) → lock → reset (verify 0 solved) → rotate →
+  scripted Red with snapshots → **freeze** → Judge fact 1 → Blue → round record →
+  `match.json` → terminal summary. No AI API calls — zero token cost.
+- **One code path.** Reset / rotate / snapshot / freeze logic lives only in
+  `runner/match_ops.py`; `runner/stage2_run.py` is removed. The Stage 2/3/4 checks
+  all run matches through `run_match.py`. Red and the runner write straight into the
+  match directory; only `proxy.jsonl` is staged in `live/` (nginx never knows about
+  matches). Red, Blue and the Judge accept `--run-dir`.
+- **Freeze before scoring.** After Red, `proxy.jsonl` moves into the match dir and
+  nginx reopens a fresh live log *before* Blue and the Judge run, so they read a file
+  that can no longer change. `tools/stage4_check.py` proves it with a post-freeze
+  probe: one arena request lands in `live/`, and the frozen file's sha256 is unchanged.
+- **Failure handling.** Any failing step still finalizes the match: this match's
+  artifacts are in its directory, `match.json` says `failed` with the step and error,
+  the lock is released, exit is non-zero. A failed match never leaves artifacts in
+  `live/`. The Judge raising on ambiguous data is a failure; `snapshot_missing` is not.
+  Covered by Docker-free tests that inject a failure at every step.
+- **`match.json` manifest** (new contract artifact, §6.2): status, `judge_version`
+  (`JUDGE_VERSION = "0.1.0"`), Blue engine, payload sha256, git commit + dirty flag,
+  the image versions **actually running** (from `docker inspect`), and sha256 + size
+  of every other file in the match dir. `stage4_check` recomputes the hashes.
+- **Terminal summary** (`stats/match_stats.py`, pure, unit-tested, reusable for the
+  autonomy table): one row per round, then each rate as `n/d (%)` with the rounds its
+  denominator excludes, the edge-case counts, and the footer that detection is an
+  upper bound until Stage 5.
+- **Golden run** committed at `data/golden/scripted-baseline-match/`, produced from a
+  clean tree (`git.dirty == false`).
+- **Finding: nginx keeps appending to a moved log until reopen.** nginx holds its
+  access-log file descriptor, so a renamed `proxy.jsonl` — even one moved out of the
+  bind-mounted directory — keeps receiving lines until `nginx -s reopen`. Verified
+  empirically on Docker Desktop / macOS bind mount: after the move a tagged request
+  landed in the moved file (same inode); after reopen the next one landed in a new
+  file (new inode). The existing rotate already reopened, so **Stage 2/3 data is
+  unaffected**. The real bug was the **silent give-up**: if the fresh log never
+  appeared, rotate continued anyway. Rotate and freeze now raise instead. Deleting an
+  *empty* log on rotation is kept as a documented exception (it holds no evidence).
+
 ## Measurement limitations (known and documented)
 
 These are honest boundaries of the instrument, recorded in the contract:
@@ -161,7 +202,8 @@ Stage 6 will centralize these; some are already enforced.
   (Red labels every attack), never an LLM judgment — the determinism anchors the
   credibility of the whole track record.
 
-## Next: Stage 4
-- Orchestrator (`run_match.py`): sequence runner → Judge fact 1 → Blue → round
-  record into one match, moving `data/runs/live/` into `data/runs/<match_id>/`.
-- Progress Report: a committed golden run plus the Match-1 picture.
+## Next
+- Progress Report: the golden run (`data/golden/scripted-baseline-match/`) plus the
+  Match-1 picture.
+- Stage 5: benign traffic + false-positive scoring (fact 4), which turns the
+  detection rate from an upper bound into a real measurement.

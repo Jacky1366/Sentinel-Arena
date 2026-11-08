@@ -14,7 +14,7 @@ the Judge or the verdict format:
 v0 ships the deterministic `scripted` engine (generic signatures in signatures.py).
 
 Usage:
-    .venv/bin/python blue/run_blue.py --engine scripted --match-id m001
+    .venv/bin/python blue/run_blue.py --engine scripted --match-id m001 --run-dir data/runs/<match_id>
 """
 
 from __future__ import annotations
@@ -27,8 +27,6 @@ from blue import signatures
 
 REPO = Path(__file__).resolve().parent.parent
 LIVE = REPO / "data" / "runs" / "live"
-DEFAULT_PROXY_LOG = LIVE / "proxy.jsonl"
-DEFAULT_OUT = LIVE / "verdicts.jsonl"
 
 UUID4 = __import__("re").compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -81,9 +79,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Blue v0: classify proxy-log requests.")
     parser.add_argument("--engine", choices=sorted(ENGINES), default="scripted")
     parser.add_argument("--match-id", default="m001")
-    parser.add_argument("--proxy-log", type=Path, default=DEFAULT_PROXY_LOG)
-    parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--run-dir", type=Path, default=LIVE,
+                        help="run directory: reads <run-dir>/proxy.jsonl, writes "
+                             "<run-dir>/verdicts.jsonl (default: data/runs/live)")
+    parser.add_argument("--proxy-log", type=Path, default=None,
+                        help="override the proxy log path (default: <run-dir>/proxy.jsonl)")
+    parser.add_argument("--out", type=Path, default=None,
+                        help="override the verdicts path (default: <run-dir>/verdicts.jsonl)")
     args = parser.parse_args(argv)
+    args.proxy_log = args.proxy_log or args.run_dir / "proxy.jsonl"
+    args.out = args.out or args.run_dir / "verdicts.jsonl"
 
     verdicts = classify_log(args.proxy_log, args.match_id, args.engine)
     args.out.parent.mkdir(parents=True, exist_ok=True)
