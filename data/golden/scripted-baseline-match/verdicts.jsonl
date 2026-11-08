@@ -1,0 +1,7 @@
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 1, "request_id": "ffd79f61-92d2-4334-95a1-47dbcb2020d0", "verdict": "CWE-89", "reason": "CWE-89 signature matched (generic, decoded path/query/body)"}
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 2, "request_id": "7c4496e7-b7d4-4c64-aeb9-dc0609158b44", "verdict": "CWE-89", "reason": "CWE-89 signature matched (generic, decoded path/query/body)"}
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 3, "request_id": "bde29b8a-67a8-4045-a224-1ef34c1b5858", "verdict": "CWE-89", "reason": "CWE-89 signature matched (generic, decoded path/query/body)"}
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 4, "request_id": "70da503f-1616-41bb-b86a-5ba0167f47c8", "verdict": "CWE-22", "reason": "CWE-22 signature matched (generic, decoded path/query/body)"}
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 5, "request_id": "dbb83a0e-7b58-4622-974f-9bdf30406a91", "verdict": "CWE-22", "reason": "CWE-22 signature matched (generic, decoded path/query/body)"}
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 6, "request_id": "f97fdb06-4df5-457c-a9b3-ff9299e599fd", "verdict": "CWE-79", "reason": "CWE-79 signature matched (generic, decoded path/query/body)"}
+{"schema_version": "0.1", "match_id": "20261108T054250Z-ffa1", "log_seq": 7, "request_id": "50157f4d-98c5-4ee7-91ec-c0f241866159", "verdict": "CWE-79", "reason": "CWE-79 signature matched (generic, decoded path/query/body)"}

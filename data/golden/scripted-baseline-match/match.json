@@ -1,0 +1,57 @@
+{
+  "schema_version": "0.1",
+  "match_id": "20261108T054250Z-ffa1",
+  "started_at": "2026-11-08T05:42:50.405Z",
+  "finished_at": "2026-11-08T05:43:10.818Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.1.0",
+  "blue_engine": "scripted",
+  "red_source": {
+    "path": "red/payloads.json",
+    "sha256": "ea2baaf34133bc4e307913307013637f861221589d9e21bc6911bf6c9c0062fc"
+  },
+  "git": {
+    "commit": "828e4e9c406634c67c94fa501aed2adea07316d4",
+    "dirty": false
+  },
+  "images": {
+    "juice_shop": {
+      "image": "bkimminich/juice-shop:v20.3.0",
+      "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+      "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+    },
+    "nginx": {
+      "image": "nginx:1.30.6-alpine",
+      "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+      "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+    }
+  },
+  "artifacts": {
+    "challenge_snapshots.jsonl": {
+      "sha256": "609c50c1bbd22626d2383d4781dcd932974bdb675ead1c2c17a890bb2a047a53",
+      "bytes": 1755
+    },
+    "landed.jsonl": {
+      "sha256": "084b7bf7ace9ff3268cb8f86f106b39820657d0cc1db085a872db8a0ae9303ad",
+      "bytes": 1589
+    },
+    "proxy.jsonl": {
+      "sha256": "56561d48787aff82ad1a758c7a237c84784031d58b8910c2786baa898cb30cca",
+      "bytes": 1563
+    },
+    "red_attacks.jsonl": {
+      "sha256": "926878f778e759f5ba2aa58198c29167fb8bba683a9432d3f7e181721e8523f4",
+      "bytes": 2319
+    },
+    "rounds.jsonl": {
+      "sha256": "6699992111402e81a70b45dd46349b1d6b6e74d524e5121f824ac12ff77b6542",
+      "bytes": 2492
+    },
+    "verdicts.jsonl": {
+      "sha256": "bbb1b9b7f9b143deedc85eec68e27ffbf4d9904249c8b10099275ba53aeea2c1",
+      "bytes": 1575
+    }
+  }
+}
