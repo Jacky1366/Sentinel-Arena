@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-07*
+*Last updated: 2026-11-08*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -16,7 +16,8 @@ file artifacts defined in a data contract.
 | 1 | Target + reverse proxy + challenge map | Nov 3–5 | Done (Nov 3) |
 | 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
 | 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
-| 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7) |
+| 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7; verified + merged Nov 8) |
+| — | Progress Report | Nov 12 | In progress |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -130,8 +131,8 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
   autonomy table): one row per round, then each rate as `n/d (%)` with the rounds its
   denominator excludes, the edge-case counts, and the footer that detection is an
   upper bound until Stage 5.
-- **Golden run** committed at `data/golden/scripted-baseline-match/`, produced from a
-  clean tree (`git.dirty == false`).
+- **Scripted baseline run** committed at `data/golden/scripted-baseline-match/`,
+  produced from a clean tree (`git.dirty == false`).
 - **Finding: nginx keeps appending to a moved log until reopen.** nginx holds its
   access-log file descriptor, so a renamed `proxy.jsonl` — even one moved out of the
   bind-mounted directory — keeps receiving lines until `nginx -s reopen`. Verified
@@ -141,15 +142,32 @@ Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
   unaffected**. The real bug was the **silent give-up**: if the fresh log never
   appeared, rotate continued anyway. Rotate and freeze now raise instead. Deleting an
   *empty* log on rotation is kept as a documented exception (it holds no evidence).
-- **Finding: an attack solved a challenge outside the map (golden run, round 5).**
+- **Finding: an attack solved a challenge outside the map (scripted baseline run, round 5).**
   `GET /ftp/coupons_2013.md.bak%2500.md` (CWE-22) scored `landed=null /
   already_solved` (both mapped CWE-22 challenges fell in round 4), but its
   `newly_solved` is `["Forgotten Sales Backup"]`, which is not in the CWE-22 map. The
   Judge behaved as designed (only mapped challenges are credited) and the raw
   evidence was kept, but landing is slightly **under-counted**. Deliberately not
-  changed yet (challenge map, Stage 3 expectations and golden run stay as they are);
+  changed yet (challenge map, Stage 3 expectations and scripted baseline run stay as they are);
   revisit when variant attacks are designed. It is exactly the planned
   "`newly_solved` outside the map" tripwire below. Recorded in contract §7.
+
+**Verification (Nov 8, run by hand on commit `e71f2d7`)**
+- **3/3 fresh-stack PASS** of `tools/stage4_check.py`, each after
+  `docker compose down && docker compose up -d --wait` (matches
+  `20261108T220039Z-b325`, `20261108T220156Z-56b8`, `20261108T220234Z-e32d`). This
+  closes the Stage 3 gap: that stage was re-verified only once after the
+  snapshot-missing change.
+- **Reproducibility.** All three matches produced per-round results identical to the
+  scripted baseline run (commit `828e4e9`) — `landed`, `landed_reason`,
+  `newly_solved`, `detected`, `type_correct`; only ids and timestamps differ. Four
+  independent matches across two commits, identical results. The round-5 unmapped
+  solve (`Forgotten Sales Backup`) reproduced every time, so it is a property of that
+  payload, not noise.
+- **Negative test.** With juice-shop stopped, `run_match.py` refused at preflight
+  with a clear message, exit 2, and created no match directory.
+- **Merged** fast-forward into `main` (`059e7d4..e71f2d7`) and pushed, so the
+  baseline manifest's commit `828e4e9` stays in `main`'s history. 227 tests pass.
 
 ## Measurement limitations (known and documented)
 
@@ -199,7 +217,7 @@ Stage 6 will centralize these; some are already enforced.
   `tools/stage3_check.py` already fails on it.
 - **`newly_solved` contains a challenge outside the label's map** — the attack did
   something the map does not credit, so landing may be under-counted (or the map is
-  incomplete). Not enforced yet. First seen in the Stage 4 golden run, round 5
+  incomplete). Not enforced yet. First seen in the Stage 4 scripted baseline run, round 5
   (`Forgotten Sales Backup` from a CWE-22 attack); see contract §7.
 - (more to be added as later stages surface them)
 
@@ -216,9 +234,25 @@ Stage 6 will centralize these; some are already enforced.
 - **Pure-code Judge.** Scoring is a mechanical comparison against ground truth
   (Red labels every attack), never an LLM judgment — the determinism anchors the
   credibility of the whole track record.
+- **Reproducibility.** The instrument's core property is that the same experiment
+  gives the same result. Four independent scripted matches across two commits
+  (`828e4e9`, `e71f2d7`) gave identical per-round results. This is checkable, not
+  asserted: images are pinned, and every `match.json` records the images actually
+  running, the payload sha256, the git commit + dirty flag, the Judge version, and
+  the sha256 of every artifact.
+- **Terminology.** `data/golden/scripted-baseline-match/` is the **scripted baseline
+  run**: a reference / regression anchor, no AI. **"Golden run"** is reserved for the
+  later recorded AI-vs-AI demo match. Docs use these terms consistently.
 
 ## Next
-- Progress Report: the golden run (`data/golden/scripted-baseline-match/`) plus the
-  Match-1 picture.
-- Stage 5: benign traffic + false-positive scoring (fact 4), which turns the
-  detection rate from an upper bound into a real measurement.
+- **Progress Report** (Nov 12).
+- **Stage 5 — AI brains** (Nov 13–19):
+  - Red agent loop on the ChatGPT API: history, JSON-only output, round/token caps,
+    retry, scope guard → `red_guard.jsonl`.
+  - Blue `--engine claude` on the same verdict schema, with a separate no-verdict
+    rate.
+  - Blue rule invention + hot-load.
+  - Judge fact 3 (replay) and fact 4 (benign false positives), with a
+    benign-traffic set.
+  - Variant / held-out attacks for any AI-vs-baseline comparison.
+  - Revisit the CWE-22 challenge map (round-5 finding).
