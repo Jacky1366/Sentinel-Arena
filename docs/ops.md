@@ -23,6 +23,25 @@ A key value never appears in `api_calls.jsonl`, `match.json`, terminal output, o
 error / exception text: the client and `run_match.py` redact known key values and
 anything shaped like a provider key.
 
+## Keeping keys out of Claude Code sessions
+
+`.claude/settings.json` (committed, applies to every clone) **denies Claude Code
+access to `.env` and `.env.*`**: `Read` / `Edit` rules for those paths, plus `Bash`
+rules for the obvious ways to print them (`cat`, `head`, `tail`, `less`, `more`,
+`grep`, `source`, `env`, `printenv`). A key must never enter a session transcript.
+Verified 2026-11-08: a `Read` and a `cat` of a dummy `.env.*` file were both refused.
+Two consequences:
+
+- `.env.example` matches `.env.*`, so Claude Code cannot read it either. The designer
+  edits it by hand (it holds variable names only).
+- The `Bash` rules match command prefixes; they block the obvious reads, not every
+  conceivable one. The real guarantee is that the code never prints a key
+  (redaction, below) and that the implementer never runs commands that dump the
+  environment or the file. Keep the rules; do not loosen them in `settings.local.json`.
+
+`.env.*` is also git-ignored (except `.env.example`), so a `.env.local` cannot be
+committed by accident.
+
 ## Secret scanning (two layers)
 
 1. **Local: gitleaks pre-commit hook** (`.githooks/pre-commit`). It scans the staged
@@ -40,6 +59,9 @@ anything shaped like a provider key.
 2. **Server: GitHub secret scanning + push protection**, enabled on the repository
    by the designer. Push protection rejects a push that contains a recognised
    secret, even if the local hook was skipped.
+
+Together with the Claude Code deny rule above, this keeps a key out of git, out of
+GitHub, and out of session transcripts.
 
 A full-history scan (`gitleaks git .`) found no leaks on 2026-11-08 (25 commits).
 

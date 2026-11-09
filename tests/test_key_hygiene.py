@@ -66,6 +66,14 @@ def test_redact_removes_key_shaped_strings_without_knowing_them():
         assert s not in lc.redact(f"error near {s} here", keys=[])
 
 
+def test_claude_code_is_denied_the_env_files():
+    from llm_fakes import REPO
+    deny = json.loads((REPO / ".claude" / "settings.json").read_text())["permissions"]["deny"]
+    for rule in ("Read(./.env)", "Read(./.env.*)", "Read(**/.env)", "Read(**/.env.*)",
+                 "Bash(cat .env*)", "Bash(printenv*)"):
+        assert rule in deny, rule
+
+
 def test_key_never_in_match_json_or_terminal(tmp_path, monkeypatch):
     # A step fails with an exception whose text contains the key.
     import run_match

@@ -42,6 +42,7 @@ docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D13 + sub-stage map
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
+.claude/settings.json   Claude Code deny rules: never read .env / .env.* (docs/ops.md)
 schemas/                JSON Schema (draft 2020-12) per artifact
   red_attack.schema.json          Red ground truth (Blue never reads)
   proxy_log.schema.json           nginx log line (Blue's only input)
@@ -148,6 +149,8 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
 - Every AI call goes through `agents/llm_client.py`. API keys only from
   `ARENA_*_API_KEY`, passed explicitly; never rely on an SDK's default variable
   (`docs/ops.md`). Model ids come from config / CLI, never hardcoded in agent logic.
+- Never read `.env` / `.env.*` or dump the environment (denied in
+  `.claude/settings.json`); keys must never enter a session transcript.
 - The pre-commit hook must stay enabled (`git config core.hooksPath .githooks`).
   Test fixtures must never contain key-shaped strings (build them at runtime).
 - Bump `judge.JUDGE_VERSION` on any change to Judge logic.

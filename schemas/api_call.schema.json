@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/api_call.schema.json",
   "title": "API call attempt (contract 6.3)",
-  "description": "One line of data/runs/<match_id>/api_calls.jsonl, written by agents/llm_client.py for every attempt (including failures and retries) and for every call the body refused before sending (refusal non-null, nothing sent). input_tokens is full-price input only; the whole prompt is input_tokens + cached_input_tokens + cache_write_tokens. A null token count means the provider reported no usage. Never contains a key, prompt text or error text. provider is null only for a missing_price refusal (no price entry, so the provider is unknown).",
+  "description": "One line of data/runs/<match_id>/api_calls.jsonl, written by agents/llm_client.py for every attempt (including failures and retries) and for every call the body refused before sending (refusal non-null, nothing sent). input_tokens is full-price input only; the whole prompt is input_tokens + cached_input_tokens + cache_write_tokens. A null token count means the provider reported no usage. Never contains a key, prompt text or error text. provider comes from config/llm.json (never from the price table), so it is never null, even for a missing_price refusal.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -67,8 +67,7 @@
         "openai",
         "anthropic",
         "gemini",
-        "fake",
-        null
+        "fake"
       ]
     },
     "model": {
@@ -301,40 +300,6 @@
           },
           "log_seq_last": {
             "const": null
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "required": [
-          "refusal"
-        ],
-        "properties": {
-          "refusal": {
-            "type": "object",
-            "required": [
-              "reason"
-            ],
-            "properties": {
-              "reason": {
-                "const": "missing_price"
-              }
-            }
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "provider": {
-            "const": null
-          }
-        }
-      },
-      "else": {
-        "properties": {
-          "provider": {
-            "type": "string"
           }
         }
       }

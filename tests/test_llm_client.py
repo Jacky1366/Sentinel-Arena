@@ -240,6 +240,52 @@ def test_unpriced_usage_without_a_later_call_still_reported(tmp_path):
     assert lc.stopped_by(lines(d), PRICES) == {"scope": "match", "reason": "unpriced_usage"}
 
 
+# ---- refused lines never count toward a total ------------------------------
+
+def _refusals(client, d, n=20):
+    """n refused lines for blue and red (missing_price: nothing is sent)."""
+    for _ in range(n):
+        assert blue(client, d, model="no-such-model").refusal is not None
+        assert red(client, d, model="no-such-model").refusal is not None
+
+
+def _calls_until_refused(cap, with_refusals, tmp_path):
+    tmp_path.mkdir()
+    d = run_dir(tmp_path)
+    adapter = FakeAdapter()
+    client, _ = make_client(adapter, cfg=config(**cap))
+    if with_refusals:
+        _refusals(client, d)
+    runaway(client, d)
+    return len(adapter.calls), lines(d)
+
+
+@pytest.mark.parametrize("cap", [
+    {"blue": {"max_calls": 3}},
+    {"blue": {"max_tokens": 1500}},
+    {"blue": {"max_usd": 0.001}},
+    {"match": {"max_calls": 3}},
+    {"match": {"max_tokens": 1500}},
+    {"match": {"max_usd": 0.001}},
+])
+def test_refused_lines_never_make_a_cap_trigger_earlier(tmp_path, cap):
+    sent_clean, _ = _calls_until_refused(cap, False, tmp_path / "clean")
+    sent_after, log = _calls_until_refused(cap, True, tmp_path / "noisy")
+    assert sent_clean >= 1 and sent_after == sent_clean
+    assert sum(1 for l in log if l["error_type"] == "refused") == 40 + 1
+
+
+def test_spent_ignores_refused_lines(tmp_path):
+    d = run_dir(tmp_path)
+    client, _ = make_client(cfg=config(blue={"max_calls": 0}))
+    _refusals(client, d, n=5)
+    blue(client, d)  # refused by max_calls
+    assert len(lines(d)) == 11
+    for scope in ("blue", "red", "match"):
+        assert lc.spent(lines(d), PRICES, scope) == {
+            "calls": 0, "tokens": 0, "usd": 0, "unpriced_usage": False}
+
+
 def test_stopped_by_is_the_first_refusal(tmp_path):
     d = run_dir(tmp_path)
     client, _ = make_client(cfg=config(red={"max_calls": 0}, blue={"max_calls": 0}))
@@ -258,7 +304,33 @@ def test_missing_price_entry_refuses_the_call(tmp_path):
     r = blue(client, d, model="no-such-model")
     assert r.refusal == {"scope": "blue", "reason": "missing_price"} and adapter.calls == []
     [line] = lines(d)
-    assert line["provider"] is None and line["error_type"] == "refused"
+    assert line["provider"] == "fake" and line["error_type"] == "refused"
+
+
+def test_provider_comes_from_config_even_without_a_price_entry(tmp_path):
+    d = run_dir(tmp_path)
+    adapter = FakeAdapter(provider="anthropic", needs_key=True)
+    client, _ = make_client(adapter, tmp_path=tmp_path)
+    assert blue(client, d, model="no-such-model").refusal["reason"] == "missing_price"
+    assert lines(d)[0]["provider"] == "anthropic"
+
+
+def test_price_entry_for_another_provider_is_a_config_error(tmp_path):
+    d = run_dir(tmp_path)
+    adapter = FakeAdapter()  # blue configured for "fake"
+    client, _ = make_client(adapter)
+    with pytest.raises(lc.ConfigError, match="priced as anthropic"):
+        blue(client, d, model="fake-keyed")
+    assert lines(d) == [] and adapter.calls == []
+
+
+def test_agent_without_a_provider_is_a_config_error(tmp_path):
+    d = run_dir(tmp_path)
+    client, _ = make_client()
+    client.cfg["agents"]["analyst"]["provider"] = None
+    with pytest.raises(lc.ConfigError, match="provider is not set"):
+        client.complete("analyst", "fake-small", SYSTEM, MESSAGES, run_dir=d)
+    assert lines(d) == []
 
 
 def test_placeholder_model_is_never_callable(tmp_path):
@@ -343,6 +415,8 @@ def test_committed_config_loads_with_designer_caps():
         "analyst": {"max_calls": 0, "max_tokens": 0, "max_usd": 0},
         "match": {"max_calls": None, "max_tokens": None, "max_usd": 0.50}}
     assert cfg["provider_caching"] is False
+    assert {a: cfg["agents"][a]["provider"] for a in lc.AGENTS} == {
+        "red": "openai", "blue": "anthropic", "analyst": None}
 
 
 @pytest.mark.parametrize("mutate", [
@@ -352,6 +426,9 @@ def test_committed_config_loads_with_designer_caps():
     lambda c: c["caps"]["match"].update(max_usd=-1),
     lambda c: c.update(provider_caching=True),
     lambda c: c.pop("timeout_s"),
+    lambda c: c["agents"]["blue"].pop("provider"),
+    lambda c: c["agents"]["blue"].update(provider="bogus"),
+    lambda c: c["agents"]["red"].update(model="fake-small", provider=None),
 ])
 def test_bad_config_is_rejected(tmp_path, mutate):
     cfg = json.loads(json.dumps(CONFIG))

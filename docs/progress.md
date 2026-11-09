@@ -211,10 +211,15 @@ No real API calls in this step: every test uses a fake provider (zero token cost
   `"stopped"` with exit code 4. The committed scripted baseline run stays valid as
   0.1; validation dispatches on `schema_version`. The terminal summary gains a cost
   line.
-- **Verified (Nov 8):** 383 tests pass (fake provider: each cap stops a simulated
+- **Designer review (Nov 8):** refused lines are proven (tested) to add nothing to
+  any cap total or to the cost block's counts; `provider` comes from
+  `config/llm.json` and is never null, even for a `missing_price` refusal; unpriced
+  usage also sets `lower_bound`. Claude Code is denied access to `.env` / `.env.*`
+  (`.claude/settings.json`) so keys never enter a session transcript.
+- **Verified (Nov 8):** 401 tests pass (fake provider: each cap stops a simulated
   runaway loop; a sentinel key never reaches `api_calls.jsonl`, `match.json`, the
   terminal or exception text; consecutive prompts share a byte-identical prefix).
-  `tools/stage4_check.py` PASSes on a fresh stack (match `20261108T233329Z-b1cd`):
+  `tools/stage4_check.py` PASSes on a fresh stack (match `20261109T010909Z-b456`, rerun after the designer review):
   `match.json` is 0.2 with models all null, `cost $0.00 (0 API calls)`, no
   `api_calls.jsonl`, and the per-round results are identical to the scripted
   baseline run, so scripted behaviour is unchanged.

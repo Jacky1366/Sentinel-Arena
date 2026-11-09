@@ -1,16 +1,19 @@
 {
   "agents": {
     "red": {
+      "provider": "openai",
       "model": null,
       "note": "AI Red arrives in Stage 5.6 (OpenAI). Dev default will be GPT-6 Luna once its model id is confirmed (config/prices.json placeholders)."
     },
     "blue": {
+      "provider": "anthropic",
       "model": "claude-haiku-5-5",
       "note": "AI Blue arrives in Stage 5.4 (Anthropic). Cheapest current-generation model for development (D12)."
     },
     "analyst": {
+      "provider": null,
       "model": null,
-      "note": "Not implemented. Caps are 0 until the designer sets them."
+      "note": "Not implemented. Provider unset and caps 0 until the designer sets them; the client refuses to run an agent with no provider."
     }
   },
   "timeout_s": 60,

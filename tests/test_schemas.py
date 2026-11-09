@@ -367,7 +367,12 @@ INVALID = {
         ("refused with tokens",
          lambda r: {**r, "ok": False, "error_type": "refused", "http_status": None,
                     "refusal": {"scope": "blue", "reason": "max_usd"}, "latency_ms": 0}),
-        ("null provider outside missing_price", _set("provider", None)),
+        ("null provider", _set("provider", None)),
+        ("null provider on a missing_price refusal",
+         lambda r: {**r, "ok": False, "error_type": "refused", "http_status": None,
+                    "provider": None, "refusal": {"scope": "blue", "reason": "missing_price"},
+                    "input_tokens": 0, "cached_input_tokens": 0, "cache_write_tokens": 0,
+                    "output_tokens": 0, "latency_ms": 0}),
         ("prompt text stored", _set("prompt", "hello")),
         ("api key field", _set("api_key", "x")),
         ("missing schema_version", _drop("schema_version")),
@@ -492,7 +497,7 @@ def test_api_call_refusal_and_failure_shapes_valid():
                 "cached_input_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
                 "latency_ms": 0})
     v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
-                "provider": None, "refusal": {"scope": "blue", "reason": "missing_price"},
+                "refusal": {"scope": "blue", "reason": "missing_price"},
                 "input_tokens": 0, "cached_input_tokens": 0, "cache_write_tokens": 0,
                 "output_tokens": 0, "latency_ms": 0})
     v.validate({**base, "agent": "red", "round": 4, "log_seq_first": None, "log_seq_last": None})

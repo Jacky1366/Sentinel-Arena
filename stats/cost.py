@@ -16,12 +16,15 @@ Unknown prices:
   - cached_input price null  -> charged at the full input price (an upper
     bound; flagged `cached_at_input_price`), and it saves nothing.
   - cache_write price null with cache_write tokens > 0 -> that part cannot be
-    priced: it is left out of usd and flagged `unpriced_usage`. The budget then
-    refuses every further call (stopped_by reason "unpriced_usage").
+    priced: it is left out of usd and flagged `unpriced_usage` AND `lower_bound`
+    (the total is then an undercount). The budget then refuses every further
+    call (stopped_by reason "unpriced_usage").
   - token counts null (the provider reported no usage, e.g. a timeout) ->
     counted as 0 and flagged `lower_bound`: the provider may still have billed it.
 
-Refused calls (refusal non-null) were never sent and cost nothing.
+Refused calls (refusal non-null) were never sent: they add nothing to any
+total (attempts, tokens, usd), so a refusal can never make a cap trigger
+earlier. They are only counted in `refused`.
 """
 
 from __future__ import annotations
@@ -105,6 +108,7 @@ def call_cost(call: dict, prices: dict) -> dict:
     if t["cache_write"]:
         if p_write is None:
             out["unpriced_usage"] = True
+            out["lower_bound"] = True  # left out of usd, so usd undercounts
         else:
             usd += t["cache_write"] * p_write
             savings -= t["cache_write"] * (p_write - p_in)
@@ -186,7 +190,7 @@ def format_cost_line(cost: dict) -> str:
     if cost["attempts"]:
         parts.append(f"  cache savings ${cost['cache_savings_usd']:.4f} (net)")
     notes = [n for n, on in (("prices unverified", cost["prices_verified"] is False),
-                             ("lower bound: usage missing", cost["lower_bound"]),
+                             ("lower bound", cost["lower_bound"]),
                              ("cached input priced as input", cost["cached_at_input_price"]),
                              ("UNPRICED usage", cost["unpriced_usage"])) if on]
     if notes:

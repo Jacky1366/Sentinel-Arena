@@ -51,6 +51,13 @@ manifests (e.g. the committed scripted baseline run) stay valid under the frozen
 `schemas/match_manifest_v0_1.schema.json`, and validators dispatch on
 `schema_version`. Every other artifact stays `"0.1"`.*
 
+*Revised 2026-11-08 (Stage 5.1, designer review): `api_calls.jsonl` `provider` comes
+from `config/llm.json` (new required `agents.<agent>.provider`) and is **never
+`null`**, not even for a `missing_price` refusal (§6.3, §6.4). Refused lines are
+excluded from every accumulated total (caps and the cost block's counts). Unpriced
+usage also sets `cost.lower_bound` (§6.2). No version bump: no `api_calls.jsonl`
+has been written by a real match yet.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`) controls ordering.
@@ -433,7 +440,7 @@ Manifests written earlier are `"0.1"` (no `models` / `budget` / `price_table` /
 | `budget.limits` | `{red, blue, analyst, match}`: each `{max_calls, max_tokens, max_usd}` | The caps in force (`config/llm.json`). Per-agent caps are **required numbers**; the match-level total may leave a field `null` (no match-level limit on it). |
 | `budget.stopped_by` | `null` \| `{scope, reason}` | The **first** refusal in `api_calls.jsonl` (§6.3), or `{scope: "match", reason: "unpriced_usage"}` if usage could not be priced. `scope` ∈ red / blue / analyst / match; `reason` ∈ `max_calls` / `max_tokens` / `max_usd` / `unpriced_usage` / `missing_price` / `missing_key`. **Non-null whenever `status == "stopped"`, `null` when `completed`**; a failed match may carry one (both are facts). |
 | `price_table` | `{path, sha256, as_of}` | The price table the dollar snapshot below was computed with. |
-| `cost` | object | Dollar **snapshot** derived by `stats/cost.py` from `api_calls.jsonl` and that price table (D10: tokens are the evidence; dollars can be recomputed against any later table). `total_usd` includes failed attempts; `failed_attempts_usd` is that subset. `cache_savings_usd` is **net** of the cache-write premium and may be negative. `attempts` counts sent attempts; `refused` counts refusals (never sent, $0). `by_agent` / `by_model` break it down. Flags: `lower_bound` (an attempt reported no usage, e.g. a timeout the provider may still bill), `cached_at_input_price` (cached tokens of a model with no cached price, charged at the input price), `unpriced_usage` (cache writes with no cache-write price; not included in `total_usd`). `prices_verified`: `null` if no calls, else whether every model used has `verified: true`. A scripted match: all zeros, no `api_calls.jsonl`. |
+| `cost` | object | Dollar **snapshot** derived by `stats/cost.py` from `api_calls.jsonl` and that price table (D10: tokens are the evidence; dollars can be recomputed against any later table). `total_usd` includes failed attempts; `failed_attempts_usd` is that subset. `cache_savings_usd` is **net** of the cache-write premium and may be negative. `attempts` counts sent attempts; `refused` counts refusals (never sent, $0; they add nothing to `attempts`, tokens or dollars, here or in any cap total). `by_agent` / `by_model` break it down. Flags: `lower_bound` (`total_usd` is an undercount: an attempt reported no usage, e.g. a timeout the provider may still bill, or usage was unpriced), `cached_at_input_price` (cached tokens of a model with no cached price, charged at the input price), `unpriced_usage` (cache writes with no cache-write price; not included in `total_usd`, so `lower_bound` is `true` too). `prices_verified`: `null` if no calls, else whether every model used has `verified: true`. A scripted match: all zeros, no `api_calls.jsonl`. |
 | `artifacts` | `{name: {sha256, bytes}}` | Every other file in the match directory (never `match.json` itself). Lets anyone verify the frozen files were not changed afterwards. |
 
 **Failure handling.** If a step from `reset` on fails, the match is still
@@ -484,7 +491,7 @@ makes no calls and has no `api_calls.jsonl`.
 | `schema_version` / `match_id` | `"0.1"` / match_id | §0 common rules. |
 | `timestamp` | UTC ISO 8601 | When the attempt started. |
 | `agent` | `red` \| `blue` \| `analyst` | Which component asked. |
-| `provider` | `openai` \| `anthropic` \| `gemini` \| `fake` \| `null` | From the model's price entry. `null` only for a `missing_price` refusal (no entry, so unknown). `fake` appears only in tests. |
+| `provider` | `openai` \| `anthropic` \| `gemini` \| `fake` | From `config/llm.json` (`agents.<agent>.provider`), never from the price table, so it is **never `null`**, even for a `missing_price` refusal. A model whose price entry names another provider is a config error (the call raises, nothing is written). `fake` appears only in tests. |
 | `model` | string | The requested model id (from config / CLI, never hardcoded in agent logic). |
 | `round` | int ≥ 1 \| null | **Red only**: the Red round. `null` for Blue and the analyst (Blue never sees Red rounds, §4). |
 | `log_seq_first` / `log_seq_last` | int ≥ 1 \| null | **Blue only**: the chunk of proxy-log lines this call covers. `null` for Red and the analyst. |
@@ -506,7 +513,8 @@ and sends nothing): the model has no price entry (`missing_price`; a placeholder
 entry never counts) → its provider's `ARENA_*` key is missing (`missing_key`) → an
 earlier call left usage that cannot be priced (`unpriced_usage`) → the worst case
 does not fit a cap (`max_calls`, `max_tokens`, `max_usd`; the agent's own caps first,
-then the match total). Worst case = input estimated from the built prompt at 1 token
+then the match total). **Refused lines never count toward any cap total**: nothing
+was sent, so a refusal can never make a cap trigger earlier. Worst case = input estimated from the built prompt at 1 token
 per `chars_per_token` (3) characters, plus `max_output_tokens`, priced at the
 applicable tier. Retries count toward `max_calls`. If a reply is much larger than
 the estimate, the cap can be exceeded by **at most that one call**; the next call is
@@ -533,11 +541,13 @@ savings = cached_input·(p.input − p.cached_input) − cache_write·(p.cache_w
 
 A `null` `cached_input` price charges cached tokens at the input price (flagged
 `cached_at_input_price`). A `null` `cache_write` price with cache-write tokens > 0 is
-**unpriced usage**: left out of `usd`, flagged, and it stops further calls
+**unpriced usage**: left out of `usd`, flagged (`unpriced_usage` and `lower_bound`: the
+total is an undercount), and it stops further calls
 (`stopped_by` reason `unpriced_usage`, never `max_usd`).
 
-**`config/llm.json`**: per agent the default `model` (`null` = no AI for that agent
-yet), `timeout_s`, `max_retries`, `backoff_base_s`, `backoff_max_s`,
+**`config/llm.json`**: per agent the `provider` (`openai` / `anthropic` / `gemini`;
+`null` only while the agent has no model, and the client refuses to run such an
+agent) and the default `model` (`null` = no AI for that agent yet), `timeout_s`, `max_retries`, `backoff_base_s`, `backoff_max_s`,
 `max_output_tokens`, `chars_per_token`, `provider_caching` (must be `false` until
 Stage 5.7, D11), and `caps` for `red`, `blue`, `analyst` (all three fields required)
 and `match` (fields may be `null`). `run_match.py` refuses at preflight (exit 2) if

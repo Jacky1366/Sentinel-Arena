@@ -10,6 +10,10 @@ one line in <run_dir>/api_calls.jsonl (contract §6.3). That file is also the
 budget's only state: before each attempt the client re-reads it, so Red and Blue
 running as separate steps share one budget without sharing memory.
 
+The provider of every line comes from config/llm.json (agents.<agent>.provider),
+never from the price table, so it is known even when a price entry is missing.
+A model whose price entry names a different provider is a config error.
+
 Before each attempt, in order (a refusal writes a line and sends nothing):
   1. the model has a price entry          else refuse: missing_price
   2. the provider's ARENA_* key is set    else refuse: missing_key
@@ -18,6 +22,7 @@ Before each attempt, in order (a refusal writes a line and sends nothing):
      case = input estimated from the built prompt (1 token per
      `chars_per_token` chars) + max_output_tokens, priced at the applicable
      tier. Retries count as calls (D13: a refusal is an instrument failure).
+     Refused lines never count toward any total: nothing was sent.
 
 Failures: timeout / 429 / 5xx / connection errors are retried with exponential
 backoff (honouring Retry-After); anything else fails fast. When retries run out
@@ -64,6 +69,7 @@ KEY_ENV = {
     "anthropic": "ARENA_ANTHROPIC_API_KEY",
     "gemini": "ARENA_GEMINI_API_KEY",
 }
+PROVIDERS = tuple(KEY_ENV) + ("fake",)  # "fake" only in tests
 RETRYABLE = frozenset({"timeout", "rate_limit", "server_error", "connection"})
 API_CALL_SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "api_call.schema.json").read_text(encoding="utf-8")))
@@ -120,6 +126,14 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
     if cfg["provider_caching"] is not False:
         raise ConfigError("provider_caching must stay false until the agent loop is stable "
                           "(D11; enabled in Stage 5.7)")
+    for agent in AGENTS:
+        a = cfg["agents"].get(agent)
+        if not isinstance(a, dict) or "model" not in a or "provider" not in a:
+            raise ConfigError(f"agents.{agent}: needs 'model' and 'provider'")
+        if a["provider"] is not None and a["provider"] not in PROVIDERS:
+            raise ConfigError(f"agents.{agent}.provider: unknown provider {a['provider']!r}")
+        if a["model"] is not None and a["provider"] is None:
+            raise ConfigError(f"agents.{agent}: a model needs a provider")
     caps = cfg["caps"]
     for scope in CAP_SCOPES:
         if scope not in caps:
@@ -392,7 +406,12 @@ class LLMClient:
         prompt = canonical_prompt(model, system, messages)
         prompt_sha = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
         entry = cost_mod.entry_for(self.prices, model)
-        provider = entry["provider"] if entry else None
+        provider = self.cfg["agents"][agent]["provider"]
+        if provider is None:
+            raise ConfigError(f"agents.{agent}.provider is not set in config/llm.json")
+        if entry is not None and entry["provider"] != provider:
+            raise ConfigError(f"model {model!r} is priced as {entry['provider']}, but "
+                              f"{agent} is configured for {provider}")
         max_out = self.cfg["max_output_tokens"]
         attempts_sent = 0
 

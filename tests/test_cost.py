@@ -71,6 +71,34 @@ def test_null_cache_write_price_is_unpriced_usage():
     assert c["unpriced_usage"] and c["usd"] == pytest.approx(1.0)
 
 
+def test_unpriced_usage_makes_the_total_a_lower_bound():
+    c = cost.call_cost(call("fake-nowrite", i=1_000_000, w=10), PRICES)
+    assert c["lower_bound"] is True
+    s = cost.summarize([call("fake-nowrite", i=1_000_000, w=10)], PRICES)
+    assert s["unpriced_usage"] is True and s["lower_bound"] is True
+    line = cost.format_cost_line(s)
+    assert "lower bound" in line and "UNPRICED" in line
+
+
+def test_priced_cache_write_is_not_a_lower_bound():
+    s = cost.summarize([call(i=1000, w=10)], PRICES)
+    assert s["lower_bound"] is False and s["unpriced_usage"] is False
+
+
+def test_refused_lines_add_nothing_to_any_count_even_if_malformed():
+    # A refusal sends nothing. Even a hand-edited refused line that carries
+    # token counts must not reach attempts, tokens or dollars.
+    bad = call(ok=False, i=10**6, c=10**6, w=10**6, o=10**6,
+               refusal={"scope": "blue", "reason": "max_calls"})
+    s = cost.summarize([call(i=1000, o=10), bad, bad], PRICES)
+    clean = cost.summarize([call(i=1000, o=10)], PRICES)
+    assert s["refused"] == 2
+    for k in ("total_usd", "attempts", "failed_attempts", "tokens", "cache_savings_usd"):
+        assert s[k] == clean[k], k
+    assert s["by_agent"]["blue"]["attempts"] == 1
+    assert s["by_agent"]["blue"]["tokens"] == clean["by_agent"]["blue"]["tokens"]
+
+
 def test_failed_attempts_shown_separately_and_included_in_total():
     calls = [call(i=1_000_000), call(ok=False, i=500_000)]  # a failure that billed input
     s = cost.summarize(calls, PRICES)

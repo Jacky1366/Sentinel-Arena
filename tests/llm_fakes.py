@@ -36,8 +36,9 @@ PRICES = {
 }
 
 CONFIG = {
-    "agents": {"red": {"model": None}, "blue": {"model": "fake-small"},
-               "analyst": {"model": None}},
+    "agents": {"red": {"provider": "fake", "model": None},
+               "blue": {"provider": "fake", "model": "fake-small"},
+               "analyst": {"provider": "fake", "model": None}},
     "timeout_s": 5, "max_retries": 3, "backoff_base_s": 1.0, "backoff_max_s": 30.0,
     "max_output_tokens": 100, "chars_per_token": 3, "provider_caching": False,
     "caps": {"red": {"max_calls": 1000, "max_tokens": 10**9, "max_usd": 1000.0},
@@ -93,8 +94,11 @@ def make_client(adapter=None, cfg=None, prices=None, env=None, tmp_path=None):
     adapter = adapter or FakeAdapter()
     sleeps: list[float] = []
     ticks = itertools.count()
+    cfg = copy.deepcopy(cfg or config())
+    for a in cfg["agents"].values():  # every agent talks to this adapter's provider
+        a["provider"] = adapter.provider
     client = lc.LLMClient(
-        config=cfg or config(), prices=prices or PRICES,
+        config=cfg, prices=prices or PRICES,
         adapters={"fake": adapter, "anthropic": adapter} if adapter.provider == "fake"
         else {adapter.provider: adapter},
         env=env or {}, dotenv_path=(tmp_path or REPO / "nonexistent") / "no.env",
