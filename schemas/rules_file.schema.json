@@ -2,15 +2,22 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/rules_file.schema.json",
   "title": "rules.json file (contract v0.1)",
-  "description": "Cross-match memory: output of one match, input to the next. Versioned at the file level.",
+  "description": "rules.json: Blue's rules, versioned at the file level. Cross-match memory from Stage 6. The rule format was replaced in Stage 5.3 without a version bump because no rules.json had ever been written.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "rules"],
+  "required": [
+    "schema_version",
+    "rules"
+  ],
   "properties": {
-    "schema_version": { "const": "0.1" },
+    "schema_version": {
+      "const": "0.1"
+    },
     "rules": {
       "type": "array",
-      "items": { "$ref": "https://sentinel-arena.local/schemas/rule.schema.json" }
+      "items": {
+        "$ref": "https://sentinel-arena.local/schemas/rule.schema.json"
+      }
     }
   }
 }

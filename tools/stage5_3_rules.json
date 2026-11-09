@@ -1,0 +1,516 @@
+{
+  "schema_version": "0.1",
+  "rules": [
+    {
+      "rule_id": "r-001",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "regex",
+          "pattern": "'\\s*or\\s+1=1",
+          "case_insensitive": true
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "G1 good"
+    },
+    {
+      "rule_id": "r-002",
+      "cwe": "CWE-22",
+      "conditions": [
+        {
+          "field": "method",
+          "op": "equals",
+          "pattern": "GET",
+          "case_insensitive": false
+        },
+        {
+          "field": "path",
+          "op": "contains",
+          "pattern": "%2500",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "6daa626f-ff11-42a4-af47-0a32d3144910",
+      "created_at_log_seq": 14,
+      "note": "G2 good, two conditions"
+    },
+    {
+      "rule_id": "r-003",
+      "cwe": "CWE-79",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "regex",
+          "pattern": "<\\s*iframe",
+          "case_insensitive": true
+        }
+      ],
+      "source_request_id": "d34bfc42-88c8-4f6e-b0bd-0197baf695c0",
+      "created_at_log_seq": 19,
+      "note": "G3 good"
+    },
+    {
+      "rule_id": "r-004",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "'",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "B1 too broad: a quote in the body"
+    },
+    {
+      "rule_id": "r-005",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "query",
+          "op": "regex",
+          "pattern": "union",
+          "case_insensitive": true
+        }
+      ],
+      "source_request_id": "9c90b935-1c24-4d79-ab89-6053ca4cfcd1",
+      "created_at_log_seq": 8,
+      "note": "B2 too broad: 'union' anywhere in the query"
+    },
+    {
+      "rule_id": "r-006",
+      "cwe": "CWE-22",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "contains",
+          "pattern": "/ftp/",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "6daa626f-ff11-42a4-af47-0a32d3144910",
+      "created_at_log_seq": 14,
+      "note": "B3 too broad: any /ftp/ path"
+    },
+    {
+      "rule_id": "r-007",
+      "cwe": "CWE-22",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "contains",
+          "pattern": "../",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "6daa626f-ff11-42a4-af47-0a32d3144910",
+      "created_at_log_seq": 14,
+      "note": "W1 wrong: no ../ in the source"
+    },
+    {
+      "rule_id": "r-008",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "query",
+          "op": "regex",
+          "pattern": "union\\s+select",
+          "case_insensitive": true
+        }
+      ],
+      "source_request_id": "9c90b935-1c24-4d79-ab89-6053ca4cfcd1",
+      "created_at_log_seq": 8,
+      "note": "W2 union\\s+select (fires via the '+'-decoded form, v2)"
+    },
+    {
+      "rule_id": "r-009",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "query",
+          "op": "contains",
+          "pattern": "OR 1=1",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "W3 wrong field: the source query is empty"
+    },
+    {
+      "rule_id": "r-010",
+      "cwe": "CWE-22",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "contains",
+          "pattern": "%00",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "6daa626f-ff11-42a4-af47-0a32d3144910",
+      "created_at_log_seq": 14,
+      "note": "W4 %00 (fires via the intermediate decode step, v2)"
+    },
+    {
+      "rule_id": "r-011",
+      "cwe": "CWE-79",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "OR 1=1",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "M1 wrong cwe"
+    },
+    {
+      "rule_id": "r-012",
+      "cwe": "CWE-22",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "equals",
+          "pattern": "/ftp/coupons_2013.md.bak%2500.md",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "f64968e1-32e7-4880-bc1f-859bc2683a02",
+      "created_at_log_seq": 16,
+      "note": "E1 equals the raw path"
+    },
+    {
+      "rule_id": "r-013",
+      "cwe": "CWE-22",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "equals",
+          "pattern": "/ftp/coupons_2013.md.bak%00.md",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "f64968e1-32e7-4880-bc1f-859bc2683a02",
+      "created_at_log_seq": 16,
+      "note": "E2 equals the intermediate step (v2)"
+    },
+    {
+      "rule_id": "r-014",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "query",
+          "op": "regex",
+          "pattern": "union\\s+\\w+",
+          "case_insensitive": true
+        }
+      ],
+      "source_request_id": "9c90b935-1c24-4d79-ab89-6053ca4cfcd1",
+      "created_at_log_seq": 8,
+      "note": "P1 too broad via the '+'-decoded form"
+    },
+    {
+      "rule_id": "r-015",
+      "cwe": "CWE-79",
+      "conditions": [
+        {
+          "field": "query",
+          "op": "contains",
+          "pattern": "<",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "4ff4f769-6127-4dc6-968a-287a41b02d13",
+      "created_at_log_seq": 20,
+      "note": "X1 too broad: '<' in the query"
+    },
+    {
+      "rule_id": "r-016",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "o'brien",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "b69726ad-f87a-460d-975c-bc855f829ea1",
+      "created_at_log_seq": 24,
+      "note": "S1 written from a benign request"
+    },
+    {
+      "rule_id": "r-017",
+      "cwe": "CWE-79",
+      "conditions": [
+        {
+          "field": "path",
+          "op": "contains",
+          "pattern": "<",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "00000000-0000-4000-8000-000000000000",
+      "created_at_log_seq": 1,
+      "note": "S2 source does not exist"
+    },
+    {
+      "rule_id": "r-018",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "regex",
+          "pattern": "(a+)+$",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "C1 catastrophic-backtracking pattern (RE2: linear)"
+    },
+    {
+      "rule_id": "r-019",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "request_id",
+          "op": "contains",
+          "pattern": "a",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I1 forbidden field request_id"
+    },
+    {
+      "rule_id": "r-020",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "status",
+          "op": "equals",
+          "pattern": "200",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I2 forbidden field status"
+    },
+    {
+      "rule_id": "r-021",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "headers",
+          "op": "contains",
+          "pattern": "x",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I3 unknown field headers"
+    },
+    {
+      "rule_id": "r-022",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "startswith",
+          "pattern": "{",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I4 unknown op"
+    },
+    {
+      "rule_id": "r-023",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I5 empty pattern"
+    },
+    {
+      "rule_id": "r-024",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I6 pattern too long"
+    },
+    {
+      "rule_id": "r-025",
+      "cwe": "benign",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "x",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I7 cwe benign"
+    },
+    {
+      "rule_id": "r-026",
+      "cwe": "CWE-78",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "x",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I8 cwe outside the taxonomy"
+    },
+    {
+      "rule_id": "r-001",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "OR",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I9 duplicate of G1's rule_id"
+    },
+    {
+      "rule_id": "r-028",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "regex",
+          "pattern": "(a)\\1",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I10 backreference"
+    },
+    {
+      "rule_id": "r-029",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "regex",
+          "pattern": "(?=x)",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I11 lookahead"
+    },
+    {
+      "rule_id": "r-030",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "regex",
+          "pattern": "(unclosed",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I12 does not compile"
+    },
+    {
+      "rule_id": "r-031",
+      "cwe": "CWE-89",
+      "conditions": [],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I13 no conditions"
+    },
+    {
+      "rule_id": "r-032",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "a",
+          "case_insensitive": false
+        },
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "a",
+          "case_insensitive": false
+        },
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "a",
+          "case_insensitive": false
+        },
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "a",
+          "case_insensitive": false
+        }
+      ],
+      "source_request_id": "1887a925-6767-4c95-9fc4-001b4241851d",
+      "created_at_log_seq": 6,
+      "note": "I14 four conditions"
+    },
+    {
+      "rule_id": "r-033",
+      "cwe": "CWE-89",
+      "conditions": [
+        {
+          "field": "body",
+          "op": "contains",
+          "pattern": "x",
+          "case_insensitive": false
+        }
+      ],
+      "created_at_log_seq": 6,
+      "note": "I15 no source_request_id"
+    }
+  ]
+}

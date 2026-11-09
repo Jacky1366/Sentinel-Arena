@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/rule_result.schema.json",
+  "title": "Rule result, Judge facts 3 and 4b (contract 6.7)",
+  "description": "One line of rule_results.jsonl per rule, in rules-file order, written by tools/score_rules.py into its own output directory (never into a match folder). Fact 3: does the rule fire on the FROZEN recorded request of its source (offline replay, D2). Fact 4b: which benign fixture entries it fires on. source_label is Red's ground truth: Blue must NEVER read this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "rule_index",
+    "rule_id",
+    "valid",
+    "invalid_reasons",
+    "cwe",
+    "source_request_id",
+    "replay_fires",
+    "replay_reason",
+    "source_label",
+    "cwe_matches_source",
+    "fixture_sha256",
+    "fixture_fires",
+    "fixture_benign_ids"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "rule_index": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rule_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "valid": {
+      "type": "boolean"
+    },
+    "invalid_reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "schema_error",
+              "condition_count",
+              "forbidden_field",
+              "unknown_field",
+              "unknown_op",
+              "empty_pattern",
+              "pattern_too_long",
+              "cwe_benign",
+              "cwe_unknown",
+              "duplicate_rule_id",
+              "regex_unsupported_feature",
+              "regex_compile_error"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "cwe": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        null
+      ]
+    },
+    "source_request_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "replay_fires": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "replay_reason": {
+      "enum": [
+        null,
+        "source_not_found",
+        "source_orphan",
+        "source_benign",
+        "rule_invalid"
+      ]
+    },
+    "source_label": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        null
+      ]
+    },
+    "cwe_matches_source": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "fixture_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "fixture_fires": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "fixture_benign_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[nh][0-9]{2}$"
+      },
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "valid": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "invalid_reasons": {
+            "maxItems": 0
+          },
+          "cwe": {
+            "enum": [
+              "CWE-89",
+              "CWE-79",
+              "CWE-22"
+            ]
+          },
+          "fixture_fires": {
+            "type": "integer"
+          }
+        },
+        "not": {
+          "properties": {
+            "replay_reason": {
+              "const": "rule_invalid"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "invalid_reasons": {
+            "minItems": 1
+          },
+          "cwe": {
+            "const": null
+          },
+          "replay_fires": {
+            "const": null
+          },
+          "replay_reason": {
+            "const": "rule_invalid"
+          },
+          "fixture_fires": {
+            "const": null
+          },
+          "fixture_benign_ids": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "replay_reason": {
+            "const": null
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "replay_fires": {
+            "type": "boolean"
+          },
+          "source_label": {
+            "enum": [
+              "CWE-89",
+              "CWE-79",
+              "CWE-22"
+            ]
+          },
+          "cwe_matches_source": {
+            "type": "boolean"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "replay_fires": {
+            "const": null
+          },
+          "source_label": {
+            "const": null
+          },
+          "cwe_matches_source": {
+            "const": null
+          }
+        }
+      }
+    }
+  ]
+}

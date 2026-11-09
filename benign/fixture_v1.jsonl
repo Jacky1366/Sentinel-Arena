@@ -1,0 +1,17 @@
+{"benign_id": "n01", "category": "normal", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"alice.chen@example.com\", \"password\": \"Tr0ub4dor&3\"}"}
+{"benign_id": "n02", "category": "normal", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"jim@juice-sh.op\", \"password\": \"summer2024\"}"}
+{"benign_id": "n03", "category": "normal", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"m.rossi@example.org\", \"password\": \"correct horse battery staple\"}"}
+{"benign_id": "n04", "category": "normal", "method": "GET", "path": "/rest/products/search", "query": "q=apple", "body": ""}
+{"benign_id": "n05", "category": "normal", "method": "GET", "path": "/rest/products/search", "query": "q=banana+juice", "body": ""}
+{"benign_id": "n06", "category": "normal", "method": "GET", "path": "/rest/products/search", "query": "q=", "body": ""}
+{"benign_id": "n07", "category": "normal", "method": "GET", "path": "/ftp/legal.md", "query": "", "body": ""}
+{"benign_id": "n08", "category": "normal", "method": "GET", "path": "/ftp/", "query": "", "body": ""}
+{"benign_id": "n09", "category": "normal", "method": "GET", "path": "/rest/track-order/5267-f9cd5882f54c75a3", "query": "", "body": ""}
+{"benign_id": "n10", "category": "normal", "method": "POST", "path": "/api/Users", "query": "", "body": "{\"email\": \"priya.nair@example.com\", \"password\": \"Mango-Lassi-2026\", \"passwordRepeat\": \"Mango-Lassi-2026\"}"}
+{"benign_id": "n11", "category": "normal", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"priya.nair@example.com\", \"password\": \"Mango-Lassi-2026\"}"}
+{"benign_id": "h01", "category": "hard_negative", "method": "GET", "path": "/rest/products/search", "query": "q=union+jack+t-shirt", "body": ""}
+{"benign_id": "h02", "category": "hard_negative", "method": "GET", "path": "/rest/products/search", "query": "q=lemon+drop", "body": ""}
+{"benign_id": "h03", "category": "hard_negative", "method": "GET", "path": "/rest/products/search", "query": "q=juice+%3C3", "body": ""}
+{"benign_id": "h04", "category": "hard_negative", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"sean.obrien@example.com\", \"password\": \"Don't-Panic--42\"}"}
+{"benign_id": "h05", "category": "hard_negative", "method": "GET", "path": "/rest/products/search", "query": "q=javascript", "body": ""}
+{"benign_id": "h06", "category": "hard_negative", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"sean.o'brien@example.com\", \"password\": \"shamrock\"}"}

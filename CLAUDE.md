@@ -48,8 +48,11 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   proxy_log.schema.json           nginx log line (Blue's only input)
   challenge_snapshot.schema.json  before/after solved state (measurement)
   verdict.schema.json             Blue verdict
-  rule.schema.json                single Blue rule
+  rule.schema.json                single Blue rule (Stage 5.3 format: cwe + 1-3 AND-ed conditions)
   rules_file.schema.json          rules.json wrapper (cross-match memory)
+  rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
+  rule_score.schema.json          rule scoring manifest
+  benign_fixture.schema.json      one fact-4b fixture line
   round_record.schema.json        Judge output
   match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.3
   match_manifest_v0_1.schema.json frozen 0.1 manifest schema (validators dispatch on version)
@@ -66,6 +69,10 @@ config/
   challenge_map.json    CWE -> Juice Shop challenge names
   prices.json           USD per million tokens per model (designer-maintained, dated)
   llm.json              models per agent, timeouts/retries, required per-agent + match caps
+rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; governed by JUDGE_VERSION)
+  normalize.py          THE request normalization (v2): raw + every decode step + '+'-decoding
+  validator.py          rule validator: machine-readable reason per rejection; RE2 compile
+  engine.py             pure rule engine: (validated rules, request) -> firing rule_ids
 agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl
 agents/prompting.py     stable-prefix-first prompt builder + safe JSON parsing
 proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
@@ -73,6 +80,7 @@ red/payloads.json       scripted-Red attack set (data, verified empirically)
 benign/benign_set.json  designer-approved benign set (normal + hard negatives, expected_solves)
 benign/send_benign.py   load/validate the set; write benign record, then send one request
 benign/verification.json  empirical verification record of the set (fresh Target per entry)
+benign/fixture_v1.jsonl fact-4b fixture: golden benign proxy lines, verbatim (+ .meta.json sha256)
 runner/arena_client.py  THE shared HTTP sender (Red, benign, probes): same headers, no UA
 runner/schedule.py      seeded interleaving; preserves Red order AND benign order
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
@@ -86,6 +94,7 @@ judge/fact1_landed.py   pure landed computation over artifacts (no network)
 judge/fact2_detected.py pure detected/type_correct computation (no network)
 judge/round_record.py   join fact 1 + fact 2 -> rounds.jsonl (validated)
 judge/fact4_benign.py   fact 4a: benign false positives -> benign_results.jsonl + anomalies.jsonl
+judge/rule_facts.py     facts 3 (offline replay) + 4b (benign fixture) per rule (uses rules/, never blue/)
 tools/validate_log.py   classify proxy log lines: valid / stray / invalid
 tools/smoke_test.sh     Stage 1 end-to-end check of the running stack
 tools/stage2_check.py   Stage 2 end-to-end check (runner + Judge vs expected)
@@ -95,6 +104,10 @@ tools/stage4_check.py   Stage 4 end-to-end check (run_match + frozen match dir)
 tools/stage5_2_check.py Stage 5.2 check: two seeded matches, benign results, reproducibility
 tools/stage5_2_expected.json  hand-predicted benign results for scripted Blue
 tools/verify_benign_set.py    verify each benign entry on a freshly reset Target
+tools/score_rules.py    score a rules file against a frozen match (never writes into a match folder)
+tools/build_benign_fixture.py build / --check the fact-4b fixture from the golden match
+tools/expressiveness_check.py Part F report: scripted Blue's signatures as rules
+tools/stage5_3_rules.json     hand-written test rules; tools/stage5_3_expected.json their predictions
 dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
@@ -119,6 +132,12 @@ tests/test_arena_client.py  shared sender: short-body tolerance only; Red/benign
 tests/test_schedule.py      seeded schedule keeps both orders; one slot at a time
 tests/test_fact4_benign.py  fact 4a shapes + anomalies (no Docker)
 tests/test_benign_set.py    benign set + validator + verification record
+tests/test_normalize.py     normalization v2 (additive) + the 31-verdict gate
+tests/test_rule_validator.py  one reason per rejection; validator vs schema
+tests/test_rule_engine.py   ops, any-form matching, RE2 speed, Part F
+tests/test_rule_facts.py    facts 3 / 4b vs the hand predictions (incl. orphan source)
+tests/test_score_rules.py   never writes into a match folder; deterministic
+tests/test_benign_fixture.py  fixture is verbatim golden proxy lines
 ```
 
 ## How to run the stack
@@ -163,10 +182,11 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stages 1–4, 5.1 and 5.2 are implemented (Target + proxy; scripted Red + Judge
+- Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
   fact 1; Blue v0 + Judge fact 2 + round record; `run_match.py` orchestrator +
   `match.json`; the AI body `agents/llm_client.py` + cost tracking, no real calls
-  yet; benign traffic + Judge fact 4a). Follow the
+  yet; benign traffic + Judge fact 4a; the rule format, RE2 rule engine and Judge
+  facts 3 / 4b, tested with hand-written rules; not yet in the match pipeline). Follow the
   sub-stage map in `docs/stage5_decisions.md`; do not start a sub-stage until the
   designer asks.
 - Every AI call goes through `agents/llm_client.py`. API keys only from
@@ -176,7 +196,10 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   `.claude/settings.json`); keys must never enter a session transcript.
 - The pre-commit hook must stay enabled (`git config core.hooksPath .githooks`).
   Test fixtures must never contain key-shaped strings (build them at runtime).
-- Bump `judge.JUDGE_VERSION` on any change to Judge logic.
+- Bump `judge.JUDGE_VERSION` on any change to Judge logic, and on any behaviour
+  change in `rules/` (shared by Blue and the Judge; the Judge never imports `blue/`).
+- Never change `rules/normalize.py` behaviour without a new NORMALIZATION_VERSION
+  and the 31-verdict gate (`tests/test_normalize.py`).
 - ALL arena traffic goes through `runner/arena_client.py`. Never tune Blue's
   signatures and the benign set against each other. A change to
   `benign/benign_set.json` needs a re-run of `tools/verify_benign_set.py` (a test

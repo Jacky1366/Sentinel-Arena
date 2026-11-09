@@ -5,9 +5,10 @@ are deliberately written WITHOUT looking at red/payloads.json — Blue v0 is a
 baseline classifier, not an answer key. Blue classifies from the proxy log fields
 only (path, query, body); it never sees request ids, headers, or ground truth.
 
-Inputs may be percent-encoded, including double-encoded (e.g. %2500 -> %00 -> NUL),
-so each field is decoded until stable before matching, and the raw form is matched
-too (so an encoding that would hide a pattern cannot evade a raw match).
+Inputs may be percent-encoded, including double-encoded (e.g. %2500 -> %00 -> NUL).
+Each field is expanded into its normalized FORMS by rules/normalize.py, the ONE
+normalization shared with the rule engine and the Judge (raw form, every decoding
+step, and '+'-decoding for query/body); a pattern matches if it matches any form.
 
 classify() returns one taxonomy label. v0 is single-label, first-match by a fixed
 category priority, so the result is deterministic.
@@ -16,7 +17,11 @@ category priority, so the result is deterministic.
 from __future__ import annotations
 
 import re
-from urllib.parse import unquote
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from rules import normalize  # noqa: E402
 
 # Category priority for v0's single-label verdict. The three classes are
 # syntactically distinct, so this order only matters if a request trips more
@@ -56,26 +61,17 @@ SIGNATURES: dict[str, list[re.Pattern]] = {
 }
 
 
-def _decode_all(value: str, max_rounds: int = 3) -> str:
-    """Percent-decode until stable (handles double-encoding like %2500)."""
-    seen = value
-    for _ in range(max_rounds):
-        nxt = unquote(seen)
-        if nxt == seen:
-            break
-        seen = nxt
-    return seen
+_decode_all = normalize.decode_all  # kept for existing callers/tests
 
 
 def haystack(path: str, query: str, body: str) -> str:
-    """Build the string Blue matches against: raw and fully-decoded forms of each
-    field, joined so a pattern hidden by encoding is still caught in the raw copy."""
+    """The string Blue matches against: every normalized form of path, query and
+    body (rules/normalize.py), joined with newlines. Unlike the rule engine, which
+    matches each field separately, a signature can in principle match across this
+    join (contract §6.7, expressiveness finding)."""
     parts: list[str] = []
-    for value in (path or "", query or "", body or ""):
-        parts.append(value)
-        decoded = _decode_all(value)
-        if decoded != value:
-            parts.append(decoded)
+    for field, value in (("path", path), ("query", query), ("body", body)):
+        parts.extend(normalize.field_forms(field, value))
     return "\n".join(parts)
 
 

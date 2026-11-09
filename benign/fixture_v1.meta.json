@@ -1,0 +1,14 @@
+{
+  "fixture_version": "1",
+  "path": "benign/fixture_v1.jsonl",
+  "entries": 17,
+  "sha256": "8eb21189343a79afefee6ad628c353166d4c91a76f0faaecb77d779de60f5f54",
+  "source": {
+    "match_dir": "data/golden/scripted-baseline-benign-match",
+    "match_id": "20261109T021518Z-7d72",
+    "proxy_sha256": "558920c8dcbcd1d28340b4846737444bdff1f64e4dfa45f534ccefc73a706698",
+    "benign_requests_sha256": "bfd79b030f7a53988ef98b9a880bb59d88cf262b68633e345ab925845333e553",
+    "benign_set_sha256": "1ea7c40c9c16423016bd1c25e8f89107c3e2312df630e5103d20de0a6f493d59"
+  },
+  "note": "Fact-4b fixture: the benign lines of the frozen golden proxy log, verbatim. Not held out: the same 17 requests are sent in every match (D1 layer 1), so Blue may have seen them (contract 6.7). Blue must never read this file."
+}

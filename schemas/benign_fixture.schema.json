@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/benign_fixture.schema.json",
+  "title": "Benign fixture line (contract 6.7, fact 4b)",
+  "description": "One line of benign/fixture_v1.jsonl: a benign request exactly as Blue saw it in a FROZEN proxy log (method/path/query/body copied verbatim from the golden match's proxy.jsonl, selected via its benign_requests.jsonl), never rebuilt from benign_set.json. Blue must NEVER read it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "benign_id",
+    "category",
+    "method",
+    "path",
+    "query",
+    "body"
+  ],
+  "properties": {
+    "benign_id": {
+      "type": "string",
+      "pattern": "^[nh][0-9]{2}$"
+    },
+    "category": {
+      "enum": [
+        "normal",
+        "hard_negative"
+      ]
+    },
+    "method": {
+      "type": "string",
+      "minLength": 1
+    },
+    "path": {
+      "type": "string"
+    },
+    "query": {
+      "type": "string"
+    },
+    "body": {
+      "type": "string"
+    }
+  }
+}

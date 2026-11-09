@@ -69,6 +69,19 @@ so 0.2 is frozen (`schemas/match_manifest_v0_2.schema.json`) and validators disp
 on version. `judge_version` 0.2.0. §9 gains a Target quirk (the `/ftp/` listing's short
 body); §10's apostrophe note is revised (expected_solves).*
 
+*Revised 2026-11-09 (Stage 5.3): the **rule format is replaced** (§5): `cwe` + 1–3
+AND-ed `conditions` (`field` method/path/query/body, `op` contains/equals/regex,
+`pattern` ≤ 200 chars, `case_insensitive`) + `source_request_id` +
+`created_at_log_seq` (+ optional `created_match`, `note`); `label`, `field`,
+`match_type` and `created_round` are gone. `rules_file` stays `"0.1"`: no
+`rules.json` has ever been written. New neutral package `rules/` (normalization,
+validator, RE2 engine) shared by Blue and the Judge; **normalization version 2**
+(additive: every decode step + `+`-decoding for query/body). New artifacts from
+`tools/score_rules.py`: `rule_results.jsonl` and `rule_score.json` (§6.7), the
+fact-4b fixture `benign/fixture_v1.jsonl`, and anomaly kind `rule_source_benign`
+(§6.6). `replay_blocked` and `benign_fp` are both always `null` in round records
+(§6). `judge_version` 0.3.0.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`) controls ordering.
@@ -307,14 +320,17 @@ is never used to classify.
 
 ## 5. Rules — `rules.json` (cross-match memory)
 
-Output of one match, input to the next. The file is a versioned wrapper:
+A rule is **declarative data, never code** (D3). Blue writes rules from 5.5; Stage
+5.3 builds the machinery that judges them. The file is a versioned wrapper:
 
 ```json
 {
   "schema_version": "0.1",
   "rules": [
-    {"rule_id":"r-007","label":"CWE-89","field":"body","match_type":"regex",
-     "pattern":"'\\s*OR\\s+1=1","created_match":"m001","created_round":7}
+    {"rule_id":"r-007","cwe":"CWE-89",
+     "conditions":[{"field":"body","op":"regex","pattern":"'\\s*or\\s+1=1","case_insensitive":true}],
+     "source_request_id":"<uuid4>","created_at_log_seq":6,"created_match":"<match_id>",
+     "note":"tautology in the login email"}
   ]
 }
 ```
@@ -325,15 +341,49 @@ Schemas: `rules_file.schema.json` (whole file) and `rule.schema.json` (one rule)
 |---|---|---|
 | *(file)* `schema_version` | `"0.1"` | This file lives across matches, so it needs versioning the most. |
 | *(file)* `rules` | array of rules | Blue's accumulated detection knowledge. |
-| `rule_id` | `r-` + ≥3 digits | Stable identifier for diffs and attribution. |
-| `label` | CWE enum (3 values) | What the rule detects. A "benign" rule is meaningless. |
-| `field` | `path` / `query` / `body` | Which proxy log field the pattern is applied to. |
-| `match_type` | `regex` (v0 only) | Keeps v0 matching deterministic and simple. |
-| `pattern` | non-empty string | The detection pattern. |
-| `created_match` | match_id | Provenance; enables the Match 1 vs Match 50 comparison. |
-| `created_round` | int ≥ 1 | Provenance within the creating match. |
+| `rule_id` | `r-` + ≥3 digits | Stable identifier for diffs and attribution. Unique in a file: the first use of an id may be valid, every later use is `duplicate_rule_id`. |
+| `cwe` | CWE enum (3 values) | What the rule detects. Never `benign` (a "benign" rule is meaningless). |
+| `conditions` | 1–3 conditions, **all** must match (AND) | No OR between conditions: OR is expressed as several rules. Alternation (`|`) inside one regex is allowed. |
+| condition `field` | `method` \| `path` \| `query` \| `body` | **Request-side only**, as produced by the shared normalization (§5.1). Forbidden: `request_id`, timestamps, `log_seq`, `status`, response size, client address, anything not part of the request: fact 3 asks whether the rule would have blocked the request, before any response exists, and response fields would allow shortcuts like "login 200 = attack". |
+| condition `op` | `contains` \| `equals` \| `regex` | `regex` is RE2 (linear time). |
+| condition `pattern` | string, 1–200 chars | Bounded so rules stay readable and cheap. |
+| condition `case_insensitive` | bool | `contains` / `equals` compare lowercased; `regex` uses RE2's case folding. |
+| `source_request_id` | uuid4 | The attack the rule was written for. In 5.5 the body fills it in from Blue's local index (D8); the AI never writes it. Fact 3 replays the rule against this request. |
+| `created_at_log_seq` | int ≥ 1 | Blue's log index when the rule was created (hot-load applies it to later lines only, D4). |
+| `created_match` | match_id (optional) | Provenance for cross-match comparison. Optional now; Stage 6 decides whether it becomes required. |
+| `note` | string (optional) | For humans; never scored. |
 
 Individual rules do **not** carry `schema_version` or `match_id`.
+
+**Validator** (`rules/validator.py`). Every rejection has a machine-readable code
+plus a human detail: `schema_error`, `condition_count`, `forbidden_field`,
+`unknown_field`, `unknown_op`, `empty_pattern`, `pattern_too_long`, `cwe_benign`,
+`cwe_unknown`, `duplicate_rule_id`, `regex_unsupported_feature` (backreferences,
+lookaround: RE2 lacks them), `regex_compile_error`. It never accepts a rule the
+schema rejects.
+
+**Engine** (`rules/engine.py`, pure): (validated rules, one request) → the
+`rule_id`s that fire, in rule order. No network, no file access, no eval/exec. A
+condition matches if it matches **any** normalized form of its field; each form is
+capped at 1 MiB (nginx's `client_max_body_size`, so nothing nginx accepts is
+truncated). RE2 makes catastrophic backtracking impossible by construction (e.g.
+`(a+)+$` on 1 MiB finishes in about a millisecond).
+
+### 5.1 Normalization (`rules/normalize.py`, version `"2"`)
+
+**One** code path for scripted Blue's signatures, Blue's rules and the Judge's
+replay. A field yields a list of forms (de-duplicated, in this order): the raw value;
+every distinct `unquote` step (at most 3 rounds); for `query` and `body` only,
+every distinct `unquote_plus` step (at most 3), so `+` becomes a space. `path` keeps
+`+` literal; `method` is never decoded. Version 1 (Stage 3) yielded only the raw
+value and the final `unquote` result; version 2 is additive, and scripted Blue's
+verdicts on all 31 lines of both golden matches are identical under both. The
+version is recorded in `rule_score.json`. Decoding is **content-type agnostic**: a
+JSON body is URL-decoded too (inherited from Stage 3, kept deliberately, §6.7).
+
+The package `rules/` is neutral (neither Blue's nor the Judge's): both import it,
+the Judge never imports `blue/`, and **any behaviour change in `rules/` is
+governed by `judge.JUDGE_VERSION`**.
 
 ---
 
@@ -362,8 +412,11 @@ Judge output, append-only.
 | `detected` | bool \| null | `verdict != "benign"` when a verdict exists; `false` when the request was logged but got no verdict; **`null`** for an orphan (Blue never saw it). |
 | `type_correct` | bool \| null | `verdict == label`, but **only meaningful when `detected` is `true`**. `null` whenever `detected` is not `true` (benign verdict, no-verdict, or orphan). |
 | `detected_reason` | `null` \| `"no_verdict"` \| `"orphan"` | Why `detected` is not a normal boolean-from-verdict. `null` when a verdict exists. **Invariant: `detected` is `null` iff `detected_reason == "orphan"`.** `"no_verdict"` pairs with `detected == false`. |
-| `replay_blocked` | bool \| null | Would Blue's rules block a replay of this request? Filled in a later stage. |
-| `benign_fp` | null | **Always `null`.** Round records are Red-only; benign false positives live in `benign_results.jsonl` (§6.5). Kept so round records need no version bump. |
+| `replay_blocked` | null | **Always `null`.** Replay is judged per rule (fact 3, `rule_results.jsonl`, §6.7), not per round. |
+| `benign_fp` | null | **Always `null`.** Round records are Red-only; benign false positives live in `benign_results.jsonl` (§6.5). |
+
+`replay_blocked` and `benign_fp` are kept only so round records need no version
+bump now; **both will be removed at the next round-record version bump.**
 
 The Judge is pure deterministic code. It never uses an LLM.
 
@@ -680,6 +733,64 @@ still scored where that is meaningful. The file always exists (possibly empty).
 | `benign_solved_challenge` | A benign request's `newly_solved` differs **in any way** from its `expected_solves` (exact set equality: an unexpected solve, a missing expected solve, or both) | `{benign_id, newly_solved, expected_solves}` |
 | `benign_snapshot_missing` | A benign request has no `traffic: "benign"` snapshot row, so its solves cannot be checked | `{benign_id}` |
 | `unmatched_verdict` | A verdict whose `request_id` is neither a Red nor a benign record | `{log_seq, verdict}` |
+| `rule_source_benign` | A rule's `source_request_id` is a benign request (Stage 5.3, written by `tools/score_rules.py` into its own output directory) | `{rule_id, benign_id}` |
+
+---
+
+## 6.7 Rule results (Judge facts 3 and 4b) — `rule_results.jsonl`, `rule_score.json`
+
+`tools/score_rules.py --rules <file> --match <frozen match> --out <new dir>` scores
+a rules file against a frozen match (`judge/rule_facts.py`, pure). It writes **only**
+into `--out`, which must not exist or be empty, and must not be or lie inside any
+folder holding a `match.json`: **frozen match artifacts are immutable.**
+
+**Fact 3 (D2, offline replay)**: does the rule fire on the **frozen recorded
+proxy line** of its `source_request_id`? `null` with `replay_reason`:
+`rule_invalid`, `source_benign` (also an anomaly `rule_source_benign`),
+`source_orphan` (a Red record never logged), `source_not_found`. When it replays,
+`source_label` is Red's label and `cwe_matches_source` says whether the rule's
+`cwe` equals it. **`source_label` is Red ground truth: Blue never reads these
+files.**
+
+**Fact 4b (rule-level false positives)**: the rule against every entry of the
+fixed benign fixture `benign/fixture_v1.jsonl`: count and `benign_id`s. The fixture
+is the benign lines of the frozen proxy log of
+`data/golden/scripted-baseline-benign-match`, selected via its
+`benign_requests.jsonl`, with method/path/query/body copied **verbatim** (never
+rebuilt from `benign_set.json`), so rules see exactly what Blue sees.
+`benign/fixture_v1.meta.json` records its sha256 and source;
+`tools/build_benign_fixture.py --check` proves it still matches.
+
+```json
+{"schema_version":"0.1","match_id":"20261109T021518Z-7d72","rule_index":0,"rule_id":"r-001",
+ "valid":true,"invalid_reasons":[],"cwe":"CWE-89","source_request_id":"<uuid4>",
+ "replay_fires":true,"replay_reason":null,"source_label":"CWE-89","cwe_matches_source":true,
+ "fixture_sha256":"<64 hex>","fixture_fires":0,"fixture_benign_ids":[]}
+```
+
+| Field | Type | Rule |
+|---|---|---|
+| `rule_index` / `rule_id` | int / string \| null | Position in the file; `rule_id` null if missing or not a string. |
+| `valid` / `invalid_reasons` | bool / `[{code, detail}]` | Reasons empty iff valid (§5 codes). |
+| `cwe` | CWE \| null | null iff invalid. |
+| `replay_fires` / `replay_reason` | bool \| null / reason \| null | Exactly one is null. Invalid rules: `rule_invalid`. |
+| `source_label` / `cwe_matches_source` | CWE \| null / bool \| null | Set iff the rule replayed (a logged Red source). |
+| `fixture_sha256` / `fixture_fires` / `fixture_benign_ids` | hex / int \| null / ids | Count null iff invalid; ids in fixture order. |
+
+**`rule_score.json`** (written last): scored `match_id` and the sha256 of its
+`match.json`; the rules file's path, sha256 and count; the fixture's path, version,
+sha256 and entry count; `judge_version`, `normalization_version`, `re2_version`;
+`scored_at`; and a summary (valid, invalid, replay fires / misses / null, rules with
+fixture hits, anomalies). Output lines are schema-validated before anything is
+written; results are deterministic.
+
+**Limitations.** (1) The fixture is **not held out**: it is the same 17 requests
+D1 layer 1 sends in every match, so an AI Blue (5.5) will have seen these exact
+lines and could write rules that avoid them. A second, never-sent benign set is
+planned before Stage 6. (2) Decoding is content-type agnostic: a literal `%27`
+inside a JSON value also yields a form containing `'`. (3) Additive forms can add
+false positives as well as detections: the hand rule `union\s+\w+` hits benign
+`h01` only through the `+`-decoded form `union jack`.
 
 ---
 
@@ -735,6 +846,9 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Landed fact | `data/runs/<match_id>/landed.jsonl` | Judge (Stage 2) | Judge (Stage 3 join) | Red, Blue, Dashboard |
 | Verdicts | `data/runs/<match_id>/verdicts.jsonl` | Blue | Judge, Dashboard | Red |
 | Rules | `rules.json` | Blue (match N) | Blue (match N+1), Judge (replay), Dashboard | Red |
+| Rule results | `<score dir>/rule_results.jsonl` | Judge (`tools/score_rules.py`) | Stage 6 retention code, Dashboard, humans | Red, **Blue** (`source_label` is ground truth) |
+| Rule score manifest | `<score dir>/rule_score.json` | Judge (`tools/score_rules.py`) | Humans, Dashboard | Red, **Blue** |
+| Benign fixture | `benign/fixture_v1.jsonl` (+ `.meta.json`) | `tools/build_benign_fixture.py` from the golden match | Judge (fact 4b) | **Blue** |
 | Round records | `data/runs/<match_id>/rounds.jsonl` | Judge | Dashboard | Red, Blue |
 | Match manifest | `data/runs/<match_id>/match.json` | Orchestrator | Dashboard, stage checks, humans | Red, Blue |
 | API call log | `data/runs/<match_id>/api_calls.jsonl` | `agents/llm_client.py` (on behalf of Red, Blue, analyst) | `llm_client` (budget), `stats/cost.py`, orchestrator, Dashboard | Red, Blue (D6: Red sees only its HTTP responses) |

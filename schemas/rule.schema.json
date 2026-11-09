@@ -1,18 +1,83 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/rule.schema.json",
-  "title": "Blue detection rule (contract v0.1)",
-  "description": "A single rule inside rules.json. No per-rule schema_version or match_id; versioning lives on the file wrapper, provenance in created_match/created_round.",
+  "title": "Blue detection rule (contract 5)",
+  "description": "A single rule inside rules.json (Stage 5.3 format; D3: declarative data, never code). 1-3 conditions, ALL must match (AND); OR is expressed as several rules (alternation '|' inside one regex is allowed). Request-side fields only. The validator (rules/validator.py) gives a machine-readable reason for every rejection and also rejects what a schema cannot express (duplicate rule_id, regex features RE2 lacks, regexes RE2 cannot compile). No per-rule schema_version; versioning lives on the file wrapper.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["rule_id", "label", "field", "match_type", "pattern", "created_match", "created_round"],
+  "required": [
+    "rule_id",
+    "cwe",
+    "conditions",
+    "source_request_id",
+    "created_at_log_seq"
+  ],
   "properties": {
-    "rule_id": { "type": "string", "pattern": "^r-[0-9]{3,}$" },
-    "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
-    "field": { "enum": ["path", "query", "body"] },
-    "match_type": { "enum": ["regex"] },
-    "pattern": { "type": "string", "minLength": 1 },
-    "created_match": { "type": "string", "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$" },
-    "created_round": { "type": "integer", "minimum": 1 }
+    "rule_id": {
+      "type": "string",
+      "pattern": "^r-[0-9]{3,}$"
+    },
+    "cwe": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22"
+      ]
+    },
+    "conditions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "op",
+          "pattern",
+          "case_insensitive"
+        ],
+        "properties": {
+          "field": {
+            "enum": [
+              "method",
+              "path",
+              "query",
+              "body"
+            ]
+          },
+          "op": {
+            "enum": [
+              "contains",
+              "equals",
+              "regex"
+            ]
+          },
+          "pattern": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "case_insensitive": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "source_request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "created_at_log_seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_match": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "note": {
+      "type": "string"
+    }
   }
 }

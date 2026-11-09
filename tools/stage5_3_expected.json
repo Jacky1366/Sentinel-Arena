@@ -1,0 +1,321 @@
+{
+  "_comment": "Hand-predicted Stage 5.3 results for tools/stage5_3_rules.json against data/golden/scripted-baseline-benign-match (normalization v2), approved by the designer 2026-11-09 BEFORE anything ran. Keyed by the tag at the start of each rule's note, in rules-file order. If a run disagrees, report every mismatch to the designer before this file changes. S3 (orphan source) needs a modified match copy and lives in tests/test_rule_facts.py. Anomalies expected: exactly one rule_source_benign (S1, h06).",
+  "match_dir": "data/golden/scripted-baseline-benign-match",
+  "rules": {
+    "G1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "G2": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "G3": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "B1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": [
+        "h04",
+        "h06"
+      ]
+    },
+    "B2": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": [
+        "h01"
+      ]
+    },
+    "B3": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": [
+        "n07",
+        "n08"
+      ]
+    },
+    "W1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": false,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "W2": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "W3": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": false,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "W4": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "M1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": false,
+      "fixture_benign_ids": []
+    },
+    "E1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "E2": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "P1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": [
+        "h01"
+      ]
+    },
+    "X1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": true,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": [
+        "h03"
+      ]
+    },
+    "S1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": null,
+      "replay_reason": "source_benign",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": [
+        "h06"
+      ]
+    },
+    "S2": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": null,
+      "replay_reason": "source_not_found",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "C1": {
+      "valid": true,
+      "invalid_codes": [],
+      "replay_fires": false,
+      "replay_reason": null,
+      "cwe_matches_source": true,
+      "fixture_benign_ids": []
+    },
+    "I1": {
+      "valid": false,
+      "invalid_codes": [
+        "forbidden_field"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I2": {
+      "valid": false,
+      "invalid_codes": [
+        "forbidden_field"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I3": {
+      "valid": false,
+      "invalid_codes": [
+        "unknown_field"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I4": {
+      "valid": false,
+      "invalid_codes": [
+        "unknown_op"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I5": {
+      "valid": false,
+      "invalid_codes": [
+        "empty_pattern"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I6": {
+      "valid": false,
+      "invalid_codes": [
+        "pattern_too_long"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I7": {
+      "valid": false,
+      "invalid_codes": [
+        "cwe_benign"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I8": {
+      "valid": false,
+      "invalid_codes": [
+        "cwe_unknown"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I9": {
+      "valid": false,
+      "invalid_codes": [
+        "duplicate_rule_id"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I10": {
+      "valid": false,
+      "invalid_codes": [
+        "regex_unsupported_feature"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I11": {
+      "valid": false,
+      "invalid_codes": [
+        "regex_unsupported_feature"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I12": {
+      "valid": false,
+      "invalid_codes": [
+        "regex_compile_error"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I13": {
+      "valid": false,
+      "invalid_codes": [
+        "condition_count"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I14": {
+      "valid": false,
+      "invalid_codes": [
+        "condition_count"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    },
+    "I15": {
+      "valid": false,
+      "invalid_codes": [
+        "schema_error"
+      ],
+      "replay_fires": null,
+      "replay_reason": "rule_invalid",
+      "cwe_matches_source": null,
+      "fixture_benign_ids": []
+    }
+  },
+  "anomalies": [
+    {
+      "kind": "rule_source_benign",
+      "rule_tag": "S1",
+      "benign_id": "h06"
+    }
+  ]
+}

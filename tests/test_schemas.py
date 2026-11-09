@@ -35,6 +35,9 @@ SCHEMA_NAMES = [
     "benign_request",
     "benign_result",
     "anomaly",
+    "rule_result",
+    "rule_score",
+    "benign_fixture",
 ]
 
 
@@ -68,12 +71,12 @@ IMAGE = {"image": "nginx:1.30.6-alpine", "image_id": "sha256:" + "b" * 64,
 
 RULE = {
     "rule_id": "r-007",
-    "label": "CWE-89",
-    "field": "body",
-    "match_type": "regex",
-    "pattern": "'\\s*OR\\s+1=1",
+    "cwe": "CWE-89",
+    "conditions": [{"field": "body", "op": "regex", "pattern": "'\\s*OR\\s+1=1",
+                    "case_insensitive": True}],
+    "source_request_id": "3f2b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c",
+    "created_at_log_seq": 7,
     "created_match": "m001",
-    "created_round": 7,
 }
 
 VALID = {
@@ -207,6 +210,24 @@ VALID["anomaly"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "kind": "benign_solved_challenge",
     "request_id": RID, "detail": {"benign_id": "n04", "newly_solved": ["Score Board"],
                                   "expected_solves": []}}
+VALID["rule_result"] = {
+    "schema_version": "0.1", "match_id": "20261109T021518Z-7d72", "rule_index": 0,
+    "rule_id": "r-001", "valid": True, "invalid_reasons": [], "cwe": "CWE-89",
+    "source_request_id": RID, "replay_fires": True, "replay_reason": None,
+    "source_label": "CWE-89", "cwe_matches_source": True, "fixture_sha256": SHA,
+    "fixture_fires": 0, "fixture_benign_ids": []}
+VALID["rule_score"] = {
+    "schema_version": "0.1", "match_id": "20261109T021518Z-7d72", "match_json_sha256": SHA,
+    "rules": {"path": "tools/stage5_3_rules.json", "sha256": SHA, "count": 33},
+    "fixture": {"path": "benign/fixture_v1.jsonl", "version": "1", "sha256": SHA, "entries": 17},
+    "judge_version": "0.3.0", "normalization_version": "2", "re2_version": "1.1.20251105",
+    "scored_at": "2026-11-09T00:00:00.000Z",
+    "summary": {"valid": 18, "invalid": 15, "replay_fires": 13, "replay_misses": 3,
+                "replay_null": 17, "rules_with_fixture_hits": 6, "anomalies": 1}}
+VALID["benign_fixture"] = {
+    "benign_id": "h06", "category": "hard_negative", "method": "POST",
+    "path": "/rest/user/login", "query": "",
+    "body": "{\"email\": \"sean.o'brien@example.com\", \"password\": \"shamrock\"}"}
 VALID["api_call"] = {
     "schema_version": "0.1", "match_id": "20261109T153012Z-a1b2",
     "timestamp": "2026-11-09T15:30:13.120Z", "agent": "blue", "provider": "anthropic",
@@ -272,20 +293,35 @@ INVALID = {
         ("extra property", _set("confidence", 0.9)),
     ],
     "rule": [
-        ("label not in taxonomy", _set("label", "CWE-78")),
-        ("label benign", _set("label", "benign")),
-        ("field not allowed", _set("field", "headers")),
-        ("match_type not regex", _set("match_type", "substring")),
-        ("missing created_match", _drop("created_match")),
+        ("cwe not in taxonomy", _set("cwe", "CWE-78")),
+        ("cwe benign", _set("cwe", "benign")),
+        ("Stage 0 label key", lambda r: {**r, "label": "CWE-89"}),
+        ("field not allowed",
+         lambda r: {**r, "conditions": [{**r["conditions"][0], "field": "headers"}]}),
+        ("forbidden field status",
+         lambda r: {**r, "conditions": [{**r["conditions"][0], "field": "status"}]}),
+        ("op not allowed",
+         lambda r: {**r, "conditions": [{**r["conditions"][0], "op": "startswith"}]}),
+        ("empty pattern",
+         lambda r: {**r, "conditions": [{**r["conditions"][0], "pattern": ""}]}),
+        ("pattern over 200 chars",
+         lambda r: {**r, "conditions": [{**r["conditions"][0], "pattern": "x" * 201}]}),
+        ("no conditions", _set("conditions", [])),
+        ("four conditions", lambda r: {**r, "conditions": r["conditions"] * 4}),
+        ("missing source_request_id", _drop("source_request_id")),
+        ("source_request_id not uuid4", _set("source_request_id", "abc")),
+        ("missing created_at_log_seq", _drop("created_at_log_seq")),
+        ("created_round is Stage 0", _set("created_round", 7)),
         ("per-rule match_id not allowed", _set("match_id", "m001")),
         ("per-rule schema_version not allowed", _set("schema_version", "0.1")),
     ],
     "rules_file": [
         ("missing schema_version", _drop("schema_version")),
         ("bare array instead of wrapper", lambda r: r["rules"]),
-        ("nested rule invalid", lambda r: {**r, "rules": [{**RULE, "label": "benign"}]}),
-        ("nested rule missing created_match",
-         lambda r: {**r, "rules": [{k: v for k, v in RULE.items() if k != "created_match"}]}),
+        ("nested rule invalid", lambda r: {**r, "rules": [{**RULE, "cwe": "benign"}]}),
+        ("nested rule missing source_request_id",
+         lambda r: {**r, "rules": [{k: v for k, v in RULE.items()
+                                    if k != "source_request_id"}]}),
     ],
     "round_record": [
         ("label not in taxonomy", _set("label", "XSS")),
@@ -444,6 +480,29 @@ INVALID = {
         ("unmatched_verdict without log_seq",
          lambda r: {**r, "kind": "unmatched_verdict", "detail": {"verdict": "benign"}}),
         ("missing match_id", _drop("match_id")),
+    ],
+    "rule_result": [
+        ("valid with reasons", _set("invalid_reasons", [{"code": "schema_error", "detail": "x"}])),
+        ("invalid but replayed", lambda r: {**r, "valid": False, "cwe": None,
+            "invalid_reasons": [{"code": "schema_error", "detail": "x"}]}),
+        ("reason code unknown", lambda r: {**r, "valid": False, "cwe": None,
+            "invalid_reasons": [{"code": "bad", "detail": "x"}], "replay_fires": None,
+            "replay_reason": "rule_invalid", "source_label": None, "cwe_matches_source": None,
+            "fixture_fires": None}),
+        ("replay null without reason", _set("replay_fires", None)),
+        ("reason set but replay boolean", _set("replay_reason", "source_orphan")),
+        ("valid rule with null fixture count", _set("fixture_fires", None)),
+        ("source_label benign", _set("source_label", "benign")),
+    ],
+    "rule_score": [
+        ("missing normalization_version", _drop("normalization_version")),
+        ("judge_version not semver", _set("judge_version", "3")),
+        ("missing summary", _drop("summary")),
+    ],
+    "benign_fixture": [
+        ("carries request_id", _set("request_id", RID)),
+        ("carries status", _set("status", 500)),
+        ("bad benign_id", _set("benign_id", "x9")),
     ],
     "api_call": [
         ("ok but error_type set", _set("error_type", "timeout")),
@@ -667,7 +726,7 @@ def test_taxonomy_contents():
 
 @pytest.mark.parametrize(
     "name,field",
-    [("red_attack", "label"), ("rule", "label"), ("round_record", "label"),
+    [("red_attack", "label"), ("rule", "cwe"), ("round_record", "label"),
      ("landed_fact", "label")],
 )
 def test_label_enums_match_taxonomy_cwes(name, field):
@@ -750,3 +809,21 @@ def test_committed_benign_baseline_validates_and_is_clean():
         for line in (d / name).read_text().splitlines():
             validator(schema).validate(json.loads(line))
     assert (d / "anomalies.jsonl").read_text() == ""
+
+
+def test_rule_result_invalid_and_null_shapes_valid():
+    v = validator("rule_result")
+    base = VALID["rule_result"]
+    v.validate({**base, "valid": False, "cwe": None, "replay_fires": None,
+                "invalid_reasons": [{"code": "regex_unsupported_feature", "detail": "x"}],
+                "replay_reason": "rule_invalid", "source_label": None,
+                "cwe_matches_source": None, "fixture_fires": None, "rule_id": None})
+    for reason in ("source_not_found", "source_orphan", "source_benign"):
+        v.validate({**base, "replay_fires": None, "replay_reason": reason,
+                    "source_label": None, "cwe_matches_source": None,
+                    "fixture_fires": 1, "fixture_benign_ids": ["h06"]})
+
+
+def test_anomaly_rule_source_benign_valid():
+    validator("anomaly").validate({**VALID["anomaly"], "kind": "rule_source_benign",
+                                   "detail": {"rule_id": "r-016", "benign_id": "h06"}})

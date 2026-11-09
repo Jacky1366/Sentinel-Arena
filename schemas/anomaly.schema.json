@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/anomaly.schema.json",
   "title": "Anomaly (contract 6.6)",
-  "description": "One line of data/runs/<match_id>/anomalies.jsonl, written by the Judge. A harness self-check that tripped: never silently ignored, always shown in the terminal summary. The affected request is still scored where that is meaningful. A scripted stage check FAILs on any anomaly.",
+  "description": "One line of data/runs/<match_id>/anomalies.jsonl, written by the Judge. A harness self-check that tripped: never silently ignored, always shown in the terminal summary. The affected request is still scored where that is meaningful. A scripted stage check FAILs on any anomaly. rule_source_benign (Stage 5.3) is written by tools/score_rules.py into its own output directory: a rule whose source_request_id is a benign request.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,7 +24,8 @@
       "enum": [
         "benign_solved_challenge",
         "benign_snapshot_missing",
-        "unmatched_verdict"
+        "unmatched_verdict",
+        "rule_source_benign"
       ]
     },
     "request_id": {
@@ -135,6 +136,36 @@
                   "CWE-22",
                   "benign"
                 ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "rule_source_benign"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rule_id",
+              "benign_id"
+            ],
+            "properties": {
+              "rule_id": {
+                "type": "string"
+              },
+              "benign_id": {
+                "type": "string",
+                "pattern": "^[nh][0-9]{2}$"
               }
             }
           }

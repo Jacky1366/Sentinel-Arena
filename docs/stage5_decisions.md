@@ -27,7 +27,12 @@ proxy during a match (verdict-level false positives), plus a fixed benign fixtur
 recorded request. The Judge never touches the network.
 
 **D3 — A rule is declarative data, never code.** AI-written code is never executed.
-Every regex runs with a timeout (ReDoS).
+Regexes run on a linear-time engine (RE2): no backtracking features, and a
+per-field size cap.
+*Reworded 2026-11-09 (Stage 5.3, designer decision). Was: "Every regex runs with a
+timeout (ReDoS)." RE2 makes catastrophic backtracking impossible by construction
+instead of interrupting it; patterns that need backtracking features
+(backreferences, lookaround) are rejected by the validator with their own reason.*
 
 **D4 — Freeze-then-Blue stays.** Blue processes the log in `log_seq` order and code
 guarantees no look-ahead. A new rule applies only to later lines ("hot-load").
@@ -112,3 +117,28 @@ Designer decisions recorded 2026-11-09:
 - `match.json` 0.3 (0.2 frozen), `failed_step` `red` → `traffic`, `JUDGE_VERSION`
   0.2.0, `benign_fp` kept as always-null, precision printed with its traffic mix,
   `anomalies.jsonl` created now (the Stage 6 tripwire log, first two kinds).
+
+## Implementation notes (Stage 5.3, D1 layer 2, D2, D3)
+
+Designer decisions recorded 2026-11-09:
+
+- **Rule format** (contract §5): `cwe` + 1–3 AND-ed conditions on request-side
+  fields only (`method`, `path`, `query`, `body`); `contains` / `equals` / `regex`;
+  pattern ≤ 200 chars. No OR between conditions (several rules instead);
+  alternation `|` inside one regex is allowed. `created_match` stays optional; Stage
+  6 decides.
+- **Neutral `rules/` package** (normalization, validator, RE2 engine), imported by
+  Blue and the Judge. The Judge never imports `blue/`. Any behaviour change in
+  `rules/` is governed by `JUDGE_VERSION` (0.3.0 from this step).
+- **Normalization v2**, fixed now, before 5.4 produces any AI data (changing it
+  later would make AI runs before and after incomparable): additive, every decode
+  step plus `+`-decoding for query/body. Gate passed: scripted Blue's 31 golden
+  verdicts are identical. Decoding stays content-type agnostic (recorded, not
+  changed). Blue's cross-field matching (its joined haystack) is not changed.
+- **Facts 3 and 4b** are per rule (`rule_results.jsonl`); `replay_blocked` and
+  `benign_fp` in round records stay always null and go at the next round-record
+  version bump. `source_label` / `cwe_matches_source` are kept; rule results are
+  Red ground truth, so Blue never reads them. Rule retention (Stage 6) is decided
+  by code from Judge facts.
+- **The fact-4b fixture is the golden benign lines, verbatim, and is not held
+  out.** A second, never-sent benign set is planned before Stage 6.

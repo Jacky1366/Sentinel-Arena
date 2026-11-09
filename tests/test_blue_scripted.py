@@ -23,7 +23,8 @@ RID2 = "4a5b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 
 FORBIDDEN = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed.jsonl",
              "benign_requests.jsonl", "benign_set.json", "benign_results.jsonl",
-             "anomalies.jsonl", "verification.json",
+             "anomalies.jsonl", "verification.json", "rule_results.jsonl", "rule_score.json",
+             "fixture_v1.jsonl",
              "challenge_map.json", "payloads.json", "rounds.jsonl"]
 
 
@@ -158,6 +159,14 @@ def _plant_decoys(run_dir: Path):
          "benign_id": "n02", "category": "normal", "verdict": "CWE-89",
          "false_positive": True, "fp_reason": None}) + "\n", encoding="utf-8")
     (run_dir / "anomalies.jsonl").write_text("", encoding="utf-8")
+    # Stage 5.3 rule scoring: source_label is Red ground truth. Deliberately WRONG.
+    (run_dir / "rule_results.jsonl").write_text(json.dumps(
+        {"schema_version": "0.1", "match_id": "m001", "rule_index": 0, "rule_id": "r-001",
+         "valid": True, "invalid_reasons": [], "cwe": "CWE-22", "source_request_id": RID,
+         "replay_fires": True, "replay_reason": None, "source_label": "CWE-22",
+         "cwe_matches_source": True, "fixture_sha256": "a" * 64, "fixture_fires": 0,
+         "fixture_benign_ids": []}) + "\n", encoding="utf-8")
+    (run_dir / "rule_score.json").write_text(json.dumps({"match_id": "m001"}), encoding="utf-8")
     (run_dir / "challenge_map.json").write_text(json.dumps(
         {"CWE-89": ["Login Admin"], "CWE-79": [], "CWE-22": ["Poison Null Byte"]}),
         encoding="utf-8")
@@ -197,7 +206,8 @@ def test_blue_ignores_decoy_ground_truth_files(tmp_path, monkeypatch):
     # ...and Blue never opened any decoy file.
     decoys = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed_fact.jsonl",
               "landed.jsonl", "challenge_map.json", "benign_requests.jsonl",
-              "benign_set.json", "benign_results.jsonl", "anomalies.jsonl"]
+              "benign_set.json", "benign_results.jsonl", "anomalies.jsonl",
+              "rule_results.jsonl", "rule_score.json"]
     for p in opened:
         assert not any(name in p for name in decoys), f"Blue opened a decoy: {p}"
     # Sanity: the signature-based verdicts are what we expect (not the decoy labels).
