@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-08*
+*Last updated: 2026-11-09*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -19,6 +19,7 @@ file artifacts defined in a data contract.
 | 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7; verified + merged Nov 8) |
 | — | Progress Report | Nov 12 | In progress |
 | 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
+| 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -224,6 +225,50 @@ No real API calls in this step: every test uses a fake provider (zero token cost
   `api_calls.jsonl`, and the per-round results are identical to the scripted
   baseline run, so scripted behaviour is unchanged.
 
+### Stage 5.2 — Benign traffic + Judge fact 4a (verdict-level false positives)
+No API calls (scripted Red + scripted Blue, $0). Implements D1 layer 1.
+
+- **Benign set** (`benign/benign_set.json`, designer-approved): 17 requests to the
+  endpoints Red attacks, 6 of them hard negatives (UNION / DROP as words, `<3`,
+  `javascript`, a quote and `--` in a password, and O'Brien logging in). Plus a
+  registration (`n10`) and a successful login as that user (`n11`), so "login 200
+  = attack" is not a shortcut. Each entry was verified on a freshly reset Target
+  (`tools/verify_benign_set.py` → `benign/verification.json`): no entry solves
+  anything except `h06`, whose 500 and "Error Handling" solve are expected and
+  declared in `expected_solves` (contract §10, revised).
+- **One shared sender** (`runner/arena_client.py`) for Red, benign and probes: same
+  headers, same request-id generator, no User-Agent; tested identical. It tolerates
+  only a body shorter than its Content-Length (Juice Shop's `/ftp/` listing is 59
+  bytes short, contract §9) and nothing else.
+- **Seeded schedule** (`runner/schedule.py`): the shuffle decides only how Red and
+  benign interleave; both keep their own order. The orchestrator drives one slot at
+  a time, so Red is callable one step at a time (ready for AI Red in 5.6).
+  `--seed` reproduces a match; the seed and planned schedule are in `match.json`
+  (schema 0.3).
+- **Judge fact 4a** (`judge/fact4_benign.py`, pure): `benign_results.jsonl` (FP
+  true / false, or null with `no_verdict` / `orphan`) and `anomalies.jsonl`
+  (`benign_solved_challenge` on any difference from `expected_solves`,
+  `benign_snapshot_missing`, `unmatched_verdict`). `JUDGE_VERSION` 0.2.0.
+- **Stats**: FP rate (overall and hard negatives), precision with its traffic mix,
+  benign no-verdict rate. The detection rate is never printed without the FP rate.
+- **First real FP rate for scripted Blue: 0/17 (0%), hard negatives 0/6.** This was
+  hand-predicted before the first run (`tools/stage5_2_expected.json`) and observed
+  exactly; neither the set nor the signatures were tuned.
+- **Verified (Nov 9):** 567 tests pass. `tools/stage5_2_check.py` PASSes **3/3** on
+  a fresh stack (each pass = two matches with `--seed 5202`): matches
+  `20261109T021518Z-7d72` / `…021639Z-f53e`, `…021813Z-edc6` / `…021933Z-d17e`,
+  `…022107Z-2a2c` / `…022227Z-0798`, all at commit `4b9fa15`, clean tree. All six are
+  identical per slot (schedule, rounds, benign results, newly_solved), and Red's
+  per-round results are identical to the Stage 4 scripted baseline run. New
+  committed baseline: `data/golden/scripted-baseline-benign-match/` (the Stage 4 one
+  is untouched).
+- **Incident during the build (no harm):** while renaming the `red` step to
+  `traffic`, the test fakes briefly fell through to the real `Ops.traffic`, and one
+  aborted test run sent benign and Red requests to our own isolated Target through
+  the proxy. No lock or files were left behind; the stray lines were archived by the
+  next match's rotate, and every match resets the Target. A test now asserts the
+  fakes override every network step.
+
 ## Measurement limitations (known and documented)
 
 These are honest boundaries of the instrument, recorded in the contract:
@@ -240,16 +285,25 @@ These are honest boundaries of the instrument, recorded in the contract:
    is solved via a websocket a single HTTP request can't reach. So CWE-79
    `landed` is recorded as `null` (not `false`) and excluded from landing stats —
    but CWE-79 **detection** is measured normally.
-4. **Detection rate is gameable until Stage 5.** With attack-only traffic, a Blue
-   that labels *everything* an attack scores a perfect detection rate. False
-   positives are only measurable once benign traffic and fact 4 (`benign_fp`)
-   arrive in Stage 5. Until then, detection numbers are an upper bound, not a
-   capability claim.
+4. **Detection rate is no longer gameable (Stage 5.2).** Benign traffic is
+   interleaved with Red's attacks, and the FP rate is always printed beside the
+   detection rate: a Blue that labels everything an attack now scores detection
+   100% *and* FP 100%. Matches without benign traffic (before 5.2) still print
+   "FP rate n/a", and their detection numbers remain an upper bound.
 5. **Stage 3 results are a pipe check, not a capability claim.** Scripted Blue v0's
    signatures and the Red payload set were written by the same author, so passing
    the end-to-end check proves the pipeline is wired correctly — not that Blue is
    good. Real capability must be measured on **held-out** attacks Blue's author
    never saw.
+6. **No CWE-22 hard negative.** No natural `/ftp` request looks like traversal
+   without being contrived, so CWE-22 false positives are measured on normal
+   `/ftp` requests only (`n07`, `n08`).
+7. **The hard negatives were drafted by someone who had read Blue's
+   signatures.** They were taken from generic naive-signature ideas and Blue's
+   classifier was not run on them before approval, but the author was not blind
+   to the patterns. Scripted Blue's 0/6 on them says little about its robustness.
+8. **Precision depends on the traffic mix** (7 attack : 17 benign here), so it is
+   always printed with that mix and is not comparable across mixes.
 
 ## Stage 6 tripwires (harness self-checks)
 
@@ -265,7 +319,9 @@ happens when one trips depends on the context:
   bug** forces a re-score — bump the Judge version and note which results used the old
   one.
 
-Stage 6 will centralize these; some are already enforced.
+Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exists from Stage 5.2
+(contract §6.6), with its first kinds: `benign_solved_challenge`,
+`benign_snapshot_missing`, `unmatched_verdict`.
 
 - **`snapshot_missing` appears** in any round record — a snapshot was dropped at
   runtime, so landing is unknown. A scripted run should never produce one;
@@ -305,7 +361,7 @@ Stage 6 will centralize these; some are already enforced.
 - **Progress Report** (Nov 12).
 - **Stage 5 — AI brains** (Nov 13–19), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
-  - **5.2** Benign traffic + fact 4a (verdict-level false positives).
+  - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).
   - **5.3** Rule engine + facts 3 (offline replay) / 4b (rule-level false positives).
   - **5.4** AI Blue (`--engine claude`): first real call, Anthropic SDK pinned; verify
     the usage mapping; the `budget_exhausted` reason (D13); a separate no-verdict rate.

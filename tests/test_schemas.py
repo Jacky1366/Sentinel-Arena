@@ -730,3 +730,23 @@ def test_anomaly_kinds_valid():
 def test_benign_verdict_enums_match_taxonomy():
     enum = SCHEMAS["benign_result"]["properties"]["verdict"]["enum"]
     assert sorted(x for x in enum if x is not None) == sorted(TAXONOMY)
+
+
+def test_committed_benign_baseline_validates_and_is_clean():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    import run_match
+    d = ROOT / "data" / "golden" / "scripted-baseline-benign-match"
+    m = _load(d / "match.json")
+    assert m["schema_version"] == "0.3" and m["status"] == "completed"
+    assert m["git"]["dirty"] is False and m["traffic"]["seed"] == 5202
+    assert run_match.validate_manifest(m) == []
+    a = run_match.artifact_hashes(d)
+    a.pop("README.md")
+    assert a == m["artifacts"]
+    for name, schema in (("benign_requests.jsonl", "benign_request"),
+                         ("benign_results.jsonl", "benign_result"),
+                         ("challenge_snapshots.jsonl", "challenge_snapshot")):
+        for line in (d / name).read_text().splitlines():
+            validator(schema).validate(json.loads(line))
+    assert (d / "anomalies.jsonl").read_text() == ""

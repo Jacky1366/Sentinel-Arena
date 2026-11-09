@@ -1,0 +1,159 @@
+{
+  "schema_version": "0.3",
+  "match_id": "20261109T021518Z-7d72",
+  "started_at": "2026-11-09T02:15:18.884Z",
+  "finished_at": "2026-11-09T02:16:38.930Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.2.0",
+  "blue_engine": "scripted",
+  "red_source": {
+    "path": "red/payloads.json",
+    "sha256": "ea2baaf34133bc4e307913307013637f861221589d9e21bc6911bf6c9c0062fc"
+  },
+  "git": {
+    "commit": "4b9fa15270571d68784d821e57c4f1eef0c046ca",
+    "dirty": false
+  },
+  "traffic": {
+    "seed": 5202,
+    "seed_source": "cli",
+    "benign_set": {
+      "path": "benign/benign_set.json",
+      "sha256": "1ea7c40c9c16423016bd1c25e8f89107c3e2312df630e5103d20de0a6f493d59",
+      "set_version": "1"
+    },
+    "schedule": [
+      "benign:n01",
+      "benign:n02",
+      "red:1",
+      "benign:n03",
+      "benign:n04",
+      "red:2",
+      "benign:n05",
+      "red:3",
+      "benign:n06",
+      "benign:n07",
+      "benign:n08",
+      "benign:n09",
+      "benign:n10",
+      "red:4",
+      "benign:n11",
+      "red:5",
+      "benign:h01",
+      "benign:h02",
+      "red:6",
+      "red:7",
+      "benign:h03",
+      "benign:h04",
+      "benign:h05",
+      "benign:h06"
+    ]
+  },
+  "images": {
+    "juice_shop": {
+      "image": "bkimminich/juice-shop:v20.3.0",
+      "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+      "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+    },
+    "nginx": {
+      "image": "nginx:1.30.6-alpine",
+      "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+      "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+    }
+  },
+  "models": {
+    "red": null,
+    "blue": null,
+    "analyst": null
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "908b7a73334e5ad46d968be47d494b058365dce275b5365b66bbed861a1cc010",
+    "as_of": "2026-11-08"
+  },
+  "cost": {
+    "total_usd": 0.0,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.0,
+    "attempts": 0,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 0,
+      "cached_input": 0,
+      "cache_write": 0,
+      "output": 0
+    },
+    "by_agent": {},
+    "by_model": {},
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": null
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "benign_requests.jsonl": {
+      "sha256": "bfd79b030f7a53988ef98b9a880bb59d88cf262b68633e345ab925845333e553",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "54b3a5ebaed3ddce4c64cef7fe895d1e24cc7b18098ee8edaebcf3c1c60a4253",
+      "bytes": 3850
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "6c3dc677fbb05f14ac3919f0f1ddbc8090975d419fe92e3fdc90c7c502d98bcb",
+      "bytes": 6398
+    },
+    "landed.jsonl": {
+      "sha256": "9f452dcc89b2bac8122f50e960b694384e217e8fdb40375d3f49a415ab9fd8da",
+      "bytes": 1589
+    },
+    "proxy.jsonl": {
+      "sha256": "558920c8dcbcd1d28340b4846737444bdff1f64e4dfa45f534ccefc73a706698",
+      "bytes": 5027
+    },
+    "red_attacks.jsonl": {
+      "sha256": "19e8fd156c06f8a2657086057a1414b0bd025bfa5fac940a0cc3063160960940",
+      "bytes": 2319
+    },
+    "rounds.jsonl": {
+      "sha256": "8646ebd0ddf8e49235e71cf2360fac44f0a7ff95ee1f16156b13ab9330701226",
+      "bytes": 2492
+    },
+    "verdicts.jsonl": {
+      "sha256": "a2cf058b4c34bb614c01e37213338a7b8a5851e931bd6a9f517012f14847236e",
+      "bytes": 5143
+    }
+  }
+}
