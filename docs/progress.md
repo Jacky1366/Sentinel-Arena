@@ -20,6 +20,7 @@ file artifacts defined in a data contract.
 | — | Progress Report | Nov 12 | In progress |
 | 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
 | 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
+| 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -280,6 +281,52 @@ No API calls (scripted Red + scripted Blue, $0). Implements D1 layer 1.
   next match's rotate, and every match resets the Target. A test now asserts the
   fakes override every network step.
 
+### Stage 5.3 — Rule format + deterministic rule engine + Judge facts 3 and 4b
+No API calls, no change to the match pipeline (rule-first verdicts and hot-load are
+5.5). Implements D1 layer 2, D2, D3. Built and tested with **hand-written** rules.
+
+- **Rule format** (contract §5): `cwe` + 1–3 AND-ed conditions on request-side
+  fields only (method, path, query, body), ops contains / equals / regex, patterns
+  ≤ 200 chars, plus `source_request_id` and `created_at_log_seq`. Replaces the
+  never-used Stage 0 format (`rules_file` stays 0.1: no rules file existed).
+- **Neutral `rules/` package**, shared by scripted Blue and the Judge (the Judge
+  never imports `blue/`; tested): normalization, validator, engine. Any behaviour
+  change there is governed by `JUDGE_VERSION` (now 0.3.0).
+- **Normalization v2**, fixed before any AI data exists: additive (every decode
+  step, and `+`-decoding for query/body). Findings that drove it: `UNION+SELECT`
+  never matched `union\s+select`, and the `%00` step of `%2500` was invisible.
+  **Gate passed: scripted Blue's verdicts on all 31 golden lines are identical.**
+- **Validator**: 12 machine-readable rejection codes; never accepts what the
+  schema rejects. **Regex engine: google-re2 1.1.20251105 (pinned)**, linear time:
+  `(a+)+$` on 1 MiB finishes in about a millisecond, so no pattern can hang the
+  engine (D3 reworded: no timeout needed). Backreferences and lookaround get their
+  own reason.
+- **Facts 3 and 4b** (`judge/rule_facts.py`, pure) via `tools/score_rules.py`, which
+  writes only into a new output directory and refuses any match folder (tested).
+  Fact 3 replays a rule on the frozen proxy line of its source; fact 4b runs it on
+  `benign/fixture_v1.jsonl` (the 17 golden benign proxy lines, verbatim, sha256
+  `8eb21189…`).
+- **All 33 hand-written rules matched the designer-approved predictions exactly**
+  (plus the orphan-source case on a modified copy): good rules fire with 0 fixture
+  hits; too-broad rules hit the expected benign entries (a quote in the body hits
+  O'Brien `h06` and `h04`; `union` hits `h01`; `/ftp/` hits `n07`, `n08`); wrong
+  rules do not fire; a rule written from a benign request gives null plus a
+  `rule_source_benign` anomaly; every invalid rule gets exactly its predicted
+  reason.
+- **Expressiveness (Part F, report)**: scripted Blue's 20 signatures become 60
+  rules (one per field: a rule cannot OR across fields), none rejected, and they
+  reproduce `classify()` on **31/31** golden lines. Not expressible / differs:
+  (1) Blue's single label by fixed priority (CWE-22 > 89 > 79) is not a rule
+  concept; turning firing rules into one verdict is D9 (5.5). (2) Blue's haystack
+  joins fields with a newline, so a signature can match across fields; a rule
+  cannot. (3) Python `re` vs RE2 on non-ASCII text: `\b`, `\s` and `\d` are
+  Unicode-aware in Python, ASCII-only in RE2 (each shown by a synthetic probe).
+  None of these occur in the golden data.
+- **Verified (Nov 9):** 722 tests pass. `tools/stage5_2_check.py` PASSes on a fresh
+  stack after the normalization move (matches `20261109T041650Z-e736` /
+  `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
+  slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
 ## Measurement limitations (known and documented)
 
 These are honest boundaries of the instrument, recorded in the contract:
@@ -315,6 +362,20 @@ These are honest boundaries of the instrument, recorded in the contract:
    to the patterns. Scripted Blue's 0/6 on them says little about its robustness.
 8. **Precision depends on the traffic mix** (7 attack : 17 benign here), so it is
    always printed with that mix and is not comparable across mixes.
+9. **The fact-4b fixture is not held out.** It is the same 17 benign requests that
+   are sent in every match, so an AI Blue (5.5) will have seen these exact lines
+   and could write rules that avoid them. A second, never-sent benign set is
+   planned before Stage 6.
+10. **Decoding is content-type agnostic** (inherited from Stage 3, kept). Bodies
+   are URL-decoded even when they are JSON (now including `unquote_plus`), so a
+   literal `%27` inside a JSON value also yields a form containing `'`. It passes
+   the 31-verdict gate; it is recorded, not changed.
+11. **Additive forms can add false positives as well as detections.** The hand rule
+   `union\s+\w+` hits benign `h01` only through the new `+`-decoded form
+   `union jack`; without v2 it would have had 0 fixture hits.
+12. **Rules and scripted Blue differ in small ways** (Part F): rules cannot match
+   across fields, and RE2's `\b`, `\s`, `\d` are ASCII-only where Python's are
+   Unicode-aware. Not seen in the golden data; relevant once AI Red varies inputs.
 
 ## Stage 6 tripwires (harness self-checks)
 
@@ -373,7 +434,7 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
 - **Stage 5 — AI brains** (Nov 13–19), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).
-  - **5.3** Rule engine + facts 3 (offline replay) / 4b (rule-level false positives).
+  - ~~5.3 Rule engine + facts 3 (offline replay) / 4b (rule-level false positives)~~ (done Nov 9).
   - **5.4** AI Blue (`--engine claude`): first real call, Anthropic SDK pinned; verify
     the usage mapping; the `budget_exhausted` reason (D13); a separate no-verdict rate.
   - **5.5** Blue rule invention + hot-load.
