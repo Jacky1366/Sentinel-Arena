@@ -1,22 +1,28 @@
 """Sentinel Arena orchestrator: one complete scripted match, one command.
 
-    .venv/bin/python run_match.py          # requires: docker compose up -d --wait
+    .venv/bin/python run_match.py              # requires: docker compose up -d --wait
+    .venv/bin/python run_match.py --seed 5202  # reproduce a match's schedule
 
 The orchestrator is the ONLY thing that sequences components. Components never
 call each other; each step reads and writes file artifacts (docs/contract.md).
 
   1. preflight   both containers Up, juice-shop healthy, live/ has no leftovers,
-                 provenance (git commit + dirty, payload sha256) readable
+                 provenance (git commit + dirty, payload + benign-set sha256)
+                 readable, benign set valid, seed chosen (--seed or generated)
   2. lock        live/match.lock (refuse if held; never auto-broken)
   3. match_id    UTC timestamp + 4 hex, e.g. 20261109T153012Z-a1b2
   4. reset       restart the Target, verify 0 solved (refuse if not clean)
   5. rotate      archive the previous live/proxy.jsonl, nginx reopens a fresh one
-  6. red         scripted Red + before/after snapshots -> data/runs/<match_id>/
+  6. traffic     Red attacks and benign requests, interleaved one slot at a time
+                 by the seeded schedule (both keep their own order), each with
+                 before/after snapshots -> data/runs/<match_id>/
   7. freeze      move live/proxy.jsonl into the match dir, nginx reopens
-  8. judge_fact1 -> blue -> judge_rounds, on the FROZEN directory
-  9. match.json  written LAST (status, provenance, models, budget, cost, sha256
-                 of every artifact), schema_version 0.2
- 10. summary     a pure read of rounds.jsonl + match.json (incl. a cost line)
+  8. judge_fact1 -> blue -> judge_rounds -> judge_benign (fact 4a + anomalies),
+                 on the FROZEN directory
+  9. match.json  written LAST (status, provenance, traffic seed + schedule,
+                 models, budget, cost, sha256 of every artifact), schema_version 0.3
+ 10. summary     a pure read of the Judge outputs + match.json: detection is
+                 always printed next to the FP rate
 
 If any step from 4 on fails, the match is still finalized: whatever this match
 produced is in data/runs/<match_id>/, match.json says status "failed" with the
@@ -51,9 +57,11 @@ REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
 from blue import run_blue  # noqa: E402
 from agents import llm_client  # noqa: E402
-from judge import JUDGE_VERSION, fact1_landed, round_record  # noqa: E402
+from benign import send_benign  # noqa: E402
+from judge import JUDGE_VERSION, fact1_landed, fact4_benign, round_record  # noqa: E402
 from red import scripted_red  # noqa: E402
 from runner import match_ops  # noqa: E402
+from runner.schedule import Schedule, new_seed  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
 from stats import match_stats  # noqa: E402
 
@@ -62,8 +70,9 @@ def _schema(name: str) -> dict:
     return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
-MANIFEST_VERSION = "0.2"
-MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest")}
+MANIFEST_VERSION = "0.3"
+MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest_v0_2"),
+                    "0.3": _schema("match_manifest")}
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -137,8 +146,9 @@ class Ops:
     def rotate(self, live_dir: Path) -> Path | None:
         return match_ops.rotate_proxy_log(live_dir)
 
-    def red(self, match_id: str, match_dir: Path, payloads: Path, settle: float) -> None:
-        match_ops.run_attacks(match_id, match_dir, payloads, settle)
+    def traffic(self, match_id: str, match_dir: Path, attacks: list[dict],
+                benign_entries: list[dict], schedule: Schedule, settle: float) -> None:
+        match_ops.run_traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)
 
     def freeze(self, live_dir: Path, match_dir: Path) -> None:
         match_ops.freeze_proxy_log(live_dir, match_dir)
@@ -157,6 +167,9 @@ class Ops:
 
     def judge_rounds(self, match_dir: Path) -> None:
         round_record.main(["--run-dir", str(match_dir)])
+
+    def judge_benign(self, match_dir: Path) -> None:
+        fact4_benign.main(["--run-dir", str(match_dir)])
 
 
 def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
@@ -187,6 +200,7 @@ def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
 
 def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               runs_dir: Path = match_ops.RUNS, payloads: Path = scripted_red.PAYLOADS,
+              benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
               settle: float = 3.0, engine: str = "scripted",
               out=print) -> tuple[int, Path | None]:
     """Run one match. Returns (exit_code, match_dir or None if never started)."""
@@ -197,10 +211,21 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         images = ops.preflight()
         match_ops.check_live_clean(live_dir)
         llm_config, prices, price_ref = ops.llm_setup()
+        attacks = scripted_red.load_attacks(payloads)
+        bset = send_benign.load_set(benign_set)  # BenignSetError is a ValueError
+        seed_source = "generated" if seed is None else "cli"
+        seed = new_seed() if seed is None else seed
+        benign_ids = [e["benign_id"] for e in bset["entries"]]
+        schedule = Schedule(len(attacks), benign_ids, seed)  # ValueError on a bad seed
         provenance = {
             "red_source": {"path": _display_path(payloads), "sha256": sha256_file(payloads)},
             "git": ops.git_info(),
         }
+        traffic = {"seed": seed, "seed_source": seed_source,
+                   "benign_set": {"path": _display_path(benign_set),
+                                  "sha256": sha256_file(benign_set),
+                                  "set_version": bset["set_version"]},
+                   "schedule": schedule.planned_labels()}
     except (match_ops.PreflightError, OSError, subprocess.CalledProcessError, ValueError,
             ValidationError) as exc:
         out(f"PREFLIGHT FAILED: {llm_client.redact(str(exc))}")
@@ -222,6 +247,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         raise
     started_at = match_ops.utc_now()
     out(f"match {match_id} -> {_display_path(match_dir)}")
+    out(f"seed {seed} ({seed_source}): {len(attacks)} Red + {len(benign_ids)} benign slots")
 
     failed_step: str | None = None
     error: str | None = None
@@ -240,8 +266,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         if archived is not None:
             out(f"previous proxy log archived: {_display_path(archived)}")
 
-        step = "red"
-        ops.red(match_id, match_dir, payloads, settle)
+        step = "traffic"
+        ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle)
 
         step = "freeze"
         ops.freeze(live_dir, match_dir)
@@ -254,6 +280,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         ops.blue(match_dir, match_id, engine)
         step = "judge_rounds"
         ops.judge_rounds(match_dir)
+        step = "judge_benign"
+        ops.judge_benign(match_dir)
         step = "done"
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 - finalize on ANY failure
         failed_step = step
@@ -290,6 +318,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             "judge_version": JUDGE_VERSION,
             "blue_engine": engine,
             **provenance,
+            "traffic": traffic,
             "images": images,
             # Scripted Red and Blue call no model. AI engines fill these (5.4+).
             "models": {"red": None, "blue": None, "analyst": None},
@@ -311,18 +340,25 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
     # 10. Summary: pure read of the frozen artifacts.
     out("")
     out(match_stats.format_summary(
-        match_stats.read_rounds(match_dir / "rounds.jsonl"), manifest))
+        match_stats.read_rounds(match_dir / "rounds.jsonl"), manifest,
+        benign=match_stats.read_rounds(match_dir / fact4_benign.RESULTS),
+        anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES)))
     return EXIT[manifest["status"]], match_dir
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run one complete scripted match.")
     parser.add_argument("--payloads", type=Path, default=scripted_red.PAYLOADS)
+    parser.add_argument("--benign-set", type=Path, default=send_benign.BENIGN_SET)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="schedule seed (0..2^32-1); reproduces a match's interleaving. "
+                             "Without it a seed is generated and recorded in match.json")
     parser.add_argument("--engine", choices=sorted(run_blue.ENGINES), default="scripted")
     parser.add_argument("--settle", type=float, default=3.0,
                         help="max seconds to wait for a solve to register")
     args = parser.parse_args(argv)
-    code, _ = run_match(payloads=args.payloads, settle=args.settle, engine=args.engine)
+    code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
+                        settle=args.settle, engine=args.engine)
     return code
 
 

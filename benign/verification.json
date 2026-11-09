@@ -1,0 +1,271 @@
+{
+  "verified_at": "2026-11-09T02:12:19.657Z",
+  "only": null,
+  "set_path": "benign/benign_set.json",
+  "set_version": "1",
+  "set_sha256": "1ea7c40c9c16423016bd1c25e8f89107c3e2312df630e5103d20de0a6f493d59",
+  "images": {
+    "juice_shop": {
+      "image": "bkimminich/juice-shop:v20.3.0",
+      "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+      "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+    },
+    "nginx": {
+      "image": "nginx:1.30.6-alpine",
+      "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+      "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+    }
+  },
+  "settle_s": 3.0,
+  "method": "Target reset before each entry (a requires-chain shares one reset); before/after snapshots via the admin port; arena HTTP client.",
+  "results": [
+    {
+      "benign_id": "n01",
+      "category": "normal",
+      "method": "POST",
+      "target": "/rest/user/login",
+      "status": 401,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n02",
+      "category": "normal",
+      "method": "POST",
+      "target": "/rest/user/login",
+      "status": 401,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n03",
+      "category": "normal",
+      "method": "POST",
+      "target": "/rest/user/login",
+      "status": 401,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n04",
+      "category": "normal",
+      "method": "GET",
+      "target": "/rest/products/search?q=apple",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n05",
+      "category": "normal",
+      "method": "GET",
+      "target": "/rest/products/search?q=banana+juice",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n06",
+      "category": "normal",
+      "method": "GET",
+      "target": "/rest/products/search?q=",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n07",
+      "category": "normal",
+      "method": "GET",
+      "target": "/ftp/legal.md",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n08",
+      "category": "normal",
+      "method": "GET",
+      "target": "/ftp/",
+      "status": 200,
+      "body_incomplete": true,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n09",
+      "category": "normal",
+      "method": "GET",
+      "target": "/rest/track-order/5267-f9cd5882f54c75a3",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n10",
+      "category": "normal",
+      "method": "POST",
+      "target": "/api/Users",
+      "status": 201,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "n11",
+      "category": "normal",
+      "method": "POST",
+      "target": "/rest/user/login",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": false
+    },
+    {
+      "benign_id": "h01",
+      "category": "hard_negative",
+      "method": "GET",
+      "target": "/rest/products/search?q=union+jack+t-shirt",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "h02",
+      "category": "hard_negative",
+      "method": "GET",
+      "target": "/rest/products/search?q=lemon+drop",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "h03",
+      "category": "hard_negative",
+      "method": "GET",
+      "target": "/rest/products/search?q=juice+%3C3",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "h04",
+      "category": "hard_negative",
+      "method": "POST",
+      "target": "/rest/user/login",
+      "status": 401,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "h05",
+      "category": "hard_negative",
+      "method": "GET",
+      "target": "/rest/products/search?q=javascript",
+      "status": 200,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [],
+      "expected_solves": [],
+      "solves_match": true,
+      "server_error": false,
+      "fresh_reset": true
+    },
+    {
+      "benign_id": "h06",
+      "category": "hard_negative",
+      "method": "POST",
+      "target": "/rest/user/login",
+      "status": 500,
+      "body_incomplete": false,
+      "error": null,
+      "newly_solved": [
+        "Error Handling"
+      ],
+      "expected_solves": [
+        "Error Handling"
+      ],
+      "solves_match": true,
+      "server_error": true,
+      "fresh_reset": true
+    }
+  ],
+  "known_target_quirks": [
+    {
+      "benign_id": "n08",
+      "quirk": "Juice Shop's /ftp/ directory listing sends a body 59 bytes shorter than its Content-Length (11343 declared, 11284 sent). Reproduced inside the Docker network without nginx (wget from the nginx container straight to juice-shop:3000) and with curl through the proxy (curl exit 18). The arena client tolerates exactly this case: status returned, body_incomplete=true (contract 9)."
+    }
+  ]
+}

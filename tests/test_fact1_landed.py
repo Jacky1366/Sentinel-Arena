@@ -137,3 +137,30 @@ def test_main_writes_landed_jsonl(tmp_path, capsys):
     rec = json.loads(lines[0])
     assert rec["landed"] is None and rec["landed_reason"] == "not_measurable"
     VALIDATOR.validate(rec)
+
+
+def test_benign_snapshot_rows_are_skipped_explicitly(tmp_path):
+    # Stage 5.2: benign rows share the snapshot file; fact 1 ignores them, even a
+    # benign row that solved something (that is fact 4a's anomaly, never a landing).
+    benign_rid = RID.replace("3f2b", "9c9c")
+    attacks = [_attack(RID, "CWE-89", 1)]
+    snaps = [
+        {"request_id": benign_rid, "traffic": "benign", "before_solved": [],
+         "after_solved": ["Error Handling"], "taken_at": "2026-11-04T00:00:00Z"},
+        {"request_id": RID, "traffic": "red", "before_solved": [],
+         "after_solved": ["Login Admin"], "taken_at": "2026-11-04T00:00:01Z"},
+    ]
+    _write_run(tmp_path, attacks, snaps)
+    facts, orphans = fact1.judge_run(tmp_path, CMAP)
+    assert [f["request_id"] for f in facts] == [RID] and orphans == []
+    assert facts[0]["newly_solved"] == ["Login Admin"]
+
+
+def test_a_red_request_id_on_a_benign_row_is_not_used(tmp_path):
+    # Defensive: a snapshot row is used by fact 1 only if it is marked red (or is a
+    # pre-5.2 row with no traffic field).
+    _write_run(tmp_path, [_attack(RID, "CWE-89", 1)],
+               [{"request_id": RID, "traffic": "benign", "before_solved": [],
+                 "after_solved": ["Login Admin"], "taken_at": "2026-11-04T00:00:01Z"}])
+    facts, orphans = fact1.judge_run(tmp_path, CMAP)
+    assert facts == [] and [o["request_id"] for o in orphans] == [RID]

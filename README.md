@@ -39,7 +39,9 @@ Stages 0–4 done: data contract, Juice Shop behind a logging-only proxy, script
 Red + Judge (landed, detected, round record), scripted Blue v0, and a one-command
 match (`run_match.py`). Stage 5.1 done: the AI body (`agents/llm_client.py`) with
 budget caps and cost tracking, tested with a fake provider (no real calls yet).
-AI-driven Red/Blue, benign traffic, and the dashboard are not implemented yet. See
+Stage 5.2 done: benign traffic interleaved with Red by a seeded schedule, and
+false-positive scoring (Judge fact 4a), so the detection rate is always reported
+next to an FP rate. AI-driven Red/Blue and the dashboard are not implemented yet. See
 [`docs/progress.md`](docs/progress.md) and
 [`docs/stage5_decisions.md`](docs/stage5_decisions.md).
 

@@ -19,8 +19,9 @@ newly_solved = after_solved - before_solved:
     otherwise                    -> landed=false, reason=null
 
 Only challenges in the label's mapping count toward landed; the full newly_solved
-list is stored as evidence regardless. A Red record with no snapshot line is an
-ORPHAN: skipped, not scored, and reported.
+list is stored as evidence regardless. A Red record with no snapshot line is
+SNAPSHOT-MISSING: skipped here, and the round-record join marks it (contract 6.1).
+Snapshot rows of benign traffic (traffic == "benign") are ignored: fact 4a reads them.
 """
 
 from __future__ import annotations
@@ -67,7 +68,10 @@ def compute_landed(label: str, before_solved, after_solved, challenge_map: dict)
 def judge_run(run_dir: Path, challenge_map: dict) -> tuple[list[dict], list[dict]]:
     """Return (landed_facts, orphans). Does not write anything."""
     attacks = _read_jsonl(run_dir / "red_attacks.jsonl")
-    snapshots = {s["request_id"]: s for s in _read_jsonl(run_dir / "challenge_snapshots.jsonl")}
+    # Benign rows (Stage 5.2) are fact 4a's business, skipped here explicitly. Rows
+    # written before Stage 5.2 have no `traffic` field and are all Red.
+    snapshots = {s["request_id"]: s for s in _read_jsonl(run_dir / "challenge_snapshots.jsonl")
+                 if s.get("traffic", "red") == "red"}
 
     facts, orphans = [], []
     for atk in attacks:

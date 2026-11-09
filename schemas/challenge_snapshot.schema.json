@@ -1,18 +1,40 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/challenge_snapshot.schema.json",
-  "title": "Challenge snapshot (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/challenge_snapshots.jsonl, written by the measurement runner (not the Judge) per attack. Solved-challenge state just before and after one attack, keyed by request_id. Internal measurement artifact: like the proxy log it has no schema_version/match_id (the run directory implies the match). Blue must NEVER read this.",
+  "title": "Challenge snapshot (contract 3.1)",
+  "description": "One line of data/runs/<match_id>/challenge_snapshots.jsonl, written by the measurement runner (not the Judge) per request (Red attack or benign request, Stage 5.2 on; traffic says which). Rows written before Stage 5.2 have no traffic field and are all Red. Solved-challenge state just before and after one attack, keyed by request_id. Internal measurement artifact: like the proxy log it has no schema_version/match_id (the run directory implies the match). Blue must NEVER read this.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["request_id", "before_solved", "after_solved", "taken_at"],
+  "required": [
+    "request_id",
+    "traffic",
+    "before_solved",
+    "after_solved",
+    "taken_at"
+  ],
   "properties": {
     "request_id": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
-    "before_solved": { "type": "array", "items": { "type": "string" } },
-    "after_solved": { "type": "array", "items": { "type": "string" } },
+    "traffic": {
+      "enum": [
+        "red",
+        "benign"
+      ]
+    },
+    "before_solved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "after_solved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "taken_at": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"

@@ -8,8 +8,9 @@ Responsibilities (all involve I/O, so the Judge does NOT have to):
   - lock: one match at a time (data/runs/live/match.lock), never auto-broken.
   - reset_target: restart juice-shop, verify all challenges unsolved.
   - rotate_proxy_log: archive the previous live log, nginx reopens a fresh one.
-  - run_attacks: per scripted attack, snapshot (admin :8081) -> fire ONE attack
-    (arena :8080, via red.scripted_red) -> stable after-snapshot.
+  - run_traffic: one slot at a time from the seeded schedule (runner/schedule.py):
+    snapshot (admin :8081) -> ONE Red attack or ONE benign request (arena :8080,
+    via the shared runner/arena_client.py) -> stable after-snapshot.
   - freeze_proxy_log: move this match's proxy.jsonl into the match dir, then nginx
     reopens so later traffic can never append to the frozen file.
 
@@ -38,7 +39,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
+from benign import send_benign  # noqa: E402
 from red import scripted_red  # noqa: E402
+from runner.schedule import Schedule  # noqa: E402
 
 RUNS = REPO / "data" / "runs"
 LIVE = RUNS / "live"
@@ -294,24 +297,41 @@ def snapshot_after(before, settle: float, poll: float = 0.25, stable_polls: int 
     return last
 
 
-def run_attacks(match_id: str, match_dir: Path, payloads: Path = scripted_red.PAYLOADS,
-                settle: float = 3.0, log=print) -> list[dict]:
-    """Fire the scripted attack set with before/after snapshots. Writes
-    red_attacks.jsonl and challenge_snapshots.jsonl straight into match_dir."""
+def run_traffic(match_id: str, match_dir: Path, attacks: list[dict],
+                benign_entries: list[dict], schedule: Schedule, settle: float = 3.0,
+                log=print) -> list[dict]:
+    """Drive the match one slot at a time: Red and benign traffic interleaved by
+    `schedule` (each keeps its own order), every request bracketed by challenge
+    snapshots marked with its traffic kind. Writes red_attacks.jsonl,
+    benign_requests.jsonl and challenge_snapshots.jsonl straight into match_dir."""
     match_dir.mkdir(parents=True, exist_ok=True)
-    (match_dir / "red_attacks.jsonl").write_text("", encoding="utf-8")
+    for name in ("red_attacks.jsonl", "benign_requests.jsonl", "challenge_snapshots.jsonl"):
+        (match_dir / name).write_text("", encoding="utf-8")
     snap_path = match_dir / "challenge_snapshots.jsonl"
-    snap_path.write_text("", encoding="utf-8")
+    benign_by_id = {e["benign_id"]: e for e in benign_entries}
+    red = scripted_red.ScriptedRed(attacks)
+    last_red_status: int | None = None
 
-    attacks = scripted_red.load_attacks(payloads)
     results = []
     with snap_path.open("a", encoding="utf-8") as snap_fh:
-        for i, attack in enumerate(attacks, start=1):
+        while (slot := schedule.next()) is not None:
+            if slot.kind == "red":
+                attack = red.next_attack(last_red_status)
+                if attack is None:  # Red is done: drop its remaining slots
+                    schedule.red_exhausted()
+                    continue
             before = solved_now()
-            res = scripted_red.send_one(attack, match_id, i, match_dir)
+            if slot.kind == "red":
+                res = scripted_red.send_one(attack, match_id, slot.round, match_dir)
+                last_red_status = res["status"]
+                what = f"round {slot.round} {res['label']:7}"
+            else:
+                res = send_benign.send_one(benign_by_id[slot.benign_id], match_id, match_dir)
+                what = f"benign {slot.benign_id} {res['category']:13}"
             after = snapshot_after(before, settle)
             snap_fh.write(json.dumps({
                 "request_id": res["request_id"],
+                "traffic": slot.kind,
                 "before_solved": before,
                 "after_solved": after,
                 "taken_at": utc_now(),
@@ -319,6 +339,7 @@ def run_attacks(match_id: str, match_dir: Path, payloads: Path = scripted_red.PA
             snap_fh.flush()
             newly = sorted(set(after) - set(before))
             where = res["status"] if res["error"] is None else res["error"]
-            log(f"round {i} {res['label']:7} -> {where}; newly_solved={newly}")
-            results.append(res)
+            note = " (body shorter than Content-Length)" if res["body_incomplete"] else ""
+            log(f"slot {slot.slot:>2} {what} -> {where}{note}; newly_solved={newly}")
+            results.append({**res, "slot": slot.slot, "kind": slot.kind})
     return results

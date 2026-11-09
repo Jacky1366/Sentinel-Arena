@@ -15,8 +15,9 @@ For each Red record (contract 6, field-relationship table):
                             reason=null; verdict=verdict
 
 Rules:
-  - Verdicts whose request_id has no Red record are IGNORED (benign traffic is
-    scored by fact 4 in Stage 5).
+  - Verdicts whose request_id has no Red record are not scored here: fact 4a
+    (judge/fact4_benign.py) matches them against benign records, and a verdict
+    matching neither becomes an `unmatched_verdict` anomaly (never scored).
   - TWO verdicts for one request_id is a contract violation -> raise. Never pick one.
 """
 

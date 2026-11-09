@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/benign_request.schema.json",
+  "title": "Benign request record (contract 2.1)",
+  "description": "One line of data/runs/<match_id>/benign_requests.jsonl, written BEFORE the request is sent (same rule as Red). Ground truth: Blue must NEVER read it. Benign requests are never Red records. expected_solves is copied from the benign set entry so the Judge needs nothing else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "request_id",
+    "benign_id",
+    "category",
+    "expected_solves",
+    "sent_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "benign_id": {
+      "type": "string",
+      "pattern": "^[nh][0-9]{2}$"
+    },
+    "category": {
+      "enum": [
+        "normal",
+        "hard_negative"
+      ]
+    },
+    "expected_solves": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "sent_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    }
+  }
+}

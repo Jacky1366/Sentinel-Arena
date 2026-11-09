@@ -22,7 +22,8 @@ from runner import match_ops  # noqa: E402
 
 MANIFEST = Draft202012Validator(run_match.MANIFEST_SCHEMA)
 IMAGE = {"image": "x:1", "image_id": "sha256:" + "b" * 64, "repo_digest": None}
-STEPS = ["reset", "rotate", "red", "freeze", "judge_fact1", "blue", "judge_rounds"]
+STEPS = ["reset", "rotate", "traffic", "freeze", "judge_fact1", "blue", "judge_rounds",
+         "judge_benign"]
 PREVIOUS = '{"request_id":"","note":"previous match traffic"}\n'
 
 ATTACKS = [
@@ -31,6 +32,15 @@ ATTACKS = [
      '{"email":"\' OR 1=1--","password":"x"}', [], ["Login Admin"]),
     ("22222222-2222-4222-8222-222222222222", "CWE-79", "GET", "/rest/products/search",
      "q=<script>alert(1)</script>", "", ["Login Admin"], ["Login Admin"]),
+]
+
+BENIGN = [
+    # (request_id, benign_id, category, path, query, body, before, after, expected_solves)
+    ("33333333-3333-4333-8333-333333333333", "n04", "normal", "/rest/products/search",
+     "q=apple", "", ["Login Admin"], ["Login Admin"], []),
+    ("44444444-4444-4444-8444-444444444444", "h06", "hard_negative", "/rest/user/login", "",
+     '{"email":"sean.o\'brien@example.com","password":"x"}', ["Login Admin"],
+     ["Error Handling", "Login Admin"], ["Error Handling"]),
 ]
 
 
@@ -45,9 +55,10 @@ class FakeOps(run_match.Ops):
     """Real file semantics, no Docker. Override one method to inject a failure."""
 
     def __init__(self, live_dir: Path, skip_snapshot_for: int | None = None,
-                 attacks=ATTACKS):
+                 attacks=ATTACKS, benign=()):
         self.live = live_dir
         self.attacks = attacks
+        self.benign = benign
         self.skip_snapshot_for = skip_snapshot_for
         self.calls: list[str] = []
 
@@ -66,8 +77,8 @@ class FakeOps(run_match.Ops):
         return match_ops.rotate_proxy_log(live_dir, reopen=fake_reopen(live_dir),
                                           poll_timeout=0.1)
 
-    def red(self, match_id, match_dir, payloads, settle):
-        self.calls.append("red")
+    def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+        self.calls.append("traffic")
         for i, (rid, label, method, path, query, body, before, after) in \
                 enumerate(self.attacks, start=1):
             with (match_dir / "red_attacks.jsonl").open("a") as fh:
@@ -84,8 +95,24 @@ class FakeOps(run_match.Ops):
             if i != self.skip_snapshot_for:
                 with (match_dir / "challenge_snapshots.jsonl").open("a") as fh:
                     fh.write(json.dumps({
-                        "request_id": rid, "before_solved": before, "after_solved": after,
-                        "taken_at": "2026-11-09T00:00:01Z"}) + "\n")
+                        "request_id": rid, "traffic": "red", "before_solved": before,
+                        "after_solved": after, "taken_at": "2026-11-09T00:00:01Z"}) + "\n")
+        (match_dir / "benign_requests.jsonl").touch()
+        for rid, bid, cat, path, query, body, before, after, expected in self.benign:
+            with (match_dir / "benign_requests.jsonl").open("a") as fh:
+                fh.write(json.dumps({
+                    "schema_version": "0.1", "match_id": match_id, "request_id": rid,
+                    "benign_id": bid, "category": cat, "expected_solves": expected,
+                    "sent_at": "2026-11-09T00:00:02Z"}) + "\n")
+            with (self.live / "proxy.jsonl").open("a") as fh:
+                fh.write(json.dumps({
+                    "timestamp": "2026-11-09T00:00:02Z", "request_id": rid,
+                    "method": "POST" if body else "GET", "path": path, "query": query,
+                    "body": body, "status": 500 if body else 200}) + "\n")
+            with (match_dir / "challenge_snapshots.jsonl").open("a") as fh:
+                fh.write(json.dumps({
+                    "request_id": rid, "traffic": "benign", "before_solved": before,
+                    "after_solved": after, "taken_at": "2026-11-09T00:00:03Z"}) + "\n")
 
     def freeze(self, live_dir, match_dir):
         self.calls.append("freeze")
@@ -158,7 +185,8 @@ def test_completed_match_with_fakes(dirs):
     assert m["match_id"] == match_dir.name
     assert set(m["artifacts"]) == {"red_attacks.jsonl", "challenge_snapshots.jsonl",
                                    "proxy.jsonl", "landed.jsonl", "verdicts.jsonl",
-                                   "rounds.jsonl"}
+                                   "rounds.jsonl", "benign_requests.jsonl",
+                                   "benign_results.jsonl", "anomalies.jsonl"}
     # previous traffic archived, never deleted; live/ restarts with a fresh empty log
     archived = list((live / "archive").iterdir())
     assert [p.read_text() for p in archived] == [PREVIOUS]
@@ -186,7 +214,7 @@ def test_any_step_failure_is_finalized(dirs, step):
     assert m["status"] == "failed" and m["failed_step"] == step
     assert "injected failure" in m["error"]
     assert "MATCH FAILED" in out
-    if STEPS.index(step) < STEPS.index("red"):
+    if STEPS.index(step) < STEPS.index("traffic"):
         # Never rotated: live/proxy.jsonl is earlier traffic, NOT this match's.
         assert (live / "proxy.jsonl").read_text() == PREVIOUS
         assert not (match_dir / "proxy.jsonl").exists()
@@ -198,14 +226,14 @@ def test_red_fails_midway_partial_artifacts_moved(dirs):
     live, _ = dirs
 
     class RedDiesAfterOne(FakeOps):
-        def red(self, match_id, match_dir, payloads, settle):
-            super().red(match_id, match_dir, payloads, settle)  # first attack only
+        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+            super().traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)  # first attack only
             raise ConnectionError("arena went away")
 
     code, match_dir, _ = go(RedDiesAfterOne(live, attacks=ATTACKS[:1]), dirs)
     assert code == 1
     m = assert_finalized(live, match_dir)
-    assert m["failed_step"] == "red" and "ConnectionError" in m["error"]
+    assert m["failed_step"] == "traffic" and "ConnectionError" in m["error"]
     assert len((match_dir / "red_attacks.jsonl").read_text().splitlines()) == 1
     assert len((match_dir / "proxy.jsonl").read_text().splitlines()) == 1
     assert (live / "proxy.jsonl").read_text() == ""
@@ -308,10 +336,10 @@ def test_snapshot_missing_is_not_a_failure(dirs):
 
 def test_keyboard_interrupt_is_finalized(dirs):
     live, _ = dirs
-    code, match_dir, _ = go(failing("red", KeyboardInterrupt())(live), dirs)
+    code, match_dir, _ = go(failing("traffic", KeyboardInterrupt())(live), dirs)
     assert code == 1
     m = assert_finalized(live, match_dir)
-    assert m["failed_step"] == "red" and m["error"].startswith("KeyboardInterrupt")
+    assert m["failed_step"] == "traffic" and m["error"].startswith("KeyboardInterrupt")
 
 
 # ---------------------------------------------------------------- refusals
@@ -395,10 +423,10 @@ def test_freeze_raises_without_any_log(tmp_path):
 
 # ---- Stage 5.1: manifest 0.2, budget, cost ---------------------------------
 
-def test_scripted_match_manifest_v0_2_zero_cost(dirs):
+def test_scripted_match_manifest_v0_3_zero_cost(dirs):
     code, match_dir, out = go(FakeOps(dirs[0]), dirs)
     m = manifest_of(match_dir)
-    assert code == 0 and m["schema_version"] == "0.2"
+    assert code == 0 and m["schema_version"] == "0.3"
     assert m["models"] == {"red": None, "blue": None, "analyst": None}
     assert m["budget"]["stopped_by"] is None
     assert m["budget"]["limits"]["blue"] == {"max_calls": 100, "max_tokens": 300000,
@@ -414,8 +442,8 @@ def _red_with_ai_calls(max_calls):
     from llm_fakes import FakeAdapter, MESSAGES, SYSTEM, config, make_client
 
     class AIRed(FakeOps):
-        def red(self, match_id, match_dir, payloads, settle):
-            super().red(match_id, match_dir, payloads, settle)
+        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+            super().traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)
             client, _ = make_client(FakeAdapter(), cfg=config(red={"max_calls": max_calls}))
             for i in range(1, 4):
                 client.complete("red", "fake-small", SYSTEM, MESSAGES, run_dir=match_dir,
@@ -463,3 +491,78 @@ def test_bad_llm_config_refused_at_preflight(dirs):
     code, match_dir, out = go(BadConfig(dirs[0]), dirs)
     assert code == 2 and match_dir is None and "PREFLIGHT FAILED" in out
     assert not (dirs[0] / "match.lock").exists()
+
+
+# ---- Stage 5.2: the fakes never touch the network; benign traffic end to end ----
+
+NETWORK_STEPS = ("preflight", "reset", "rotate", "traffic", "freeze", "reopen")
+
+
+def test_fake_ops_override_every_network_step():
+    # A fake that falls through to the real Ops would send live traffic to the
+    # Target (this happened once while renaming red -> traffic). Never again.
+    for name in NETWORK_STEPS:
+        assert getattr(FakeOps, name) is not getattr(run_match.Ops, name), name
+    assert set(NETWORK_STEPS) | {"git_info", "llm_setup", "judge_fact1", "blue",
+                                 "judge_rounds", "judge_benign"} >= {
+        n for n in vars(run_match.Ops) if not n.startswith("_")}
+
+
+def test_benign_traffic_scored_and_recorded(dirs):
+    live, _ = dirs
+    code, match_dir, out = go(FakeOps(live, benign=BENIGN), dirs)
+    assert code == 0, out
+    m = manifest_of(match_dir)
+    assert m["schema_version"] == "0.3" and m["status"] == "completed"
+    t = m["traffic"]
+    assert t["seed_source"] == "generated" and 0 <= t["seed"] < 2**32
+    assert t["benign_set"]["path"] == "benign/benign_set.json"
+    assert sum(x.startswith("benign:") for x in t["schedule"]) == 17
+    results = [json.loads(l) for l in (match_dir / "benign_results.jsonl").read_text().splitlines()]
+    assert [(r["benign_id"], r["fp_reason"]) for r in results] == [("n04", None), ("h06", None)]
+    assert (match_dir / "anomalies.jsonl").read_text() == ""  # h06 solved what it expects
+    assert "FP rate" in out and "anomalies: none" in out
+    assert {"benign_requests.jsonl", "benign_results.jsonl", "anomalies.jsonl"} <= set(m["artifacts"])
+
+
+def test_unexpected_benign_solve_is_an_anomaly_in_the_summary(dirs):
+    live, _ = dirs
+    bad = [BENIGN[0][:7] + (["Login Admin", "Score Board"], [])]  # n04 solved something
+    code, match_dir, out = go(FakeOps(live, benign=bad), dirs)
+    assert code == 0  # incomplete/odd data is flagged, not a failure
+    [a] = [json.loads(l) for l in (match_dir / "anomalies.jsonl").read_text().splitlines()]
+    assert a["kind"] == "benign_solved_challenge" and a["detail"]["newly_solved"] == ["Score Board"]
+    assert "ANOMALY benign_solved_challenge" in out
+
+
+def test_seed_from_cli_is_recorded_and_reproduces_the_schedule(dirs, tmp_path):
+    live, runs = dirs
+    scheds = []
+    for _ in range(2):
+        code, match_dir = run_match.run_match(ops=FakeOps(live), live_dir=live, runs_dir=runs,
+                                              seed=5202, out=lambda *_: None)
+        m = manifest_of(match_dir)
+        assert m["traffic"]["seed"] == 5202 and m["traffic"]["seed_source"] == "cli"
+        scheds.append(m["traffic"]["schedule"])
+    assert scheds[0] == scheds[1]
+
+
+@pytest.mark.parametrize("seed", [-1, 2**32])
+def test_bad_seed_is_refused_at_preflight(dirs, seed):
+    live, runs = dirs
+    code, match_dir = run_match.run_match(ops=FakeOps(live), live_dir=live, runs_dir=runs,
+                                          seed=seed, out=lambda *_: None)
+    assert (code, match_dir) == (2, None)
+
+
+def test_invalid_benign_set_is_refused_at_preflight(dirs, tmp_path):
+    live, runs = dirs
+    data = json.loads((REPO / "benign" / "benign_set.json").read_text())
+    data["entries"][0]["expected_solves"] = ["Login Admin"]  # a mapped challenge
+    bad = tmp_path / "bad_set.json"
+    bad.write_text(json.dumps(data))
+    out: list[str] = []
+    code, match_dir = run_match.run_match(ops=FakeOps(live), live_dir=live, runs_dir=runs,
+                                          benign_set=bad, out=out.append)
+    assert (code, match_dir) == (2, None)
+    assert "challenge_map" in "\n".join(out)

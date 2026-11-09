@@ -27,9 +27,14 @@ SCHEMA_NAMES = [
     "round_record",
     "landed_fact",
     "match_manifest_v0_1",
+    "match_manifest_v0_2",
     "match_manifest",
     "api_call",
     "prices",
+    "benign_set",
+    "benign_request",
+    "benign_result",
+    "anomaly",
 ]
 
 
@@ -120,6 +125,7 @@ VALID = {
     },
     "challenge_snapshot": {
         "request_id": RID,
+        "traffic": "red",
         "before_solved": ["Login Admin"],
         "after_solved": ["Login Admin", "User Credentials"],
         "taken_at": "2026-11-04T01:02:03Z",
@@ -157,7 +163,7 @@ LIMITS = {"red": {"max_calls": 60, "max_tokens": 400000, "max_usd": 0.25},
           "analyst": {"max_calls": 0, "max_tokens": 0, "max_usd": 0},
           "match": {"max_calls": None, "max_tokens": None, "max_usd": 0.5}}
 TOKENS0 = {"input": 0, "cached_input": 0, "cache_write": 0, "output": 0}
-VALID["match_manifest"] = {
+VALID["match_manifest_v0_2"] = {
     **VALID["match_manifest_v0_1"],
     "schema_version": "0.2",
     "models": {"red": None, "blue": None, "analyst": None},
@@ -169,6 +175,38 @@ VALID["match_manifest"] = {
              "cached_at_input_price": False, "unpriced_usage": False,
              "prices_verified": None},
 }
+VALID["match_manifest"] = {
+    **VALID["match_manifest_v0_2"],
+    "schema_version": "0.3",
+    "judge_version": "0.2.0",
+    "traffic": {"seed": 5202, "seed_source": "cli",
+                "benign_set": {"path": "benign/benign_set.json", "sha256": SHA,
+                               "set_version": "1"},
+                "schedule": ["benign:n01", "red:1", "red:2", "benign:h06"]},
+}
+BID_MATCH = "20261109T153012Z-a1b2"
+VALID["benign_set"] = {
+    "schema_version": "0.1", "set_version": "1",
+    "entries": [
+        {"benign_id": "n01", "category": "normal", "method": "GET",
+         "endpoint": "/rest/products/search", "query_params": {"q": "apple"}, "note": "x"},
+        {"benign_id": "h06", "category": "hard_negative", "method": "POST",
+         "endpoint": "/rest/user/login", "json_body": {"email": "o'brien@example.com"},
+         "expected_solves": ["Error Handling"], "requires": "n01", "note": "x"},
+    ],
+}
+VALID["benign_request"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "request_id": RID, "benign_id": "h06",
+    "category": "hard_negative", "expected_solves": ["Error Handling"],
+    "sent_at": "2026-11-09T15:30:14.001Z"}
+VALID["benign_result"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "request_id": RID, "benign_id": "h06",
+    "category": "hard_negative", "verdict": "CWE-89", "false_positive": True,
+    "fp_reason": None}
+VALID["anomaly"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "kind": "benign_solved_challenge",
+    "request_id": RID, "detail": {"benign_id": "n04", "newly_solved": ["Score Board"],
+                                  "expected_solves": []}}
 VALID["api_call"] = {
     "schema_version": "0.1", "match_id": "20261109T153012Z-a1b2",
     "timestamp": "2026-11-09T15:30:13.120Z", "agent": "blue", "provider": "anthropic",
@@ -321,8 +359,25 @@ INVALID = {
         ("bad match_id", _set("match_id", "2026-11-09")),
         ("extra property", _set("notes", "x")),
     ],
+    "match_manifest_v0_2": [
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("traffic is 0.3 only", _set("traffic", {})),
+        ("missing cost", _drop("cost")),
+    ],
     "match_manifest": [
-        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("missing traffic", _drop("traffic")),
+        ("failed_step red renamed to traffic",
+         lambda r: {**r, "status": "failed", "failed_step": "red", "error": "x"}),
+        ("seed negative", lambda r: {**r, "traffic": {**r["traffic"], "seed": -1}}),
+        ("seed above 2^32-1", lambda r: {**r, "traffic": {**r["traffic"], "seed": 2**32}}),
+        ("seed_source not in enum",
+         lambda r: {**r, "traffic": {**r["traffic"], "seed_source": "guess"}}),
+        ("schedule slot malformed",
+         lambda r: {**r, "traffic": {**r["traffic"], "schedule": ["red:0"]}}),
+        ("benign_set without sha256",
+         lambda r: {**r, "traffic": {**r["traffic"], "benign_set": {"path": "x",
+                                                                    "set_version": "1"}}}),
         ("missing models", _drop("models")),
         ("missing budget", _drop("budget")),
         ("missing price_table", _drop("price_table")),
@@ -332,7 +387,7 @@ INVALID = {
                                     "stopped_by": {"scope": "red", "reason": "max_usd"}}}),
         ("stopped without stopped_by", _set("status", "stopped")),
         ("stopped with failed_step",
-         lambda r: {**r, "status": "stopped", "failed_step": "red", "error": "x",
+         lambda r: {**r, "status": "stopped", "failed_step": "traffic", "error": "x",
                     "budget": {"limits": LIMITS,
                                "stopped_by": {"scope": "red", "reason": "max_usd"}}}),
         ("per-agent cap null",
@@ -351,6 +406,44 @@ INVALID = {
         ("negative total_usd", lambda r: {**r, "cost": {**r["cost"], "total_usd": -1}}),
         ("status not in enum", _set("status", "running")),
         ("extra property", _set("notes", "x")),
+    ],
+    "benign_set": [
+        ("hard negative with an n id",
+         lambda r: {**r, "entries": [{**r["entries"][0], "category": "hard_negative"}]}),
+        ("bad benign_id", lambda r: {**r, "entries": [{**r["entries"][0], "benign_id": "x1"}]}),
+        ("entry without note", lambda r: {**r, "entries": [
+            {k: v for k, v in r["entries"][0].items() if k != "note"}]}),
+        ("expected_solves not a list", lambda r: {**r, "entries": [
+            {**r["entries"][1], "expected_solves": "Error Handling"}]}),
+        ("label field (benign is not Red)", lambda r: {**r, "entries": [
+            {**r["entries"][0], "label": "benign"}]}),
+        ("empty entries", _set("entries", [])),
+    ],
+    "benign_request": [
+        ("missing request_id", _drop("request_id")),
+        ("missing expected_solves", _drop("expected_solves")),
+        ("category not in enum", _set("category", "attack")),
+        ("carries a label", _set("label", "benign")),
+        ("sent_at not UTC Z", _set("sent_at", "2026-11-09T15:30:14+00:00")),
+    ],
+    "benign_result": [
+        ("CWE verdict but not FP", _set("false_positive", False)),
+        ("benign verdict but FP", lambda r: {**r, "verdict": "benign"}),
+        ("no_verdict with a boolean",
+         lambda r: {**r, "verdict": None, "fp_reason": "no_verdict"}),
+        ("orphan with a verdict", _set("fp_reason", "orphan")),
+        ("reason not in enum",
+         lambda r: {**r, "verdict": None, "false_positive": None, "fp_reason": "skipped"}),
+        ("verdict null without reason",
+         lambda r: {**r, "verdict": None, "false_positive": None}),
+    ],
+    "anomaly": [
+        ("kind not in enum", _set("kind", "spooky")),
+        ("benign_solved without newly_solved",
+         _set("detail", {"benign_id": "n04", "expected_solves": []})),
+        ("unmatched_verdict without log_seq",
+         lambda r: {**r, "kind": "unmatched_verdict", "detail": {"verdict": "benign"}}),
+        ("missing match_id", _drop("match_id")),
     ],
     "api_call": [
         ("ok but error_type set", _set("error_type", "timeout")),
@@ -457,7 +550,7 @@ def test_round_record_four_valid_detected_shapes():
 
 
 def test_match_manifest_failed_shape_valid():
-    for name in ("match_manifest_v0_1", "match_manifest"):
+    for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest"):
         validator(name).validate({
             **VALID[name], "status": "failed", "failed_step": "blue",
             "error": "ValueError: duplicate verdict"})
@@ -520,7 +613,8 @@ def test_committed_price_table_is_valid_and_unverified():
 def test_match_id_accepts_both_forms(match_id, ok):
     # Contract §0: legacy m+digits, or the run_match.py timestamp form.
     for name in ("red_attack", "verdict", "round_record", "landed_fact", "match_manifest_v0_1",
-                 "match_manifest", "api_call"):
+                 "match_manifest_v0_2", "match_manifest", "api_call", "benign_request",
+                 "benign_result", "anomaly"):
         rec = {**VALID[name], "match_id": match_id}
         assert validator(name).is_valid(rec) is ok, (name, match_id)
     rule = {**RULE, "created_match": match_id}
@@ -533,7 +627,8 @@ def test_rules_file_empty_rules_is_valid():
 
 def test_record_schemas_require_version_and_match_id():
     for name in ("red_attack", "verdict", "round_record", "landed_fact", "match_manifest_v0_1",
-                 "match_manifest", "api_call"):
+                 "match_manifest_v0_2", "match_manifest", "api_call", "benign_request",
+                 "benign_result", "anomaly"):
         required = SCHEMAS[name]["required"]
         assert "schema_version" in required and "match_id" in required, name
     assert "schema_version" in SCHEMAS["rules_file"]["required"]
@@ -595,3 +690,43 @@ def test_challenge_map_keys_match_taxonomy_cwes():
     cmap = _load(CONFIG_DIR / "challenge_map.json")
     assert sorted(cmap) == sorted(CWE_LABELS)
     assert all(isinstance(v, list) and all(isinstance(s, str) for s in v) for v in cmap.values())
+
+
+def test_manifest_dispatch_covers_every_version():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    import run_match
+    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3"}
+    assert run_match.MANIFEST_VERSION == "0.3"
+    for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest"):
+        assert run_match.validate_manifest(VALID[name]) == [], name
+
+
+def test_snapshot_rows_mark_their_traffic():
+    v = validator("challenge_snapshot")
+    v.validate({**VALID["challenge_snapshot"], "traffic": "benign"})
+    assert not v.is_valid({**VALID["challenge_snapshot"], "traffic": "probe"})
+    bare = {k: x for k, x in VALID["challenge_snapshot"].items() if k != "traffic"}
+    assert not v.is_valid(bare)  # new rows must say which traffic they belong to
+
+
+def test_benign_result_four_shapes():
+    v = validator("benign_result")
+    base = VALID["benign_result"]
+    v.validate(base)  # CWE verdict -> FP
+    v.validate({**base, "verdict": "benign", "false_positive": False})
+    v.validate({**base, "verdict": None, "false_positive": None, "fp_reason": "no_verdict"})
+    v.validate({**base, "verdict": None, "false_positive": None, "fp_reason": "orphan"})
+
+
+def test_anomaly_kinds_valid():
+    v = validator("anomaly")
+    base = VALID["anomaly"]
+    v.validate({**base, "kind": "unmatched_verdict",
+                "detail": {"log_seq": 3, "verdict": "CWE-89"}})
+    v.validate({**base, "kind": "benign_snapshot_missing", "detail": {"benign_id": "n04"}})
+
+
+def test_benign_verdict_enums_match_taxonomy():
+    enum = SCHEMAS["benign_result"]["properties"]["verdict"]["enum"]
+    assert sorted(x for x in enum if x is not None) == sorted(TAXONOMY)

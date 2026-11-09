@@ -1,0 +1,109 @@
+{
+  "_comment": "Expected Stage 5.2 benign results for SCRIPTED Blue, keyed by benign_id (request_id is random per run). Predicted BY HAND from blue/signatures.py BEFORE the first live run (2026-11-09), not observed. If a live result differs, stage5_2_check.py FAILS and every mismatch goes to the designer BEFORE this file changes (designer rule). Prediction: scripted Blue flags none of the 17, so FP rate 0/17. That is a measurement of scripted Blue, not a goal: neither the set nor the signatures are tuned to it. Expected anomalies: none (h06's Error Handling solve is in its expected_solves).",
+  "seed": 5202,
+  "benign": {
+    "n01": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "no quote, no SQL/XSS/traversal token in the JSON body"
+    },
+    "n02": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "plain email + password"
+    },
+    "n03": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "'horse'/'correct' contain 'or' only inside words, so \\b(or|and)\\s+\\d+ cannot match"
+    },
+    "n04": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "q=apple"
+    },
+    "n05": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "q=banana+juice"
+    },
+    "n06": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "q= (empty)"
+    },
+    "n07": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "/ftp/legal.md has no NUL byte, so the .md suffix pattern needs \\x00 and does not fire"
+    },
+    "n08": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "/ftp/ has no dot-segments or NUL"
+    },
+    "n09": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "hex order id, no tokens"
+    },
+    "n10": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "registration body: email + matching passwords, no tokens"
+    },
+    "n11": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "plain login of the n10 user"
+    },
+    "h01": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "'union' without 'select' (union\\s+select needs both; '+' stays '+' after percent-decoding)"
+    },
+    "h02": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "'drop' without a preceding ';' (;\\s*drop needs it)"
+    },
+    "h03": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "'<3' is not <script, <iframe or <img"
+    },
+    "h04": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "the quote in Don't is followed by 't', so no quote-then-or/and/--/=/; pattern fires"
+    },
+    "h05": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "'javascript' without ':' (javascript: needs it)"
+    },
+    "h06": {
+      "verdict": "benign",
+      "false_positive": false,
+      "fp_reason": null,
+      "why": "the quote in o'brien is followed by 'b', so no quote pattern fires"
+    }
+  },
+  "anomalies": []
+}

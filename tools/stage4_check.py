@@ -8,7 +8,7 @@ checks the resulting data/runs/<match_id>/:
   - every landed fact matches payloads.json expectations
   - match.json is schema-valid, status "completed", and every artifact's sha256 and
     size recompute to what match.json recorded (and match.json lists every file)
-  - match.json is schema_version 0.2 and shows the scripted match's AI side:
+  - match.json is schema_version 0.3 and shows the scripted match's AI side:
     models all null, $0 cost, 0 API calls, no api_calls.jsonl, budget not hit,
     and the price table it recorded is the current config/prices.json
   - every request_id appears exactly once in the frozen proxy.jsonl, and it has
@@ -65,8 +65,8 @@ def check_manifest(match_dir: Path) -> list[str]:
           f"recorded {sorted(recorded)} vs on disk {sorted(recomputed)}")
     bad = [n for n in recorded if recomputed.get(n) != recorded[n]]
     check("artifacts: sha256 + bytes recompute", not bad, fails, f"mismatch: {bad}")
-    # Stage 5.1: the scripted match makes no AI calls and says so.
-    check("match.json schema_version 0.2", manifest.get("schema_version") == "0.2", fails,
+    # Stage 5.1: the scripted match makes no AI calls and says so (0.3 from Stage 5.2).
+    check("match.json schema_version 0.3", manifest.get("schema_version") == "0.3", fails,
           str(manifest.get("schema_version")))
     check("models all null (scripted)",
           manifest.get("models") == {"red": None, "blue": None, "analyst": None}, fails,

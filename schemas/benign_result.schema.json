@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/benign_result.schema.json",
+  "title": "Benign result, Judge fact 4a (contract 6.5)",
+  "description": "One line of data/runs/<match_id>/benign_results.jsonl per benign request. false_positive = (verdict != 'benign') when a verdict exists; null with fp_reason no_verdict (logged, no verdict) or orphan (no proxy line). Both null cases are excluded from the FP denominator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "request_id",
+    "benign_id",
+    "category",
+    "verdict",
+    "false_positive",
+    "fp_reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "benign_id": {
+      "type": "string",
+      "pattern": "^[nh][0-9]{2}$"
+    },
+    "category": {
+      "enum": [
+        "normal",
+        "hard_negative"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        "benign",
+        null
+      ]
+    },
+    "false_positive": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "fp_reason": {
+      "enum": [
+        null,
+        "no_verdict",
+        "orphan"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "fp_reason": {
+            "const": null
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "false_positive": {
+            "type": "boolean"
+          },
+          "verdict": {
+            "type": "string"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "false_positive": {
+            "const": null
+          },
+          "verdict": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "benign"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "false_positive": {
+            "const": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "enum": [
+              "CWE-89",
+              "CWE-79",
+              "CWE-22"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "false_positive": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

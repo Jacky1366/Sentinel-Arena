@@ -125,3 +125,71 @@ def test_summary_cost_line_and_stopped_line():
 
 def test_summary_of_v0_1_manifest_has_no_cost_line():
     assert "cost $" not in ms.format_summary(MIXED, _manifest())
+
+
+
+# ---- Stage 5.2: benign traffic (fact 4a) -------------------------------------
+
+def br(bid, verdict="benign", fp=False, reason=None, cat=None):
+    cat = cat or ("hard_negative" if bid.startswith("h") else "normal")
+    return {"benign_id": bid, "category": cat, "request_id": f"{bid}-x", "verdict": verdict,
+            "false_positive": fp, "fp_reason": reason}
+
+
+BENIGN_RESULTS = [
+    br("n01"), br("n02", "CWE-89", True), br("n03", None, None, "no_verdict"),
+    br("n04", None, None, "orphan"), br("h01", "CWE-79", True), br("h02"), br("h03"),
+]
+
+
+def test_fp_rate_excludes_no_verdict_and_orphan():
+    r = ms.fp_rate(BENIGN_RESULTS)
+    assert (r.num, r.den) == (2, 5)
+    assert r.excluded == {"no_verdict": ["n03"], "orphan": ["n04"]}
+
+
+def test_fp_rate_hard_negatives_only():
+    r = ms.fp_rate(BENIGN_RESULTS, "hard_negative")
+    assert (r.num, r.den) == (1, 3)
+
+
+def test_benign_no_verdict_rate_excludes_orphans():
+    r = ms.benign_no_verdict_rate(BENIGN_RESULTS)
+    assert (r.num, r.den) == (1, 6) and r.excluded == {"orphan": ["n04"]}
+
+
+def test_precision_counts_detected_attacks_against_false_positives():
+    # MIXED: 4 detected non-orphan attacks; BENIGN_RESULTS: 2 false positives.
+    r = ms.precision(MIXED, BENIGN_RESULTS)
+    assert (r.num, r.den) == (4, 6)
+    assert ms.traffic_mix(MIXED, BENIGN_RESULTS) == "6 attack : 6 benign"
+
+
+def test_detection_is_never_printed_without_fp_rate():
+    for benign in (BENIGN_RESULTS, None):
+        text = ms.format_summary(MIXED, _manifest(), benign=benign)
+        [det] = [l for l in text.splitlines() if l.startswith("detection")]
+        assert "FP rate" in det, det
+
+
+def test_summary_with_benign_traffic():
+    text = ms.format_summary(MIXED, _manifest(), benign=BENIGN_RESULTS, anomalies=[])
+    assert "FP rate 2/5 (40%)" in text
+    assert "FP hard neg.   1/3 (33%)" in text
+    assert "precision      4/6 (67%)     traffic mix 6 attack : 6 benign" in text
+    assert "excludes no_verdict [n03], orphan [n04]" in text
+    assert "no-verdict     1/6 (17%)" in text
+    assert "anomalies: none" in text
+    assert ms.DETECTION_FOOTER not in text  # not an upper bound any more
+
+
+def test_summary_without_benign_traffic_keeps_the_upper_bound_footer():
+    text = ms.format_summary(MIXED, _manifest())
+    assert "FP rate n/a (no benign traffic)" in text and ms.DETECTION_FOOTER in text
+
+
+def test_anomalies_are_always_visible():
+    a = {"kind": "benign_solved_challenge", "request_id": "deadbeef-0000",
+         "detail": {"benign_id": "n04", "newly_solved": ["Score Board"], "expected_solves": []}}
+    text = ms.format_summary(MIXED, _manifest(), benign=BENIGN_RESULTS, anomalies=[a])
+    assert "ANOMALY benign_solved_challenge  deadbeef" in text and "Score Board" in text

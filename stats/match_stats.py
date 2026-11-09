@@ -14,6 +14,18 @@ Denominators (contract §6, §6.1, §11):
   type accuracy  = type_correct true / rounds with detected true.
                    Excludes: every round Blue did not flag as an attack (benign
                    verdict, no_verdict, orphan).
+
+Benign traffic (benign_results.jsonl, fact 4a, contract §6.5), Stage 5.2 on:
+
+  FP rate        = false_positive true / benign requests with a verdict.
+                   Excludes: no_verdict, orphan. Also reported for hard
+                   negatives only.
+  no-verdict     = no_verdict / logged benign requests (non-orphan).
+  precision      = detected attacks / (detected attacks + false positives).
+                   Depends on the traffic mix, so it is always printed with it.
+
+The detection rate is NEVER printed without the FP rate on the same line: with
+attack-only traffic, flagging everything scores 100%.
 """
 
 from __future__ import annotations
@@ -24,17 +36,16 @@ from pathlib import Path
 
 from stats import cost
 
-DETECTION_FOOTER = ("Note: the detection rate is an UPPER BOUND until benign traffic "
-                    "and false-positive scoring exist (Stage 5). With attack-only "
-                    "traffic, flagging everything scores 100%.")
+DETECTION_FOOTER = ("Note: no benign traffic in this match, so the detection rate is an "
+                    "UPPER BOUND (flagging everything would score 100%).")
 
 
 @dataclass(frozen=True)
 class Rate:
     num: int
     den: int
-    # reason -> rounds excluded from the denominator for that reason
-    excluded: dict[str, list[int]] = field(default_factory=dict)
+    # reason -> rounds (or benign_ids) excluded from the denominator for that reason
+    excluded: dict[str, list] = field(default_factory=dict)
 
     @property
     def pct(self) -> float | None:
@@ -117,10 +128,59 @@ def compute(rounds: list[dict]) -> dict:
     }
 
 
-def _excl(rate: Rate) -> str:
+def fp_rate(benign: list[dict], category: str | None = None) -> Rate:
+    excluded: dict[str, list] = {}
+    num = den = 0
+    for b in benign:
+        if category is not None and b["category"] != category:
+            continue
+        if b["fp_reason"] is not None:
+            excluded.setdefault(b["fp_reason"], []).append(b["benign_id"])
+            continue
+        den += 1
+        num += b["false_positive"] is True
+    return Rate(num, den, excluded)
+
+
+def benign_no_verdict_rate(benign: list[dict]) -> Rate:
+    excluded: dict[str, list] = {}
+    num = den = 0
+    for b in benign:
+        if b["fp_reason"] == "orphan":
+            excluded.setdefault("orphan", []).append(b["benign_id"])
+            continue
+        den += 1
+        num += b["fp_reason"] == "no_verdict"
+    return Rate(num, den, excluded)
+
+
+def precision(rounds: list[dict], benign: list[dict]) -> Rate:
+    tp = sum(r["detected"] is True for r in rounds if not _is_orphan(r))
+    fp = sum(b["false_positive"] is True for b in benign)
+    return Rate(tp, tp + fp)
+
+
+def traffic_mix(rounds: list[dict], benign: list[dict]) -> str:
+    attacks = sum(not _is_orphan(r) for r in rounds)
+    ben = sum(b["fp_reason"] != "orphan" for b in benign)
+    return f"{attacks} attack : {ben} benign"
+
+
+def compute_benign(rounds: list[dict], benign: list[dict]) -> dict:
+    return {
+        "fp": fp_rate(benign),
+        "fp_hard": fp_rate(benign, "hard_negative"),
+        "no_verdict": benign_no_verdict_rate(benign),
+        "precision": precision(rounds, benign),
+        "mix": traffic_mix(rounds, benign),
+    }
+
+
+def _excl(rate: Rate, noun: str = "rounds") -> str:
     if not rate.excluded:
-        return "excludes no rounds"
-    parts = [f"{reason} {rounds}" for reason, rounds in sorted(rate.excluded.items())]
+        return f"excludes no {noun}"
+    parts = [f"{reason} [{', '.join(map(str, items))}]"
+             for reason, items in sorted(rate.excluded.items())]
     return "excludes " + ", ".join(parts)
 
 
@@ -128,7 +188,11 @@ def _with_reason(value, reason) -> str:
     return str(value) if reason is None else f"{value} ({reason})"
 
 
-def format_summary(rounds: list[dict], manifest: dict) -> str:
+def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None = None,
+                   anomalies: list[dict] | None = None) -> str:
+    """Terminal summary. `benign` / `anomalies` are the fact-4a outputs (None or
+    [] for a match without benign traffic)."""
+    benign = benign or []
     lines = [
         f"match {manifest['match_id']}  status={manifest['status']}  "
         f"judge {manifest['judge_version']}  blue={manifest['blue_engine']}  "
@@ -158,15 +222,42 @@ def format_summary(rounds: list[dict], manifest: dict) -> str:
 
     s = compute(rounds)
     c = s["counts"]
+    if benign:
+        lines.append("")
+        lines.append(f"{'slot':>4}  {'benign':6}  {'category':13}  {'verdict':7}  false_positive")
+        slots = {lab: i for i, lab in
+                 enumerate((manifest.get("traffic") or {}).get("schedule", []), start=1)}
+        for b in benign:
+            lines.append(f"{slots.get('benign:' + b['benign_id'], '?'):>4}  "
+                         f"{b['benign_id']:6}  {b['category']:13}  {b['verdict']!s:7}  "
+                         f"{_with_reason(b['false_positive'], b['fp_reason'])}")
+    if benign:
+        bs = compute_benign(rounds, benign)
+        fp_part = f"FP rate {bs['fp'].fmt()}"
+    else:
+        fp_part = "FP rate n/a (no benign traffic)"
     lines += [
         "",
         f"landing        {s['landing'].fmt():12}  {_excl(s['landing'])}",
-        f"detection      {s['detection'].fmt():12}  {_excl(s['detection'])}"
-        f"{'; no_verdict counted as a miss' if c['no_verdict'] else ''}",
+        f"detection      {s['detection'].fmt():12}  {fp_part}  [detection {_excl(s['detection'])}"
+        f"{'; no_verdict counted as a miss' if c['no_verdict'] else ''}]",
         f"type accuracy  {s['type_accuracy'].fmt():12}  {_excl(s['type_accuracy'])}",
-        "",
-        "counts: " + "  ".join(f"{k}={v}" for k, v in c.items()),
-        "",
-        DETECTION_FOOTER,
     ]
+    if benign:
+        lines += [
+            f"FP rate        {bs['fp'].fmt():12}  {_excl(bs['fp'], 'benign requests')}",
+            f"FP hard neg.   {bs['fp_hard'].fmt():12}  {_excl(bs['fp_hard'], 'benign requests')}",
+            f"precision      {bs['precision'].fmt():12}  traffic mix {bs['mix']} "
+            f"(precision depends on the mix)",
+            f"no-verdict     {bs['no_verdict'].fmt():12}  on benign; {_excl(bs['no_verdict'], 'benign requests')}",
+        ]
+    lines += ["", "counts: " + "  ".join(f"{k}={v}" for k, v in c.items())]
+    if anomalies:
+        lines.append("")
+        for a in anomalies:
+            lines.append(f"ANOMALY {a['kind']}  {a['request_id'][:8]}  {json.dumps(a['detail'])}")
+    elif benign:
+        lines.append("anomalies: none")
+    if not benign:
+        lines += ["", DETECTION_FOOTER]
     return "\n".join(lines)

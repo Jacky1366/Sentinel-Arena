@@ -22,6 +22,8 @@ RID = "3f2b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 RID2 = "4a5b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 
 FORBIDDEN = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed.jsonl",
+             "benign_requests.jsonl", "benign_set.json", "benign_results.jsonl",
+             "anomalies.jsonl", "verification.json",
              "challenge_map.json", "payloads.json", "rounds.jsonl"]
 
 
@@ -140,6 +142,22 @@ def _plant_decoys(run_dir: Path):
          "newly_solved": ["Poison Null Byte"]}) + "\n", encoding="utf-8")
     (run_dir / "landed.jsonl").write_text((run_dir / "landed_fact.jsonl").read_text(),
                                           encoding="utf-8")
+    # Stage 5.2 benign ground truth, deliberately WRONG: if Blue read these it
+    # would call the UNION request benign (RID) and the home page an attack (RID2).
+    (run_dir / "benign_requests.jsonl").write_text(json.dumps(
+        {"schema_version": "0.1", "match_id": "m001", "request_id": RID,
+         "benign_id": "n01", "category": "normal", "expected_solves": [],
+         "sent_at": "2026-11-05T00:00:00Z"}) + "\n", encoding="utf-8")
+    (run_dir / "benign_set.json").write_text(json.dumps(
+        {"schema_version": "0.1", "set_version": "1", "entries": [
+            {"benign_id": "n01", "category": "normal", "method": "GET",
+             "endpoint": "/rest/products/search", "query_params": {"q": "1 UNION SELECT a"},
+             "note": "decoy"}]}), encoding="utf-8")
+    (run_dir / "benign_results.jsonl").write_text(json.dumps(
+        {"schema_version": "0.1", "match_id": "m001", "request_id": RID2,
+         "benign_id": "n02", "category": "normal", "verdict": "CWE-89",
+         "false_positive": True, "fp_reason": None}) + "\n", encoding="utf-8")
+    (run_dir / "anomalies.jsonl").write_text("", encoding="utf-8")
     (run_dir / "challenge_map.json").write_text(json.dumps(
         {"CWE-89": ["Login Admin"], "CWE-79": [], "CWE-22": ["Poison Null Byte"]}),
         encoding="utf-8")
@@ -178,7 +196,8 @@ def test_blue_ignores_decoy_ground_truth_files(tmp_path, monkeypatch):
     assert with_decoys == baseline
     # ...and Blue never opened any decoy file.
     decoys = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed_fact.jsonl",
-              "landed.jsonl", "challenge_map.json"]
+              "landed.jsonl", "challenge_map.json", "benign_requests.jsonl",
+              "benign_set.json", "benign_results.jsonl", "anomalies.jsonl"]
     for p in opened:
         assert not any(name in p for name in decoys), f"Blue opened a decoy: {p}"
     # Sanity: the signature-based verdicts are what we expect (not the decoy labels).

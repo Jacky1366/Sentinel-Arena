@@ -5,30 +5,36 @@ proxy (127.0.0.1:8080). Per the contract:
 
 - The Red attack record is written FIRST, then the request is sent. If the send
   fails, the record stays and the round becomes an orphan (no proxy line).
-- Every request carries X-Arena-Request-Id and is sent by the same HTTP client.
-- One round = one attack = one request. No retries in Stage 2. Timeouts always.
+- Every request carries X-Arena-Request-Id and is sent by the shared arena client
+  (runner/arena_client.py), the same one benign traffic uses.
+- One round = one attack = one request. No retries. Timeouts always.
 
-This module is imported by runner/match_ops.py (which interleaves challenge
-snapshots around each send). It can also be run standalone to fire the whole set
-without snapshots:  .venv/bin/python red/scripted_red.py
+Red is callable ONE STEP AT A TIME (ScriptedRed.next_attack): the orchestrator's
+scheduler interleaves Red and benign slots, and Stage 5.6's AI Red will decide each
+attack from its previous responses through the same interface.
+
+This module is imported by runner/match_ops.py (which brackets each send with
+challenge snapshots). It can also be run standalone to fire the whole set without
+snapshots:  .venv/bin/python red/scripted_red.py
 """
 
 from __future__ import annotations
 
 import argparse
-import http.client
 import json
-import uuid
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO))
+from runner import arena_client  # noqa: E402
+
 PAYLOADS = REPO / "red" / "payloads.json"
 OUT_DIR = REPO / "data" / "runs" / "live"
-ARENA_HOST, ARENA_PORT = "127.0.0.1", 8080
 DEFAULT_MATCH = "m001"
-DEFAULT_TIMEOUT = 15.0
+DEFAULT_TIMEOUT = arena_client.DEFAULT_TIMEOUT
 
 
 def utc_now() -> str:
@@ -75,20 +81,24 @@ def red_record(attack: dict, request_id: str, match_id: str, round_num: int) -> 
 
 def send_request(method: str, target: str, request_id: str, body: str | None = None,
                  timeout: float = DEFAULT_TIMEOUT) -> int:
-    """THE arena HTTP client. Every arena request (attack, benign, or a harness
-    probe) goes through here, so all traffic looks alike to Blue apart from its
-    content (CLAUDE.md principle 8). Returns the status; raises on send failure."""
-    headers = {"X-Arena-Request-Id": request_id}
-    if body is not None:
-        headers["Content-Type"] = "application/json"
-    conn = http.client.HTTPConnection(ARENA_HOST, ARENA_PORT, timeout=timeout)
-    try:
-        conn.request(method, target, body=body, headers=headers)
-        resp = conn.getresponse()
-        resp.read()
-        return resp.status
-    finally:
-        conn.close()
+    """Status only, via the shared arena client (kept for harness probes)."""
+    return arena_client.send(method, target, request_id, body=body, timeout=timeout).status
+
+
+class ScriptedRed:
+    """Red, one step at a time. next_attack() returns the next attack (or None
+    when Red is done). `last_status` is the previous response, Red's only
+    feedback (D6); scripted Red ignores it, AI Red (5.6) will not."""
+
+    def __init__(self, attacks: list[dict]):
+        self._attacks = list(attacks)
+        self._i = 0
+
+    def next_attack(self, last_status: int | None = None) -> dict | None:
+        if self._i >= len(self._attacks):
+            return None
+        self._i += 1
+        return self._attacks[self._i - 1]
 
 
 def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DIR,
@@ -96,7 +106,7 @@ def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DI
     """Write the Red record, then fire one attack. Returns a result dict; on a send
     failure `status` is None and `error` is set (the record stays -> orphan)."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    request_id = str(uuid.uuid4())
+    request_id = arena_client.new_request_id()
     record = red_record(attack, request_id, match_id, round_num)
 
     # Record FIRST, so a crash or network failure still leaves ground truth.
@@ -107,10 +117,11 @@ def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DI
     if attack.get("json_body") is not None:
         body = json.dumps(attack["json_body"])
 
-    status, error = None, None
+    status, error, incomplete = None, None, False
     try:
-        status = send_request(attack["method"], request_target(attack), request_id,
-                              body=body, timeout=timeout)
+        resp = arena_client.send(attack["method"], request_target(attack), request_id,
+                                 body=body, timeout=timeout)
+        status, incomplete = resp.status, resp.body_incomplete
     except Exception as exc:  # noqa: BLE001 - any failure -> orphan, no retry
         error = f"{type(exc).__name__}: {exc}"
 
@@ -119,6 +130,7 @@ def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DI
         "round": round_num,
         "label": attack["label"],
         "status": status,
+        "body_incomplete": incomplete,
         "error": error,
         "expected_landed": attack.get("expected_landed"),
         "expected_reason": attack.get("expected_reason"),

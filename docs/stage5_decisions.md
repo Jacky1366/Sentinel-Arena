@@ -82,3 +82,33 @@ contract field is added in Stage 5.4, when Blue first makes real calls.
   `stats/cost.py` can recompute them against any later table.
 - Keys come only from `ARENA_*_API_KEY` and are passed explicitly to each SDK
   (`docs/ops.md`).
+
+## Implementation notes (Stage 5.2, D1 layer 1)
+
+Designer decisions recorded 2026-11-09:
+
+- **Benign is the sender's intent**, not the server's reaction. `h06` (O'Brien logs
+  in) stays although the server answers 500 and solves "Error Handling"; contract
+  §10 is kept and revised, not superseded.
+- **`expected_solves`** (optional, default `[]`) per benign entry, only challenges
+  outside `config/challenge_map.json`. The `benign_solved_challenge` tripwire fires
+  on ANY difference between a benign request's `newly_solved` and its
+  `expected_solves`.
+- **A successful benign login exists** (`n10` register → `n11` log in, 200), so
+  "login 200 = attack" is not a shortcut an AI Blue could learn.
+- **The schedule preserves the internal order of BOTH sequences**; the seeded
+  shuffle decides only the interleaving. `requires` in the set is a second
+  guarantee checked by the validator, not the mechanism.
+- **FP denominator = the benign set only.** Red's negative control (round 1) stays a
+  Red round: a fact-1 control and a detection true positive.
+- **Scripted Blue's signatures are never tuned against the benign set** (and the set
+  is never tuned against them): its FP rate is a measurement.
+- **One shared sender** (`runner/arena_client.py`) for Red, benign and probes; no
+  User-Agent for anyone. It tolerates only a body shorter than its Content-Length
+  (Juice Shop's `/ftp/` listing quirk, contract §9) and nothing else.
+- **Expectations are hand-predicted before the first run**
+  (`tools/stage5_2_expected.json`); any mismatch is reported to the designer before
+  that file changes.
+- `match.json` 0.3 (0.2 frozen), `failed_step` `red` → `traffic`, `JUDGE_VERSION`
+  0.2.0, `benign_fp` kept as always-null, precision printed with its traffic mix,
+  `anomalies.jsonl` created now (the Stage 6 tripwire log, first two kinds).

@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/benign_set.schema.json",
+  "title": "Benign traffic set (contract 2.1)",
+  "description": "benign/benign_set.json: the fixed, versioned, designer-approved list of benign requests interleaved with Red's attacks (D1 layer 1). Entry order is preserved by the scheduler. expected_solves may only name challenges NOT in config/challenge_map.json (checked in code by benign.send_benign.validate_set, which a schema cannot express). requires names an EARLIER entry this one depends on. Blue must never read this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "set_version", "entries"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "set_version": {"type": "string", "minLength": 1},
+    "_comment": {"type": "string"},
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["benign_id", "category", "method", "endpoint", "note"],
+        "properties": {
+          "benign_id": {"type": "string", "pattern": "^[nh][0-9]{2}$"},
+          "category": {"enum": ["normal", "hard_negative"]},
+          "method": {"enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]},
+          "endpoint": {"type": "string", "pattern": "^/"},
+          "query_params": {"type": "object", "additionalProperties": {"type": "string"}},
+          "json_body": {"type": "object"},
+          "expected_solves": {"type": "array", "items": {"type": "string", "minLength": 1},
+                              "uniqueItems": true},
+          "requires": {"type": "string", "pattern": "^[nh][0-9]{2}$"},
+          "note": {"type": "string", "minLength": 1}
+        },
+        "allOf": [
+          {"if": {"properties": {"category": {"const": "normal"}}},
+           "then": {"properties": {"benign_id": {"pattern": "^n"}}},
+           "else": {"properties": {"benign_id": {"pattern": "^h"}}}}
+        ]
+      }
+    }
+  }
+}
