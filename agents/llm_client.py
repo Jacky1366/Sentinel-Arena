@@ -97,9 +97,11 @@ def _dotenv(path: Path) -> dict[str, str]:
     return {k: v for k, v in dotenv_values(path).items() if v}
 
 
-def key_values(env: dict | None = None, dotenv_path: Path = DOTENV_PATH) -> list[str]:
+def key_values(env: dict | None = None, dotenv_path: Path | None = None) -> list[str]:
     env = os.environ if env is None else env
-    dot = _dotenv(dotenv_path)
+    # DOTENV_PATH is read at call time (not as a default argument), so the test
+    # session can point it at a file that does not exist (tests/conftest.py).
+    dot = _dotenv(DOTENV_PATH if dotenv_path is None else dotenv_path)
     vals = {env.get(v) or dot.get(v) for v in KEY_ENV.values()}
     return sorted((v for v in vals if v and len(v) >= 8), key=len, reverse=True)
 
@@ -344,14 +346,14 @@ def utc_now() -> str:
 class LLMClient:
     def __init__(self, config: dict | None = None, prices: dict | None = None,
                  adapters: dict[str, Adapter] | None = None, env: dict | None = None,
-                 dotenv_path: Path = DOTENV_PATH, sleep: Callable[[float], None] = time.sleep,
+                 dotenv_path: Path | None = None, sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic, now: Callable[[], str] = utc_now):
         self.cfg = config if config is not None else load_config()
         self.prices = prices if prices is not None else cost_mod.load_prices()
         self.limits = caps_limits(self.cfg)
         self.adapters = DEFAULT_ADAPTERS if adapters is None else adapters
         self.env = os.environ if env is None else env
-        self.dotenv_path = dotenv_path
+        self.dotenv_path = DOTENV_PATH if dotenv_path is None else dotenv_path
         self.sleep, self.clock, self.now = sleep, clock, now
 
     # -- keys ---------------------------------------------------------------

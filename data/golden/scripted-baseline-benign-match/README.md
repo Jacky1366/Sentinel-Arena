@@ -40,9 +40,9 @@ slot.
 | Rate | Value | Notes |
 |---|---|---|
 | landing | 3/4 (75%) | round 5 already_solved; rounds 6–7 not_measurable (XSS, §11) |
-| detection | 7/7 (100%) | FP rate 0/17 (0%) next to it |
+| detection | 7/7 (100%) | FP rate 0/17 next to it |
 | type accuracy | 7/7 (100%) | |
-| FP rate | 0/17 (0%) | hard negatives 0/6 (0%) |
+| FP rate | 0/17 | hard negatives 0/6. Not "0%": the 95% upper bound is about 18% for n=17 and about 50% for n=6 (rule of three) |
 | precision | 7/7 (100%) | traffic mix 7 attack : 17 benign |
 | benign no-verdict | 0/17 (0%) | |
 

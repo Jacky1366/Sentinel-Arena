@@ -98,3 +98,36 @@ def test_key_never_in_match_json_or_terminal(tmp_path, monkeypatch):
     assert SENTINEL not in "\n".join(out)
     for f in match_dir.iterdir():
         assert SENTINEL not in f.read_text(), f.name
+
+
+# ---- the session guard (tests/conftest.py): no real provider is reachable ----------
+
+def test_no_arena_key_is_visible_inside_the_test_session():
+    import os
+    assert [k for k in os.environ if k.startswith("ARENA_")] == []
+    assert not lc.DOTENV_PATH.exists()
+    assert lc.key_values() == []
+    client = lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices())
+    assert all(client._key(p) is None for p in lc.KEY_ENV)
+
+
+def test_a_real_provider_call_is_refused_inside_the_test_session(tmp_path, monkeypatch):
+    # Real config, real price table, REAL adapters (the default): exactly what a
+    # fake that falls through would hit. The call must be refused before any SDK.
+    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter):
+        monkeypatch.setattr(cls, "call", lambda self, **kw: (_ for _ in ()).throw(
+            AssertionError("a real adapter was called")))
+    client = lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices())
+    d = run_dir(tmp_path)
+    r = client.complete("blue", "claude-haiku-5-5", SYSTEM, MESSAGES, run_dir=d,
+                        log_seq_first=1, log_seq_last=1)
+    assert r.refusal == {"scope": "blue", "reason": "missing_key"}
+    assert [l["error_type"] for l in lines(d)] == ["refused"]
+
+
+def test_the_guard_redirects_the_repo_dotenv():
+    # From 5.4 the repo .env holds real keys. Inside the test session the client
+    # must not be looking there at all, whether or not the file exists.
+    assert lc.DOTENV_PATH != lc.REPO / ".env"
+    assert lc.LLMClient(config=lc.load_config(),
+                        prices=lc.cost_mod.load_prices()).dotenv_path == lc.DOTENV_PATH

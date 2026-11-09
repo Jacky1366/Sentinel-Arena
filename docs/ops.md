@@ -42,6 +42,20 @@ Two consequences:
 `.env.*` is also git-ignored (except `.env.example`), so a `.env.local` cannot be
 committed by accident.
 
+## Tests can never reach a real provider
+
+`tests/conftest.py` has an **autouse fixture** that, for every test, removes every
+`ARENA_*` environment variable and points `llm_client`'s `.env` path at a file that
+does not exist. Those are the only two places `llm_client` reads keys from, and it
+refuses any call without a key (`missing_key`) before an SDK is touched. So a test
+whose fake is incomplete (a call that falls through to a real adapter, as happened
+once in Stage 5.2 with the network fakes) is refused instead of making a real, paid
+API call. This does not depend on the fakes being complete. A test that needs a key
+sets an obviously fake one itself. `tests/test_key_hygiene.py` checks the guard: no
+`ARENA_*` key is visible in the session, the `.env` path is redirected, and a call
+with the real config, prices and adapters is refused. Do not remove or weaken this
+fixture.
+
 ## Secret scanning (two layers)
 
 1. **Local: gitleaks pre-commit hook** (`.githooks/pre-commit`). It scans the staged

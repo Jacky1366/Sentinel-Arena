@@ -251,7 +251,10 @@ No API calls (scripted Red + scripted Blue, $0). Implements D1 layer 1.
   `benign_snapshot_missing`, `unmatched_verdict`). `JUDGE_VERSION` 0.2.0.
 - **Stats**: FP rate (overall and hard negatives), precision with its traffic mix,
   benign no-verdict rate. The detection rate is never printed without the FP rate.
-- **First real FP rate for scripted Blue: 0/17 (0%), hard negatives 0/6.** This was
+- **First real FP rate for scripted Blue: 0/17, hard negatives 0/6.** With n=17
+  the 95% upper bound on the true FP rate is about 18% (rule of three: 3/17), and
+  with n=6 hard negatives about 50% (3/6), so this must **not** be read as "0%". It
+  says scripted Blue flagged none of these 17 requests, nothing more. This was
   hand-predicted before the first run (`tools/stage5_2_expected.json`) and observed
   exactly; neither the set nor the signatures were tuned.
 - **Verified (Nov 9):** 567 tests pass. `tools/stage5_2_check.py` PASSes **3/3** on
@@ -262,6 +265,14 @@ No API calls (scripted Red + scripted Blue, $0). Implements D1 layer 1.
   per-round results are identical to the Stage 4 scripted baseline run. New
   committed baseline: `data/golden/scripted-baseline-benign-match/` (the Stage 4 one
   is untouched).
+- **Designer review (Nov 9), because of the incident:** from 5.4 a fall-through
+  fake would make real, paid API calls, so it is now made structurally impossible.
+  `tests/conftest.py` has an autouse fixture that removes every `ARENA_*` variable
+  and points `llm_client`'s `.env` path at a file that does not exist, for every
+  test; `llm_client` refuses any call without a key (`missing_key`). Tests prove no
+  key is visible in the session and a real-provider call with the real adapters is
+  refused; the suite passes with dummy `ARENA_*` keys exported, and the guard tests
+  fail if the fixture is disabled. 570 tests pass.
 - **Incident during the build (no harm):** while renaming the `red` step to
   `traffic`, the test fakes briefly fell through to the real `Ops.traffic`, and one
   aborted test run sent benign and Red requests to our own isolated Target through

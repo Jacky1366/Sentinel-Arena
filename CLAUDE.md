@@ -100,6 +100,7 @@ data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); 
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
+tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
 tests/test_fact1_landed.py  Judge fact-1 unit tests (no Docker)
