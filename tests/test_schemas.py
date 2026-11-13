@@ -22,18 +22,22 @@ SCHEMA_NAMES = [
     "proxy_log",
     "challenge_snapshot",
     "verdict",
+    "verdict_v0_1",
     "rule",
     "rules_file",
     "round_record",
+    "round_record_v0_1",
     "landed_fact",
     "match_manifest_v0_1",
     "match_manifest_v0_2",
+    "match_manifest_v0_3",
     "match_manifest",
     "api_call",
     "prices",
     "benign_set",
     "benign_request",
     "benign_result",
+    "benign_result_v0_1",
     "anomaly",
     "rule_result",
     "rule_score",
@@ -100,7 +104,7 @@ VALID = {
         "body": "{\"email\":\"' OR 1=1--\",\"password\":\"x\"}",
         "status": 200,
     },
-    "verdict": {
+    "verdict_v0_1": {
         "schema_version": "0.1",
         "match_id": "m001",
         "log_seq": 7,
@@ -110,7 +114,7 @@ VALID = {
     },
     "rule": RULE,
     "rules_file": {"schema_version": "0.1", "rules": [RULE]},
-    "round_record": {
+    "round_record_v0_1": {
         "schema_version": "0.1",
         "match_id": "m001",
         "round": 7,
@@ -178,7 +182,7 @@ VALID["match_manifest_v0_2"] = {
              "cached_at_input_price": False, "unpriced_usage": False,
              "prices_verified": None},
 }
-VALID["match_manifest"] = {
+VALID["match_manifest_v0_3"] = {
     **VALID["match_manifest_v0_2"],
     "schema_version": "0.3",
     "judge_version": "0.2.0",
@@ -202,10 +206,35 @@ VALID["benign_request"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "request_id": RID, "benign_id": "h06",
     "category": "hard_negative", "expected_solves": ["Error Handling"],
     "sent_at": "2026-11-09T15:30:14.001Z"}
-VALID["benign_result"] = {
+VALID["benign_result_v0_1"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "request_id": RID, "benign_id": "h06",
     "category": "hard_negative", "verdict": "CWE-89", "false_positive": True,
     "fp_reason": None}
+# Stage 5.4: current versions (verdicts / rounds / benign results 0.2, match.json 0.4).
+VALID["verdict"] = {
+    "schema_version": "0.2", "match_id": "m001", "log_seq": 7, "request_id": RID,
+    "verdict": "CWE-89", "source": "ai", "no_verdict_reason": None, "failure_detail": None,
+    "rationale": "tautology in email field", "reason": "ai verdict"}
+VALID["round_record"] = {
+    **{k: v for k, v in VALID["round_record_v0_1"].items()
+       if k not in ("replay_blocked", "benign_fp")},
+    "schema_version": "0.2", "verdict_source": "ai"}
+VALID["benign_result"] = {**VALID["benign_result_v0_1"], "schema_version": "0.2",
+                          "verdict_source": "ai"}
+VALID["match_manifest"] = {**VALID["match_manifest_v0_3"], "schema_version": "0.4",
+                           "judge_version": "0.4.0", "blue_params": None}
+BLUE_PARAMS = {
+    "provider": "anthropic", "model": "claude-haiku-5-5", "chunk_size": 1,
+    "prompt_version": "1", "system_prompt_sha256": SHA,
+    "sdk": {"package": "anthropic", "version": "2.3.0"},
+    "request": {"max_output_tokens": 256, "thinking": "disabled", "effort": "low",
+                "output_format": "json_schema", "temperature": None,
+                "temperature_note": "not settable"}}
+CLAUDE_MANIFEST = {**VALID["match_manifest"], "blue_engine": "claude",
+                   "blue_params": BLUE_PARAMS,
+                   "models": {"red": None, "blue": {"provider": "anthropic",
+                                                    "model": "claude-haiku-5-5"},
+                              "analyst": None}}
 VALID["anomaly"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "kind": "benign_solved_challenge",
     "request_id": RID, "detail": {"benign_id": "n04", "newly_solved": ["Score Board"],
@@ -233,7 +262,7 @@ VALID["api_call"] = {
     "timestamp": "2026-11-09T15:30:13.120Z", "agent": "blue", "provider": "anthropic",
     "model": "claude-haiku-5-5", "round": None, "log_seq_first": 1, "log_seq_last": 20,
     "attempt": 1, "ok": True, "error_type": None, "http_status": 200, "refusal": None,
-    "input_tokens": 1200, "cached_input_tokens": 0, "cache_write_tokens": 0,
+    "stop_reason": "end_turn", "input_tokens": 1200, "cached_input_tokens": 0, "cache_write_tokens": 0,
     "output_tokens": 300, "latency_ms": 812, "prompt_sha256": SHA,
 }
 VALID["prices"] = {
@@ -286,11 +315,58 @@ INVALID = {
     ],
     "verdict": [
         ("verdict not in taxonomy", _set("verdict", "SQLi")),
+        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("missing source", _drop("source")),
+        ("missing no_verdict_reason", _drop("no_verdict_reason")),
+        ("missing failure_detail", _drop("failure_detail")),
+        ("source rule arrives in 5.5", _set("source", "rule")),
+        ("verdict with a no_verdict_reason", _set("no_verdict_reason", "no_verdict")),
+        ("verdict with a failure_detail", _set("failure_detail", "invalid_json")),
+        ("verdict without source", _set("source", None)),
+        ("null verdict with a source",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "no_verdict_reason": "no_verdict",
+                                      "failure_detail": "invalid_json"}.items()
+                    if k != "rationale"}),
+        ("null verdict without reason",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "source": None,
+                                      "failure_detail": "invalid_json"}.items()
+                    if k != "rationale"}),
+        ("null verdict without detail",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "source": None,
+                                      "no_verdict_reason": "no_verdict"}.items()
+                    if k != "rationale"}),
+        ("no_verdict with an instrument detail",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "source": None,
+                                      "no_verdict_reason": "no_verdict",
+                                      "failure_detail": "api_error"}.items()
+                    if k != "rationale"}),
+        ("instrument_failure with a brain detail",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "source": None,
+                                      "no_verdict_reason": "instrument_failure",
+                                      "failure_detail": "model_refusal"}.items()
+                    if k != "rationale"}),
+        ("rationale on a row without a verdict",
+         lambda r: {**r, "verdict": None, "source": None, "no_verdict_reason": "no_verdict",
+                    "failure_detail": "invalid_json"}),
+        ("rationale over 200 chars", _set("rationale", "x" * 201)),
+        ("signature verdict with a rationale", _set("source", "signature")),
+        ("failure_detail not in enum",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "source": None,
+                                      "no_verdict_reason": "no_verdict",
+                                      "failure_detail": "bored"}.items()
+                    if k != "rationale"}),
         ("missing request_id", _drop("request_id")),
         ("missing schema_version", _drop("schema_version")),
         ("missing log_seq", _drop("log_seq")),
         ("legacy round field not allowed", _set("round", 7)),
         ("extra property", _set("confidence", 0.9)),
+    ],
+    "verdict_v0_1": [
+        ("verdict not in taxonomy", _set("verdict", "SQLi")),
+        ("verdict null is 0.2 only", _set("verdict", None)),
+        ("source is 0.2 only", _set("source", "signature")),
+        ("missing reason", _drop("reason")),
+        ("schema_version 0.2", _set("schema_version", "0.2")),
     ],
     "rule": [
         ("cwe not in taxonomy", _set("cwe", "CWE-78")),
@@ -325,6 +401,57 @@ INVALID = {
     ],
     "round_record": [
         ("label not in taxonomy", _set("label", "XSS")),
+        ("verdict not in taxonomy", _set("verdict", "malicious")),
+        ("missing request_id", _drop("request_id")),
+        ("replay_blocked removed in 0.2", _set("replay_blocked", None)),
+        ("benign_fp removed in 0.2", _set("benign_fp", None)),
+        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("missing verdict_source", _drop("verdict_source")),
+        ("verdict_source null with a verdict", _set("verdict_source", None)),
+        ("verdict_source not in enum", _set("verdict_source", "rule")),
+        ("instrument_failure with detected false",
+         lambda r: {**r, "detected": False, "type_correct": None, "verdict": None,
+                    "verdict_source": None, "detected_reason": "instrument_failure"}),
+        ("instrument_failure with a verdict",
+         lambda r: {**r, "detected": None, "type_correct": None,
+                    "detected_reason": "instrument_failure"}),
+        ("verdict_source set on an orphan",
+         lambda r: {**r, "detected": None, "type_correct": None, "verdict": None,
+                    "detected_reason": "orphan"}),
+        ("missing landed_reason", _drop("landed_reason")),
+        ("missing newly_solved", _drop("newly_solved")),
+        ("missing detected_reason", _drop("detected_reason")),
+        ("newly_solved not array", _set("newly_solved", "Login Admin")),
+        ("landed_reason not in enum", _set("landed_reason", "mystery")),
+        ("detected_reason not in enum", _set("detected_reason", "lost")),
+        # landed invariant
+        ("landed null but reason null", lambda r: {**r, "landed": None, "landed_reason": None}),
+        ("landed true but reason set", _set("landed_reason", "already_solved")),
+        # detected invariant: detected true requires detected_reason null and bool type_correct
+        ("detected true but reason no_verdict", _set("detected_reason", "no_verdict")),
+        ("detected true but type_correct null", _set("type_correct", None)),
+        # orphan shape: detected null requires reason orphan + type_correct null + verdict null
+        ("detected null without orphan shape", _set("detected", None)),
+        ("detected null but reason not orphan",
+         lambda r: {**r, "detected": None, "type_correct": None, "verdict": None,
+                    "detected_reason": "no_verdict"}),
+        ("detected null but verdict present",
+         lambda r: {**r, "detected": None, "type_correct": None,
+                    "detected_reason": "orphan"}),
+        # no_verdict shape: detected false, verdict null, type_correct null
+        ("no_verdict but verdict present",
+         lambda r: {**r, "detected": False, "type_correct": None,
+                    "detected_reason": "no_verdict"}),
+        # benign-verdict miss: detected false, reason null => verdict must be benign
+        ("detected false reason null but verdict is a CWE",
+         lambda r: {**r, "detected": False, "type_correct": None}),
+    ],
+    "round_record_v0_1": [
+        ("label not in taxonomy", _set("label", "XSS")),
+        ("instrument_failure is 0.2 only",
+         lambda r: {**r, "detected": None, "type_correct": None, "verdict": None,
+                    "detected_reason": "instrument_failure"}),
+        ("verdict_source is 0.2 only", _set("verdict_source", "ai")),
         ("verdict not in taxonomy", _set("verdict", "malicious")),
         ("missing request_id", _drop("request_id")),
         ("replay_blocked string", _set("replay_blocked", "no")),
@@ -400,8 +527,32 @@ INVALID = {
         ("traffic is 0.3 only", _set("traffic", {})),
         ("missing cost", _drop("cost")),
     ],
+    "match_manifest_v0_3": [
+        ("schema_version 0.4", _set("schema_version", "0.4")),
+        ("blue_params is 0.4 only", _set("blue_params", None)),
+        ("claude engine is 0.4 only", _set("blue_engine", "claude")),
+        ("missing traffic", _drop("traffic")),
+    ],
     "match_manifest": [
-        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("missing blue_params", _drop("blue_params")),
+        ("scripted with blue_params", _set("blue_params", BLUE_PARAMS)),
+        ("scripted with a blue model",
+         lambda r: {**r, "models": {**r["models"],
+                                    "blue": {"provider": "anthropic", "model": "x"}}}),
+        ("claude without blue_params", _set("blue_engine", "claude")),
+        ("claude without a blue model",
+         lambda r: {**r, "blue_engine": "claude", "blue_params": BLUE_PARAMS}),
+        ("blue_params request with a sampling knob",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "request": {**BLUE_PARAMS["request"], "top_p": 1}}}),
+        ("blue_params effort not in enum",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "request": {**BLUE_PARAMS["request"], "effort": "extreme"}}}),
+        ("blue_params without prompt sha256",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             k: v for k, v in BLUE_PARAMS.items() if k != "system_prompt_sha256"}}),
+        ("blue engine not in enum", _set("blue_engine", "gpt")),
         ("missing traffic", _drop("traffic")),
         ("failed_step red renamed to traffic",
          lambda r: {**r, "status": "failed", "failed_step": "red", "error": "x"}),
@@ -462,7 +613,22 @@ INVALID = {
         ("carries a label", _set("label", "benign")),
         ("sent_at not UTC Z", _set("sent_at", "2026-11-09T15:30:14+00:00")),
     ],
+    "benign_result_v0_1": [
+        ("CWE verdict but not FP", _set("false_positive", False)),
+        ("instrument_failure is 0.2 only",
+         lambda r: {**r, "verdict": None, "false_positive": None,
+                    "fp_reason": "instrument_failure"}),
+        ("verdict_source is 0.2 only", _set("verdict_source", "ai")),
+    ],
     "benign_result": [
+        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("missing verdict_source", _drop("verdict_source")),
+        ("verdict_source null with a verdict", _set("verdict_source", None)),
+        ("instrument_failure with a verdict",
+         lambda r: {**r, "false_positive": None, "fp_reason": "instrument_failure"}),
+        ("verdict_source on a no-verdict row",
+         lambda r: {**r, "verdict": None, "false_positive": None,
+                    "fp_reason": "instrument_failure"}),
         ("CWE verdict but not FP", _set("false_positive", False)),
         ("benign verdict but FP", lambda r: {**r, "verdict": "benign"}),
         ("no_verdict with a boolean",
@@ -506,6 +672,11 @@ INVALID = {
     ],
     "api_call": [
         ("ok but error_type set", _set("error_type", "timeout")),
+        ("missing stop_reason", _drop("stop_reason")),
+        ("stop_reason on a failed call",
+         lambda r: {**r, "ok": False, "error_type": "timeout", "http_status": None,
+                    "input_tokens": None, "cached_input_tokens": None,
+                    "cache_write_tokens": None, "output_tokens": None}),
         ("ok with null tokens", _set("output_tokens", None)),
         ("blue with a round", _set("round", 3)),
         ("red with log_seq", lambda r: {**r, "agent": "red", "round": 1}),
@@ -579,9 +750,10 @@ def test_every_schema_has_enough_invalid_cases(name):
 
 def test_round_record_landed_null_requires_reason():
     # landed null is allowed, but only paired with a non-null landed_reason.
-    for reason in ("not_measurable", "already_solved", "snapshot_missing"):
-        rec = {**VALID["round_record"], "landed": None, "landed_reason": reason}
-        validator("round_record").validate(rec)
+    for name in ("round_record", "round_record_v0_1"):
+        for reason in ("not_measurable", "already_solved", "snapshot_missing"):
+            rec = {**VALID[name], "landed": None, "landed_reason": reason}
+            validator(name).validate(rec)
 
 
 def test_round_record_snapshot_missing_shape_valid():
@@ -593,23 +765,33 @@ def test_round_record_snapshot_missing_shape_valid():
 
 
 def test_round_record_four_valid_detected_shapes():
-    v = validator("round_record")
-    base = VALID["round_record"]
-    # 1. verdict present, flagged as attack (the base example).
-    v.validate(base)
-    # 2. verdict present, called benign -> a miss.
-    v.validate({**base, "verdict": "benign", "detected": False,
-                "type_correct": None, "detected_reason": None})
-    # 3. logged request, no verdict.
-    v.validate({**base, "verdict": None, "detected": False,
-                "type_correct": None, "detected_reason": "no_verdict"})
-    # 4. orphan (no proxy line); landed kept for audit but excluded from stats.
-    v.validate({**base, "verdict": None, "detected": None,
-                "type_correct": None, "detected_reason": "orphan"})
+    for name, extra in (("round_record_v0_1", {}), ("round_record", {"verdict_source": None})):
+        v = validator(name)
+        base = VALID[name]
+        # 1. verdict present, flagged as attack (the base example).
+        v.validate(base)
+        # 2. verdict present, called benign -> a miss.
+        v.validate({**base, "verdict": "benign", "detected": False,
+                    "type_correct": None, "detected_reason": None})
+        # 3. logged request, no verdict.
+        v.validate({**base, **extra, "verdict": None, "detected": False,
+                    "type_correct": None, "detected_reason": "no_verdict"})
+        # 4. orphan (no proxy line); landed kept for audit but excluded from stats.
+        v.validate({**base, **extra, "verdict": None, "detected": None,
+                    "type_correct": None, "detected_reason": "orphan"})
+
+
+def test_round_record_instrument_failure_shape_valid():
+    # Stage 5.4 (D13): shaped like an orphan, excluded from detection stats.
+    validator("round_record").validate({
+        **VALID["round_record"], "verdict": None, "verdict_source": None, "detected": None,
+        "type_correct": None, "detected_reason": "instrument_failure"})
+    validator("round_record").validate({**VALID["round_record"], "verdict_source": "signature"})
 
 
 def test_match_manifest_failed_shape_valid():
-    for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest"):
+    for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
+                 "match_manifest"):
         validator(name).validate({
             **VALID[name], "status": "failed", "failed_step": "blue",
             "error": "ValueError: duplicate verdict"})
@@ -619,6 +801,16 @@ def test_match_manifest_stopped_shape_valid():
     validator("match_manifest").validate({
         **VALID["match_manifest"], "status": "stopped",
         "budget": {"limits": LIMITS, "stopped_by": {"scope": "match", "reason": "unpriced_usage"}}})
+    validator("match_manifest").validate({
+        **CLAUDE_MANIFEST, "status": "stopped",
+        "budget": {"limits": LIMITS, "stopped_by": {"scope": "blue",
+                                                    "reason": "price_unverified"}}})
+
+
+def test_match_manifest_claude_shape_valid():
+    v = validator("match_manifest")
+    v.validate(CLAUDE_MANIFEST)
+    v.validate({**CLAUDE_MANIFEST, "blue_params": {**BLUE_PARAMS, "sdk": None}})  # fake
 
 
 def test_match_manifest_failed_may_record_stopped_by():
@@ -642,25 +834,38 @@ def test_api_call_refusal_and_failure_shapes_valid():
     v = validator("api_call")
     base = VALID["api_call"]
     v.validate({**base, "ok": False, "error_type": "timeout", "http_status": None,
-                "input_tokens": None, "cached_input_tokens": None, "cache_write_tokens": None,
+                "stop_reason": None, "input_tokens": None, "cached_input_tokens": None, "cache_write_tokens": None,
                 "output_tokens": None})
     v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
-                "refusal": {"scope": "match", "reason": "max_usd"}, "input_tokens": 0,
+                "refusal": {"scope": "match", "reason": "max_usd"}, "stop_reason": None,
+                "input_tokens": 0,
                 "cached_input_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
                 "latency_ms": 0})
     v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
-                "refusal": {"scope": "blue", "reason": "missing_price"},
+                "refusal": {"scope": "blue", "reason": "missing_price"}, "stop_reason": None,
                 "input_tokens": 0, "cached_input_tokens": 0, "cache_write_tokens": 0,
                 "output_tokens": 0, "latency_ms": 0})
+    v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
+                "refusal": {"scope": "blue", "reason": "price_unverified"}, "stop_reason": None,
+                "input_tokens": 0, "cached_input_tokens": 0, "cache_write_tokens": 0,
+                "output_tokens": 0, "latency_ms": 0})
+    # a safety refusal by the model is an ok reply with stop_reason "refusal"
+    v.validate({**base, "stop_reason": "refusal"})
     v.validate({**base, "agent": "red", "round": 4, "log_seq_first": None, "log_seq_last": None})
     v.validate({**base, "agent": "analyst", "log_seq_first": None, "log_seq_last": None})
 
 
-def test_committed_price_table_is_valid_and_unverified():
+# Only the designer verifies a price (Stage 5.4: Haiku 5.5 and Sonnet 5.5, 2026-11-12).
+DESIGNER_VERIFIED = {"claude-haiku-5-5", "claude-sonnet-5-5"}
+
+
+def test_committed_price_table_is_valid_and_only_designer_verified():
     prices = _load(CONFIG_DIR / "prices.json")
     validator("prices").validate(prices)
     for name, entry in {**prices["models"], **prices["placeholders"]}.items():
-        assert entry["verified"] is False, name
+        assert entry["verified"] is (name in DESIGNER_VERIFIED), name
+        if entry["verified"]:  # a verified entry names who verified it, when, and where
+            assert entry["source"].startswith("designer-verified 2026-11-12 against "), name
     assert "GPT-6 Luna" in prices["placeholders"] and "GPT-6 Luna" not in prices["models"]
 
 
@@ -671,9 +876,10 @@ def test_committed_price_table_is_valid_and_unverified():
 ])
 def test_match_id_accepts_both_forms(match_id, ok):
     # Contract §0: legacy m+digits, or the run_match.py timestamp form.
-    for name in ("red_attack", "verdict", "round_record", "landed_fact", "match_manifest_v0_1",
-                 "match_manifest_v0_2", "match_manifest", "api_call", "benign_request",
-                 "benign_result", "anomaly"):
+    for name in ("red_attack", "verdict", "verdict_v0_1", "round_record", "round_record_v0_1",
+                 "landed_fact", "match_manifest_v0_1", "match_manifest_v0_2",
+                 "match_manifest_v0_3", "match_manifest", "api_call", "benign_request",
+                 "benign_result", "benign_result_v0_1", "anomaly"):
         rec = {**VALID[name], "match_id": match_id}
         assert validator(name).is_valid(rec) is ok, (name, match_id)
     rule = {**RULE, "created_match": match_id}
@@ -685,9 +891,10 @@ def test_rules_file_empty_rules_is_valid():
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "verdict", "round_record", "landed_fact", "match_manifest_v0_1",
-                 "match_manifest_v0_2", "match_manifest", "api_call", "benign_request",
-                 "benign_result", "anomaly"):
+    for name in ("red_attack", "verdict", "verdict_v0_1", "round_record", "round_record_v0_1",
+                 "landed_fact", "match_manifest_v0_1", "match_manifest_v0_2",
+                 "match_manifest_v0_3", "match_manifest", "api_call", "benign_request",
+                 "benign_result", "benign_result_v0_1", "anomaly"):
         required = SCHEMAS[name]["required"]
         assert "schema_version" in required and "match_id" in required, name
     assert "schema_version" in SCHEMAS["rules_file"]["required"]
@@ -734,8 +941,24 @@ def test_label_enums_match_taxonomy_cwes(name, field):
 
 
 def test_verdict_enum_matches_full_taxonomy():
-    # Blue's verdict is always one of the four taxonomy values.
-    assert sorted(SCHEMAS["verdict"]["properties"]["verdict"]["enum"]) == sorted(TAXONOMY)
+    # Blue's verdict is one of the four taxonomy values (or null in 0.2: no verdict).
+    assert sorted(SCHEMAS["verdict_v0_1"]["properties"]["verdict"]["enum"]) == sorted(TAXONOMY)
+    enum = SCHEMAS["verdict"]["properties"]["verdict"]["enum"]
+    assert None in enum and sorted(x for x in enum if x is not None) == sorted(TAXONOMY)
+
+
+def test_verdict_0_2_shapes_valid():
+    v = validator("verdict")
+    base = {k: x for k, x in VALID["verdict"].items() if k != "rationale"}
+    v.validate(base)
+    v.validate({**base, "source": "signature", "reason": "signature matched"})
+    for reason, details in (("no_verdict", ("invalid_json", "invalid_shape", "missing_index",
+                                            "duplicate_index", "unknown_index",
+                                            "unknown_label", "model_refusal", "max_tokens")),
+                            ("instrument_failure", ("refused_by_body", "api_error"))):
+        for d in details:
+            v.validate({**base, "verdict": None, "source": None, "no_verdict_reason": reason,
+                        "failure_detail": d})
 
 
 def test_round_record_verdict_enum_is_taxonomy_plus_null():
@@ -755,9 +978,10 @@ def test_manifest_dispatch_covers_every_version():
     import sys
     sys.path.insert(0, str(ROOT))
     import run_match
-    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3"}
-    assert run_match.MANIFEST_VERSION == "0.3"
-    for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest"):
+    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4"}
+    assert run_match.MANIFEST_VERSION == "0.4"
+    for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
+                 "match_manifest"):
         assert run_match.validate_manifest(VALID[name]) == [], name
 
 
@@ -770,12 +994,17 @@ def test_snapshot_rows_mark_their_traffic():
 
 
 def test_benign_result_four_shapes():
-    v = validator("benign_result")
-    base = VALID["benign_result"]
-    v.validate(base)  # CWE verdict -> FP
-    v.validate({**base, "verdict": "benign", "false_positive": False})
-    v.validate({**base, "verdict": None, "false_positive": None, "fp_reason": "no_verdict"})
-    v.validate({**base, "verdict": None, "false_positive": None, "fp_reason": "orphan"})
+    for name, extra in (("benign_result_v0_1", {}), ("benign_result", {"verdict_source": None})):
+        v = validator(name)
+        base = VALID[name]
+        v.validate(base)  # CWE verdict -> FP
+        v.validate({**base, "verdict": "benign", "false_positive": False})
+        for reason in ("no_verdict", "orphan"):
+            v.validate({**base, **extra, "verdict": None, "false_positive": None,
+                        "fp_reason": reason})
+    validator("benign_result").validate({**VALID["benign_result"], "verdict": None,
+                                         "verdict_source": None, "false_positive": None,
+                                         "fp_reason": "instrument_failure"})
 
 
 def test_anomaly_kinds_valid():
@@ -783,6 +1012,8 @@ def test_anomaly_kinds_valid():
     base = VALID["anomaly"]
     v.validate({**base, "kind": "unmatched_verdict",
                 "detail": {"log_seq": 3, "verdict": "CWE-89"}})
+    v.validate({**base, "kind": "unmatched_verdict",  # a 0.2 row without a verdict
+                "detail": {"log_seq": 3, "verdict": None}})
     v.validate({**base, "kind": "benign_snapshot_missing", "detail": {"benign_id": "n04"}})
 
 
@@ -804,7 +1035,9 @@ def test_committed_benign_baseline_validates_and_is_clean():
     a.pop("README.md")
     assert a == m["artifacts"]
     for name, schema in (("benign_requests.jsonl", "benign_request"),
-                         ("benign_results.jsonl", "benign_result"),
+                         ("benign_results.jsonl", "benign_result_v0_1"),
+                         ("verdicts.jsonl", "verdict_v0_1"),
+                         ("rounds.jsonl", "round_record_v0_1"),
                          ("challenge_snapshots.jsonl", "challenge_snapshot")):
         for line in (d / name).read_text().splitlines():
             validator(schema).validate(json.loads(line))

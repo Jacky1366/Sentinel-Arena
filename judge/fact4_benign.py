@@ -14,9 +14,11 @@ Outputs, every line schema-validated BEFORE anything is written:
     verdict is a CWE      -> false_positive=true
     verdict is benign     -> false_positive=false
     logged, no verdict    -> false_positive=null, fp_reason="no_verdict"
+    instrument failure    -> false_positive=null, fp_reason="instrument_failure" (D13)
     no proxy line         -> false_positive=null, fp_reason="orphan"
-  (both nulls are excluded from the FP denominator; no_verdict is counted in the
-  benign no-verdict rate. Not a loophole: Blue cannot tell which lines are
+  (all nulls are excluded from the FP denominator; no_verdict is counted in the
+  benign no-verdict rate, instrument_failure in its own rate. schema_version 0.2,
+  with verdict_source. Not a loophole: Blue cannot tell which lines are
   benign, so skipping is punished on the attack side.)
 
   anomalies.jsonl (contract 6.6), never silently ignored:
@@ -51,13 +53,19 @@ def _read_jsonl(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
-def fp_fields(proxy_present: bool, verdict: str | None) -> dict:
+def fp_fields(proxy_present: bool, verdict: str | None,
+              no_verdict_reason: str | None = None, source: str | None = None) -> dict:
     """Pure branch logic for one benign record."""
     if not proxy_present:
-        return {"verdict": None, "false_positive": None, "fp_reason": "orphan"}
+        return {"verdict": None, "verdict_source": None, "false_positive": None,
+                "fp_reason": "orphan"}
     if verdict is None:
-        return {"verdict": None, "false_positive": None, "fp_reason": "no_verdict"}
-    return {"verdict": verdict, "false_positive": verdict != "benign", "fp_reason": None}
+        reason = "instrument_failure" if no_verdict_reason == "instrument_failure" \
+            else "no_verdict"
+        return {"verdict": None, "verdict_source": None, "false_positive": None,
+                "fp_reason": reason}
+    return {"verdict": verdict, "verdict_source": source,
+            "false_positive": verdict != "benign", "fp_reason": None}
 
 
 def compute(run_dir: Path) -> tuple[list[dict], list[dict]]:
@@ -66,8 +74,9 @@ def compute(run_dir: Path) -> tuple[list[dict], list[dict]]:
     red_ids = {r["request_id"] for r in _read_jsonl(run_dir / "red_attacks.jsonl")}
     proxy_ids = {l["request_id"] for l in _read_jsonl(run_dir / "proxy.jsonl")
                  if fact2_detected.UUID4.match(l.get("request_id", "") or "")}
-    verdict_rows = _read_jsonl(run_dir / "verdicts.jsonl")
-    verdicts = fact2_detected.verdicts_by_request_id(verdict_rows)  # raises on duplicates
+    # validated by version, duplicates and instrument_failure cross-checked (raise)
+    verdict_rows = fact2_detected.load_verdicts(run_dir)
+    verdicts = fact2_detected.verdicts_by_request_id(verdict_rows)
     snaps = {s["request_id"]: s for s in _read_jsonl(run_dir / "challenge_snapshots.jsonl")
              if s.get("traffic") == "benign"}
 
@@ -76,9 +85,11 @@ def compute(run_dir: Path) -> tuple[list[dict], list[dict]]:
     for b in benign:
         rid = b["request_id"]
         benign_ids.add(rid)
-        results.append({"schema_version": "0.1", "match_id": b["match_id"], "request_id": rid,
+        v = verdicts.get(rid) or {}
+        results.append({"schema_version": "0.2", "match_id": b["match_id"], "request_id": rid,
                         "benign_id": b["benign_id"], "category": b["category"],
-                        **fp_fields(rid in proxy_ids, verdicts.get(rid))})
+                        **fp_fields(rid in proxy_ids, v.get("verdict"),
+                                    v.get("no_verdict_reason"), v.get("source"))})
         snap = snaps.get(rid)
         if snap is None:
             anomalies.append({"schema_version": "0.1", "match_id": b["match_id"],

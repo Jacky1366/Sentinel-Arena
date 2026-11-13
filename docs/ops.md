@@ -23,6 +23,16 @@ A key value never appears in `api_calls.jsonl`, `match.json`, terminal output, o
 error / exception text: the client and `run_match.py` redact known key values and
 anything shaped like a provider key.
 
+**Anthropic SDK (`anthropic==2.3.0`, Stage 5.4).** The 2.x SDK can also take
+credentials from `ANTHROPIC_AUTH_TOKEN`, an `ant` profile or federation config, and
+its host from `ANTHROPIC_BASE_URL`. The adapter passes `api_key` **and**
+`base_url="https://api.anthropic.com"` explicitly (and turns off the SDK's
+OpenTelemetry tracing), so none of those can change which key is used or where it is
+sent; `tests/test_anthropic_adapter.py` checks this with a mock transport and
+sentinel values in all of those variables. The SDK sends the key as
+`Authorization: Bearer`. A real provider's model is called only if its price entry is
+designer-verified (`price_unverified` refusal otherwise).
+
 ## Keeping keys out of Claude Code sessions
 
 `.claude/settings.json` (committed, applies to every clone) **denies Claude Code
@@ -41,6 +51,24 @@ Two consequences:
 
 `.env.*` is also git-ignored (except `.env.example`), so a `.env.local` cannot be
 committed by accident.
+
+## Keep the project out of iCloud-synced folders
+
+Keep the working copy out of any iCloud-synced folder (on macOS, **Desktop and
+Documents** when "Desktop & Documents Folders" is on, and iCloud Drive itself), e.g.
+in `~/dev/Sentinel-Arena`. Reasons:
+
+- **`.env` holds the API keys, and iCloud would upload it.** `.gitignore` and the
+  Claude Code deny rules do not stop a sync client; the key would leave the machine.
+  The same goes for `data/runs/` (match data) and `.venv`.
+- iCloud may offload files ("Optimize Mac Storage"). Opening an offloaded file
+  triggers a download, and a stalled download hangs the process (seen 2026-11-12:
+  `import jsonschema` hung indefinitely because most of `.venv` was offloaded).
+
+The project was moved from the Desktop to `~/dev/Sentinel-Arena` on 2026-11-12 (files
+downloaded first, `docker compose down` before the move, `.venv` recreated from
+`requirements.txt`, `git fsck` clean). If a key was ever in a synced `.env`, treat it
+as exposed and rotate it (key-leak playbook below).
 
 ## Tests can never reach a real provider
 
@@ -101,6 +129,11 @@ a leak: anything pushed may already be copied. That is why revoking comes first.
 |---|---|---|---|
 | 0 | completed | yes | `status: "completed"` |
 | 1 | match failed at a step (finalized) | yes | `status: "failed"`, `failed_step`, `error` |
-| 2 | preflight refused (stack not ready, leftovers in `live/`, bad `config/llm.json` or `config/prices.json`) | no | none |
+| 2 | preflight refused (stack not ready, leftovers in `live/`, bad `config/llm.json` or `config/prices.json`; for `--blue claude`: no Blue model, or `chunk_size` > 1) | no | none |
 | 3 | lock held (`data/runs/live/match.lock` exists; remove a stale lock by hand) | no | none |
-| 4 | stopped by the AI budget (a call was refused, or usage could not be priced; finalized) | yes | `status: "stopped"`, `budget.stopped_by` |
+| 4 | stopped by the AI budget (a call was refused, e.g. a cap, a missing key or an unverified price, or usage could not be priced; finalized) | yes | `status: "stopped"`, `budget.stopped_by` |
+
+**Real API calls.** Only `run_match.py --blue claude`, `tools/stage5_4_smoke.py
+--real-call` (Gate 1) and `tools/stage5_4_check.py --real-calls` (Gate 2) send real,
+paid calls; the two gate tools refuse without their flag and run only after the
+designer's GO. Every test runs on the fake provider (above).

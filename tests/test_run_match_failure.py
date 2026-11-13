@@ -124,6 +124,19 @@ class FakeOps(run_match.Ops):
         match_ops.reopen_and_confirm(live_dir, reopen=fake_reopen(live_dir),
                                      poll_timeout=0.1)
 
+    blue_reply = '{"verdicts": [{"index": 1, "label": "benign"}]}'
+
+    def blue_client(self, config, prices):
+        """The fake provider ONLY: no real adapter is reachable, no key is read.
+        With a config naming a real provider, the call raises (no adapter)."""
+        from llm_fakes import FakeAdapter
+        from agents import llm_client
+        self.calls.append("blue_client")
+        return llm_client.LLMClient(config=config, prices=prices,
+                                    adapters={"fake": FakeAdapter(text=self.blue_reply)},
+                                    env={}, dotenv_path=REPO / "nonexistent" / "no.env",
+                                    sleep=lambda s: None)
+
 
 def broken_reopen(self, live_dir):
     """nginx never creates a fresh log (e.g. reopen signal not delivered)."""
@@ -423,10 +436,11 @@ def test_freeze_raises_without_any_log(tmp_path):
 
 # ---- Stage 5.1: manifest 0.2, budget, cost ---------------------------------
 
-def test_scripted_match_manifest_v0_3_zero_cost(dirs):
+def test_scripted_match_manifest_v0_4_zero_cost(dirs):
     code, match_dir, out = go(FakeOps(dirs[0]), dirs)
     m = manifest_of(match_dir)
-    assert code == 0 and m["schema_version"] == "0.3"
+    assert code == 0 and m["schema_version"] == "0.4"
+    assert m["blue_engine"] == "scripted" and m["blue_params"] is None
     assert m["models"] == {"red": None, "blue": None, "analyst": None}
     assert m["budget"]["stopped_by"] is None
     assert m["budget"]["limits"]["blue"] == {"max_calls": 100, "max_tokens": 300000,
@@ -495,7 +509,8 @@ def test_bad_llm_config_refused_at_preflight(dirs):
 
 # ---- Stage 5.2: the fakes never touch the network; benign traffic end to end ----
 
-NETWORK_STEPS = ("preflight", "reset", "rotate", "traffic", "freeze", "reopen")
+NETWORK_STEPS = ("preflight", "reset", "rotate", "traffic", "freeze", "reopen",
+                 "blue_client")
 
 
 def test_fake_ops_override_every_network_step():
@@ -513,7 +528,7 @@ def test_benign_traffic_scored_and_recorded(dirs):
     code, match_dir, out = go(FakeOps(live, benign=BENIGN), dirs)
     assert code == 0, out
     m = manifest_of(match_dir)
-    assert m["schema_version"] == "0.3" and m["status"] == "completed"
+    assert m["schema_version"] == "0.4" and m["status"] == "completed"
     t = m["traffic"]
     assert t["seed_source"] == "generated" and 0 <= t["seed"] < 2**32
     assert t["benign_set"]["path"] == "benign/benign_set.json"

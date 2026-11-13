@@ -1,0 +1,651 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/match_manifest_v0_3.schema.json",
+  "title": "Match manifest (schema_version 0.3; contract 6.2), frozen",
+  "description": "FROZEN 0.3 manifest schema (Stage 5.4): validates match.json written in Stages 5.2-5.3. Current schema: match_manifest.schema.json (0.4). data/runs/<match_id>/match.json, schema_version 0.3 (Stage 5.2 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. Older manifests are validated by match_manifest_v0_1 / v0_2.schema.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "started_at",
+    "finished_at",
+    "status",
+    "failed_step",
+    "error",
+    "judge_version",
+    "blue_engine",
+    "red_source",
+    "git",
+    "images",
+    "artifacts",
+    "models",
+    "budget",
+    "price_table",
+    "cost",
+    "traffic"
+  ],
+  "$defs": {
+    "utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "image_id",
+        "repo_digest"
+      ],
+      "properties": {
+        "image": {
+          "type": "string",
+          "minLength": 1
+        },
+        "image_id": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "repo_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "model_ref": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "model"
+          ],
+          "properties": {
+            "provider": {
+              "enum": [
+                "openai",
+                "anthropic",
+                "gemini",
+                "fake"
+              ]
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      ]
+    },
+    "limit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_calls",
+        "max_tokens",
+        "max_usd"
+      ],
+      "properties": {
+        "max_calls": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "max_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "max_usd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "agent_limit": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/limit"
+        },
+        {
+          "properties": {
+            "max_calls": {
+              "type": "integer"
+            },
+            "max_tokens": {
+              "type": "integer"
+            },
+            "max_usd": {
+              "type": "number"
+            }
+          }
+        }
+      ]
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input",
+        "cached_input",
+        "cache_write",
+        "output"
+      ],
+      "properties": {
+        "input": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cached_input": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cache_write": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "bucket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "usd",
+        "failed_attempts_usd",
+        "attempts",
+        "failed_attempts",
+        "refused",
+        "tokens"
+      ],
+      "properties": {
+        "usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "failed_attempts_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refused": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "$ref": "#/$defs/tokens"
+        }
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {
+      "const": "0.3"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "started_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "finished_at": {
+      "$ref": "#/$defs/utc"
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "stopped"
+      ]
+    },
+    "failed_step": {
+      "enum": [
+        null,
+        "reset",
+        "rotate",
+        "traffic",
+        "freeze",
+        "judge_fact1",
+        "blue",
+        "judge_rounds",
+        "judge_benign"
+      ]
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "judge_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "blue_engine": {
+      "enum": [
+        "scripted"
+      ]
+    },
+    "red_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "dirty"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "dirty": {
+          "type": "boolean"
+        }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "juice_shop",
+        "nginx"
+      ],
+      "properties": {
+        "juice_shop": {
+          "$ref": "#/$defs/image"
+        },
+        "nginx": {
+          "$ref": "#/$defs/image"
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "const": "match.json"
+        }
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sha256",
+          "bytes"
+        ],
+        "properties": {
+          "sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red",
+        "blue",
+        "analyst"
+      ],
+      "properties": {
+        "red": {
+          "$ref": "#/$defs/model_ref"
+        },
+        "blue": {
+          "$ref": "#/$defs/model_ref"
+        },
+        "analyst": {
+          "$ref": "#/$defs/model_ref"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limits",
+        "stopped_by"
+      ],
+      "properties": {
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "red",
+            "blue",
+            "analyst",
+            "match"
+          ],
+          "properties": {
+            "red": {
+              "$ref": "#/$defs/agent_limit"
+            },
+            "blue": {
+              "$ref": "#/$defs/agent_limit"
+            },
+            "analyst": {
+              "$ref": "#/$defs/agent_limit"
+            },
+            "match": {
+              "$ref": "#/$defs/limit"
+            }
+          }
+        },
+        "stopped_by": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "scope",
+                "reason"
+              ],
+              "properties": {
+                "scope": {
+                  "enum": [
+                    "red",
+                    "blue",
+                    "analyst",
+                    "match"
+                  ]
+                },
+                "reason": {
+                  "enum": [
+                    "max_calls",
+                    "max_tokens",
+                    "max_usd",
+                    "unpriced_usage",
+                    "missing_price",
+                    "missing_key"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "price_table": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "as_of"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "as_of": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_usd",
+        "failed_attempts_usd",
+        "cache_savings_usd",
+        "attempts",
+        "failed_attempts",
+        "refused",
+        "tokens",
+        "by_agent",
+        "by_model",
+        "lower_bound",
+        "cached_at_input_price",
+        "unpriced_usage",
+        "prices_verified"
+      ],
+      "properties": {
+        "total_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "failed_attempts_usd": {
+          "$ref": "#/$defs/usd"
+        },
+        "cache_savings_usd": {
+          "type": "number"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "refused": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens": {
+          "$ref": "#/$defs/tokens"
+        },
+        "by_agent": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "red",
+              "blue",
+              "analyst"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/bucket"
+          }
+        },
+        "by_model": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/bucket"
+          }
+        },
+        "lower_bound": {
+          "type": "boolean"
+        },
+        "cached_at_input_price": {
+          "type": "boolean"
+        },
+        "unpriced_usage": {
+          "type": "boolean"
+        },
+        "prices_verified": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "traffic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "seed",
+        "seed_source",
+        "benign_set",
+        "schedule"
+      ],
+      "description": "How Red and benign traffic were interleaved. schedule is the PLANNED order from the seed (red:<round> | benign:<benign_id>); both sequences keep their own order. Blue never reads match.json.",
+      "properties": {
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "seed_source": {
+          "enum": [
+            "cli",
+            "generated"
+          ]
+        },
+        "benign_set": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "set_version"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "set_version": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "schedule": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(red:[1-9][0-9]*|benign:[nh][0-9]{2})$"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "failed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "failed_step": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "failed_step": {
+            "const": null
+          },
+          "error": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "stopped_by": {
+                "const": null
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "stopped"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "budget": {
+            "properties": {
+              "stopped_by": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

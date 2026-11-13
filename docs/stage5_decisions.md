@@ -1,7 +1,7 @@
 # Stage 5 — Locked decisions
 
-*Recorded 2026-11-08 (Stage 5.1). These are decided. Later stage prompts refer to
-them by number (D1–D13) instead of repeating them. Changing one is a designer
+*Recorded 2026-11-08 (Stage 5.1); D14 added 2026-11-12 (Stage 5.4). These are decided.
+Later stage prompts refer to them by number (D1–D14) instead of repeating them. Changing one is a designer
 decision and is recorded here with a date. Where a decision touches an artifact
 format, `docs/contract.md` remains the source of truth.*
 
@@ -52,6 +52,9 @@ index → `request_id`.
 
 **D9 — Verdicts gain `source: "rule" | "ai"`.** The rule engine runs first; the AI is
 asked only when no rule fires.
+*Implemented 2026-11-12 (Stage 5.4): `source` is `"signature" | "ai" | null` in
+verdicts 0.2 (scripted Blue's signatures are `"signature"`; `null` iff there is no
+verdict). `"rule"` is added in 5.5.*
 
 **D10 — Cost tracking comes before caching.** Token counts are raw evidence; dollars
 are derived later from a dated price table.
@@ -68,6 +71,28 @@ nothing about Red's or Blue's skill. Requests left without a verdict for this re
 will get a distinct reason (e.g. `budget_exhausted`) and be **excluded from detection
 stats like orphans, never counted as a miss**. The rule is recorded now; the
 contract field is added in Stage 5.4, when Blue first makes real calls.
+*Implemented 2026-11-12 (Stage 5.4, designer-approved plan). The reason is named
+`instrument_failure` (not `budget_exhausted`), because it also covers an API failure
+after the retries, not only a body refusal. Verdict rows carry `no_verdict_reason`
+`no_verdict` (brain failure: invalid / incomplete reply, model safety refusal,
+`max_tokens`; a miss on attacks) or `instrument_failure` (body refusal or API failure;
+excluded from detection and FP stats, shown as its own rate). The Judge cross-checks
+every `instrument_failure` against `api_calls.jsonl` and raises on any mismatch in
+either direction (contract §4).*
+
+**D14 — What AI Blue sees, and how it is asked.** Per proxy line only `method`,
+`path`, `query` and `body`, raw and exactly as logged, plus a local `index`; never
+`request_id`, `timestamp`, `log_seq`, `status`, byte counts, the client address or any
+response field (contract §4.1). One stateless call per line, in `log_seq` order
+(fixed system prompt + that line); `chunk_size > 1` only for unscored runs. The prompt
+is kept neutral: it names the four labels, says values may be percent-encoded, and
+gives no decoding instructions and no hints aimed at the benign set (never tuned
+against it). Its output example is schematic, not a real label, so it cannot anchor
+the model. **Thinking, effort, the output format and the output-token cap are part of
+the Blue configuration and must be held constant within any comparison** (recorded in
+`match.json` `blue_params`). Temperature cannot be set (Haiku 5.5, API version
+`2026-10-21`), so run-to-run variation is measured, not suppressed.
+*Recorded 2026-11-12 (Stage 5.4).*
 
 ## Implementation notes (Stage 5.1)
 
@@ -142,3 +167,29 @@ Designer decisions recorded 2026-11-09:
   by code from Judge facts.
 - **The fact-4b fixture is the golden benign lines, verbatim, and is not held
   out.** A second, never-sent benign set is planned before Stage 6.
+
+## Implementation notes (Stage 5.4, D13, D14)
+
+Designer decisions recorded 2026-11-12:
+
+- **SDK `anthropic==2.3.0`** (newest release at least 14 days old). The adapter passes
+  `api_key` and `base_url="https://api.anthropic.com"` explicitly and disables the
+  SDK's OpenTelemetry tracing, so no `ANTHROPIC_*` variable or profile can change the
+  key or the host (tested with a mock transport).
+- **Prices:** Haiku 5.5 and Sonnet 5.5 designer-verified 2026-11-12; Opus 5.5 stays
+  unverified. A real provider's unverified price is refused (`price_unverified`).
+- **Blue 5.4 configuration** (D12, cheapest): `max_output_tokens` 256, thinking
+  disabled, effort low, structured outputs on (a JSON schema with the label enum). Part
+  D validation still runs on every reply: we measure security judgment, not JSON
+  compliance. Any `max_tokens` stop in Gate 2 is reported: at 256 it means our cap is
+  wrong, not the model.
+- **`model_refusal` and `max_tokens` are brain failures** (`no_verdict`). The
+  `model_refusal` count is also printed separately, split by attack and benign lines.
+- **After the first body refusal Blue stops calling**; every remaining line is
+  `instrument_failure` without a call. An API failure after retries affects only that
+  call's lines.
+- `verdicts`, `rounds`, `benign_results` 0.2; `match.json` 0.4; `api_calls.jsonl`
+  stays 0.1 (`stop_reason`, `price_unverified`); `JUDGE_VERSION` 0.4.0.
+- Two gates, each only after the designer's explicit GO: Gate 1
+  (`tools/stage5_4_smoke.py`, one real call) and Gate 2 (`tools/stage5_4_check.py`, 3
+  seeded `--blue claude` matches).

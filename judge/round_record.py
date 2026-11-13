@@ -7,7 +7,9 @@ schemas/round_record.schema.json BEFORE writing; on any failure the Judge raises
 and writes nothing, so rounds.jsonl is never partial or invalid.
 
   - landed / landed_reason / newly_solved come from the landed fact (fact 1).
-  - verdict / detected / type_correct / detected_reason come from fact 2.
+  - verdict / verdict_source / detected / type_correct / detected_reason come from
+    fact 2 (instrument_failure rows are shaped like orphans, contract 6).
+  - schema_version 0.2 (Stage 5.4): replay_blocked and benign_fp are gone.
   - A Red record with no landed fact is snapshot_missing (no snapshot, contract 6.1): the
     round record is still emitted with landed=null, landed_reason="snapshot_missing"
     (excluded from landing stats), while detection is scored normally from fact 2,
@@ -51,20 +53,19 @@ def build_round_records(run_dir: Path) -> list[dict]:
             landed = {"landed": None, "landed_reason": "snapshot_missing", "newly_solved": []}
         detect = fact2[rid]
         round_record = {
-            "schema_version": "0.1",
+            "schema_version": "0.2",
             "match_id": record["match_id"],
             "round": record["round"],
             "request_id": rid,
             "label": record["label"],
             "verdict": detect["verdict"],
+            "verdict_source": detect["verdict_source"],
             "landed": landed["landed"],
             "landed_reason": landed["landed_reason"],
             "newly_solved": landed["newly_solved"],
             "detected": detect["detected"],
             "type_correct": detect["type_correct"],
             "detected_reason": detect["detected_reason"],
-            "replay_blocked": None,
-            "benign_fp": None,
         }
         errors = sorted(validator.iter_errors(round_record), key=lambda e: list(e.absolute_path))
         if errors:
