@@ -37,27 +37,29 @@ R3 = "5b6c8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 
 def test_detected_true_type_correct():
     assert fact2.detected_fields("CWE-89", True, "CWE-89") == {
-        "verdict": "CWE-89", "detected": True, "type_correct": True, "detected_reason": None}
+        "verdict": "CWE-89", "verdict_source": None, "detected": True, "type_correct": True, "detected_reason": None}
 
 
 def test_detected_true_wrong_type():
     assert fact2.detected_fields("CWE-89", True, "CWE-22") == {
-        "verdict": "CWE-22", "detected": True, "type_correct": False, "detected_reason": None}
+        "verdict": "CWE-22", "verdict_source": None, "detected": True, "type_correct": False, "detected_reason": None}
 
 
 def test_detected_false_benign_verdict():
     assert fact2.detected_fields("CWE-89", True, "benign") == {
-        "verdict": "benign", "detected": False, "type_correct": None, "detected_reason": None}
+        "verdict": "benign", "verdict_source": None, "detected": False, "type_correct": None, "detected_reason": None}
 
 
 def test_no_verdict():
     assert fact2.detected_fields("CWE-89", True, None) == {
-        "verdict": None, "detected": False, "type_correct": None, "detected_reason": "no_verdict"}
+        "verdict": None, "verdict_source": None, "detected": False, "type_correct": None,
+        "detected_reason": "no_verdict"}
 
 
 def test_orphan_no_proxy_line():
     assert fact2.detected_fields("CWE-89", False, None) == {
-        "verdict": None, "detected": None, "type_correct": None, "detected_reason": "orphan"}
+        "verdict": None, "verdict_source": None, "detected": None, "type_correct": None,
+        "detected_reason": "orphan"}
 
 
 # ---- compute_fact2 over artifacts ----------------------------------------

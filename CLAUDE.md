@@ -39,7 +39,7 @@ README.md               overview, architecture diagram, how to run tests and the
 docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :8081)
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
-docs/stage5_decisions.md  locked Stage 5 decisions D1–D13 + sub-stage map
+docs/stage5_decisions.md  locked Stage 5 decisions D1–D14 + sub-stage map
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
 .claude/settings.json   Claude Code deny rules: never read .env / .env.* (docs/ops.md)
@@ -47,21 +47,25 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   red_attack.schema.json          Red ground truth (Blue never reads)
   proxy_log.schema.json           nginx log line (Blue's only input)
   challenge_snapshot.schema.json  before/after solved state (measurement)
-  verdict.schema.json             Blue verdict
+  verdict.schema.json             Blue verdict, schema_version 0.2 (verdict or no_verdict_reason)
+  verdict_v0_1.schema.json        frozen 0.1 verdict schema (golden folders; readers dispatch on version)
   rule.schema.json                single Blue rule (Stage 5.3 format: cwe + 1-3 AND-ed conditions)
   rules_file.schema.json          rules.json wrapper (cross-match memory)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
   rule_score.schema.json          rule scoring manifest
   benign_fixture.schema.json      one fact-4b fixture line
-  round_record.schema.json        Judge output
-  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.3
+  round_record.schema.json        Judge output, schema_version 0.2 (instrument_failure, verdict_source)
+  round_record_v0_1.schema.json   frozen 0.1 round-record schema
+  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.4 (blue_params)
   match_manifest_v0_1.schema.json frozen 0.1 manifest schema (validators dispatch on version)
   match_manifest_v0_2.schema.json frozen 0.2 manifest schema
+  match_manifest_v0_3.schema.json frozen 0.3 manifest schema
   api_call.schema.json            one api_calls.jsonl line (attempt or refusal)
   prices.schema.json              config/prices.json
   benign_set.schema.json          benign/benign_set.json
   benign_request.schema.json      benign ground truth (Blue never reads)
-  benign_result.schema.json       Judge fact 4a output
+  benign_result.schema.json       Judge fact 4a output, schema_version 0.2
+  benign_result_v0_1.schema.json  frozen 0.1 benign-result schema
   anomaly.schema.json             anomalies.jsonl (harness self-checks)
   landed_fact.schema.json         Judge fact-1 intermediate (Stage 2)
 config/
@@ -89,9 +93,10 @@ runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapsh
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary)
 stats/cost.py           pure cost over api_calls.jsonl + price table
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
-blue/run_blue.py        Blue v0: classify proxy-log requests (pluggable engine)
+blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude)
+blue/claude_engine.py   AI Blue (5.4): fixed prompt (PROMPT_VERSION), one stateless call per line, reply validation
 judge/fact1_landed.py   pure landed computation over artifacts (no network)
-judge/fact2_detected.py pure detected/type_correct computation (no network)
+judge/fact2_detected.py pure detected/type_correct computation; 0.1/0.2 verdicts; instrument_failure cross-check vs api_calls.jsonl
 judge/round_record.py   join fact 1 + fact 2 -> rounds.jsonl (validated)
 judge/fact4_benign.py   fact 4a: benign false positives -> benign_results.jsonl + anomalies.jsonl
 judge/rule_facts.py     facts 3 (offline replay) + 4b (benign fixture) per rule (uses rules/, never blue/)
@@ -108,11 +113,14 @@ tools/score_rules.py    score a rules file against a frozen match (never writes 
 tools/build_benign_fixture.py build / --check the fact-4b fixture from the golden match
 tools/expressiveness_check.py Part F report: scripted Blue's signatures as rules
 tools/stage5_3_rules.json     hand-written test rules; tools/stage5_3_expected.json their predictions
+tools/stage5_4_smoke.py       Gate 1: ONE real Blue call on one golden line (--real-call; designer GO only)
+tools/stage5_4_check.py       Gate 2: 3 seeded --blue claude matches, format + coverage (--real-calls; GO only)
 dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
+data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
@@ -138,6 +146,10 @@ tests/test_rule_engine.py   ops, any-form matching, RE2 speed, Part F
 tests/test_rule_facts.py    facts 3 / 4b vs the hand predictions (incl. orphan source)
 tests/test_score_rules.py   never writes into a match folder; deterministic
 tests/test_benign_fixture.py  fixture is verbatim golden proxy lines
+tests/test_anthropic_adapter.py  Anthropic adapter vs a mock transport: key/host, request settings, usage
+tests/test_blue_claude.py   AI Blue engine: prompt, information wall (D14), validation, refusals
+tests/test_instrument_failure.py  Judge cross-check, rounds/benign 0.2, stats denominators
+tests/test_run_match_blue.py  --blue claude wiring with fake Ops + fake provider
 ```
 
 ## How to run the stack
@@ -148,6 +160,7 @@ tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
 .venv/bin/python tools/stage2_check.py   # Stage 2: runner + Judge, all PASS
 .venv/bin/python tools/stage3_check.py   # Stage 3: full pipeline (Blue + round record)
 .venv/bin/python run_match.py            # one complete match -> data/runs/<match_id>/
+.venv/bin/python run_match.py --blue claude  # AI Blue: REAL, PAID calls (needs ARENA_ANTHROPIC_API_KEY)
 .venv/bin/python tools/stage4_check.py   # Stage 4: run_match + frozen-dir checks
 .venv/bin/python tools/stage5_2_check.py # Stage 5.2: 2 seeded matches, benign + reproducibility
 .venv/bin/python tools/verify_benign_set.py  # re-verify the benign set (after any set change)
@@ -182,13 +195,16 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
+- Stage 5.4 (AI Blue, Anthropic) is done: Gates 1 and 2 passed (first real calls,
+  Nov 12). Before that: Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
   fact 1; Blue v0 + Judge fact 2 + round record; `run_match.py` orchestrator +
   `match.json`; the AI body `agents/llm_client.py` + cost tracking, no real calls
   yet; benign traffic + Judge fact 4a; the rule format, RE2 rule engine and Judge
   facts 3 / 4b, tested with hand-written rules; not yet in the match pipeline). Follow the
   sub-stage map in `docs/stage5_decisions.md`; do not start a sub-stage until the
   designer asks.
+- Keep the project out of iCloud-synced folders (Desktop / Documents): `.env` holds
+  keys (`docs/ops.md`). The working copy lives in `~/dev/Sentinel-Arena`.
 - Every AI call goes through `agents/llm_client.py`. API keys only from
   `ARENA_*_API_KEY`, passed explicitly; never rely on an SDK's default variable
   (`docs/ops.md`). Model ids come from config / CLI, never hardcoded in agent logic.

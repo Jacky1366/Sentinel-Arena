@@ -3,3 +3,4 @@ jsonschema>=4.18
 pytest
 python-dotenv
 google-re2==1.1.20251105
+anthropic==2.3.0

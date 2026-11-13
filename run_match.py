@@ -1,14 +1,16 @@
-"""Sentinel Arena orchestrator: one complete scripted match, one command.
+"""Sentinel Arena orchestrator: one complete match, one command.
 
     .venv/bin/python run_match.py              # requires: docker compose up -d --wait
     .venv/bin/python run_match.py --seed 5202  # reproduce a match's schedule
+    .venv/bin/python run_match.py --blue claude   # AI Blue (Stage 5.4; real, paid calls)
 
 The orchestrator is the ONLY thing that sequences components. Components never
 call each other; each step reads and writes file artifacts (docs/contract.md).
 
   1. preflight   both containers Up, juice-shop healthy, live/ has no leftovers,
                  provenance (git commit + dirty, payload + benign-set sha256)
-                 readable, benign set valid, seed chosen (--seed or generated)
+                 readable, benign set valid, seed chosen (--seed or generated);
+                 for --blue claude: a Blue model and chunk_size 1 (D4)
   2. lock        live/match.lock (refuse if held; never auto-broken)
   3. match_id    UTC timestamp + 4 hex, e.g. 20261109T153012Z-a1b2
   4. reset       restart the Target, verify 0 solved (refuse if not clean)
@@ -20,7 +22,8 @@ call each other; each step reads and writes file artifacts (docs/contract.md).
   8. judge_fact1 -> blue -> judge_rounds -> judge_benign (fact 4a + anomalies),
                  on the FROZEN directory
   9. match.json  written LAST (status, provenance, traffic seed + schedule,
-                 models, budget, cost, sha256 of every artifact), schema_version 0.3
+                 models, blue_params, budget, cost, sha256 of every artifact),
+                 schema_version 0.4
  10. summary     a pure read of the Judge outputs + match.json: detection is
                  always printed next to the FP rate
 
@@ -36,7 +39,8 @@ finalized, and match.json says which cap in budget.stopped_by (contract §6.2).
 Key values never reach match.json or the terminal (llm_client.redact).
 
 Exit codes (docs/ops.md): 0 completed, 1 match failed, 2 preflight refused,
-3 lock held, 4 stopped by the budget. The scripted match makes no AI API calls.
+3 lock held, 4 stopped by the budget. The scripted match makes no AI API calls;
+--blue claude makes one Blue call per logged line through agents/llm_client.py.
 """
 
 from __future__ import annotations
@@ -55,7 +59,7 @@ from jsonschema import Draft202012Validator, ValidationError
 
 REPO = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO))
-from blue import run_blue  # noqa: E402
+from blue import claude_engine, run_blue  # noqa: E402
 from agents import llm_client  # noqa: E402
 from benign import send_benign  # noqa: E402
 from judge import JUDGE_VERSION, fact1_landed, fact4_benign, round_record  # noqa: E402
@@ -70,9 +74,9 @@ def _schema(name: str) -> dict:
     return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
-MANIFEST_VERSION = "0.3"
+MANIFEST_VERSION = "0.4"
 MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest_v0_2"),
-                    "0.3": _schema("match_manifest")}
+                    "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest")}
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -161,9 +165,17 @@ class Ops:
     def judge_fact1(self, match_dir: Path) -> None:
         fact1_landed.main(["--run-dir", str(match_dir)])
 
-    def blue(self, match_dir: Path, match_id: str, engine: str) -> None:
-        run_blue.main(["--engine", engine, "--match-id", match_id,
-                       "--run-dir", str(match_dir)])
+    def blue_client(self, config: dict, prices: dict) -> llm_client.LLMClient:
+        """The AI body for --blue claude: real adapters, real keys, real (paid) calls.
+        A NETWORK step: test fakes must override it."""
+        return llm_client.LLMClient(config=config, prices=prices)
+
+    def blue(self, match_dir: Path, match_id: str, engine: str, client=None,
+             model: str | None = None) -> None:
+        argv = ["--engine", engine, "--match-id", match_id, "--run-dir", str(match_dir)]
+        if model is not None:
+            argv += ["--model", model]
+        run_blue.main(argv, client=client)
 
     def judge_rounds(self, match_dir: Path) -> None:
         round_record.main(["--run-dir", str(match_dir)])
@@ -201,7 +213,7 @@ def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
 def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               runs_dir: Path = match_ops.RUNS, payloads: Path = scripted_red.PAYLOADS,
               benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
-              settle: float = 3.0, engine: str = "scripted",
+              settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               out=print) -> tuple[int, Path | None]:
     """Run one match. Returns (exit_code, match_dir or None if never started)."""
     ops = ops or Ops()
@@ -221,6 +233,20 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             "red_source": {"path": _display_path(payloads), "sha256": sha256_file(payloads)},
             "git": ops.git_info(),
         }
+        if engine not in run_blue.ENGINE_NAMES:
+            raise ValueError(f"unknown Blue engine {engine!r}")
+        if engine == "claude":
+            model = run_blue.blue_model(llm_config, blue_model)  # ConfigError: a ValueError
+            chunk = run_blue.blue_chunk_size(llm_config)
+            if chunk != 1:
+                raise ValueError(f"agents.blue.chunk_size is {chunk}: a scored match is one "
+                                 f"line per call (D4); chunk_size > 1 is for unscored runs")
+            blue_params = claude_engine.blue_params(llm_config, model, chunk)
+            models = {"red": None, "blue": {"provider": blue_params["provider"],
+                                            "model": model}, "analyst": None}
+        else:
+            model, blue_params = None, None
+            models = {"red": None, "blue": None, "analyst": None}
         traffic = {"seed": seed, "seed_source": seed_source,
                    "benign_set": {"path": _display_path(benign_set),
                                   "sha256": sha256_file(benign_set),
@@ -277,7 +303,10 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         step = "judge_fact1"
         ops.judge_fact1(match_dir)
         step = "blue"
-        ops.blue(match_dir, match_id, engine)
+        if engine == "claude":
+            ops.blue(match_dir, match_id, engine, ops.blue_client(llm_config, prices), model)
+        else:
+            ops.blue(match_dir, match_id, engine)
         step = "judge_rounds"
         ops.judge_rounds(match_dir)
         step = "judge_benign"
@@ -317,11 +346,12 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             "error": error,
             "judge_version": JUDGE_VERSION,
             "blue_engine": engine,
+            "blue_params": blue_params,
             **provenance,
             "traffic": traffic,
             "images": images,
-            # Scripted Red and Blue call no model. AI engines fill these (5.4+).
-            "models": {"red": None, "blue": None, "analyst": None},
+            # Scripted components call no model; AI Blue fills models.blue (5.4).
+            "models": models,
             "budget": {"limits": llm_client.caps_limits(llm_config), "stopped_by": stop},
             "price_table": price_ref,
             "cost": cost_stats.summarize(calls, prices),
@@ -342,23 +372,28 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
     out(match_stats.format_summary(
         match_stats.read_rounds(match_dir / "rounds.jsonl"), manifest,
         benign=match_stats.read_rounds(match_dir / fact4_benign.RESULTS),
-        anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES)))
+        anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES),
+        verdicts=match_stats.read_rounds(match_dir / "verdicts.jsonl")))
     return EXIT[manifest["status"]], match_dir
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run one complete scripted match.")
+    parser = argparse.ArgumentParser(description="Run one complete match.")
     parser.add_argument("--payloads", type=Path, default=scripted_red.PAYLOADS)
     parser.add_argument("--benign-set", type=Path, default=send_benign.BENIGN_SET)
     parser.add_argument("--seed", type=int, default=None,
                         help="schedule seed (0..2^32-1); reproduces a match's interleaving. "
                              "Without it a seed is generated and recorded in match.json")
-    parser.add_argument("--engine", choices=sorted(run_blue.ENGINES), default="scripted")
+    parser.add_argument("--blue", choices=run_blue.ENGINE_NAMES, default="scripted",
+                        help="Blue engine: scripted signatures, or claude (AI Blue: real, "
+                             "paid API calls through agents/llm_client.py)")
+    parser.add_argument("--blue-model", default=None,
+                        help="claude: model id (default: config/llm.json agents.blue.model)")
     parser.add_argument("--settle", type=float, default=3.0,
                         help="max seconds to wait for a solve to register")
     args = parser.parse_args(argv)
     code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
-                        settle=args.settle, engine=args.engine)
+                        settle=args.settle, engine=args.blue, blue_model=args.blue_model)
     return code
 
 

@@ -16,9 +16,12 @@ A model whose price entry names a different provider is a config error.
 
 Before each attempt, in order (a refusal writes a line and sends nothing):
   1. the model has a price entry          else refuse: missing_price
-  2. the provider's ARENA_* key is set    else refuse: missing_key
-  3. no earlier call left unpriced usage  else refuse: unpriced_usage
-  4. worst case fits every cap: per-agent caps, then the match total. Worst
+  2. a REAL provider's price entry is designer-verified (verified: true)
+                                          else refuse: price_unverified
+     (the fake provider is exempt; Stage 5.4)
+  3. the provider's ARENA_* key is set    else refuse: missing_key
+  4. no earlier call left unpriced usage  else refuse: unpriced_usage
+  5. worst case fits every cap: per-agent caps, then the match total. Worst
      case = input estimated from the built prompt (1 token per
      `chars_per_token` chars) + max_output_tokens, priced at the applicable
      tier. Retries count as calls (D13: a refusal is an instrument failure).
@@ -34,8 +37,15 @@ the SDK. Never an SDK's default variable: if ANTHROPIC_API_KEY were exported,
 Claude Code itself would bill that key (docs/ops.md). A key never reaches a log
 line, an artifact, an error message or exception text (`redact`).
 
+Per-agent request settings (config/llm.json agents.<agent>): an optional
+`max_output_tokens` (overrides the global one, also in the worst-case estimate)
+and an optional `request` block ({thinking, effort}) passed to the adapter, plus
+an optional per-call `output_schema` (structured outputs). They are part of the
+agent's configuration and are recorded in match.json (blue_params).
+
 SDKs are imported lazily, so tests need neither network nor keys. Pinned SDK
-versions are added when first used: Anthropic in Stage 5.4, OpenAI in 5.6.
+versions are added when first used: Anthropic in Stage 5.4 (anthropic==2.3.0),
+OpenAI in 5.6.
 """
 
 from __future__ import annotations
@@ -73,6 +83,11 @@ PROVIDERS = tuple(KEY_ENV) + ("fake",)  # "fake" only in tests
 RETRYABLE = frozenset({"timeout", "rate_limit", "server_error", "connection"})
 API_CALL_SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "api_call.schema.json").read_text(encoding="utf-8")))
+
+
+THINKING = ("disabled", "adaptive")
+EFFORTS = ("low", "medium", "high", "xhigh", "max")
+ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL is never read
 
 
 class ConfigError(ValueError):
@@ -136,6 +151,19 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
             raise ConfigError(f"agents.{agent}.provider: unknown provider {a['provider']!r}")
         if a["model"] is not None and a["provider"] is None:
             raise ConfigError(f"agents.{agent}: a model needs a provider")
+        mot = a.get("max_output_tokens")
+        if mot is not None and (isinstance(mot, bool) or not isinstance(mot, int) or mot < 1):
+            raise ConfigError(f"agents.{agent}.max_output_tokens must be a positive integer")
+        cs = a.get("chunk_size")
+        if cs is not None and (isinstance(cs, bool) or not isinstance(cs, int) or cs < 1):
+            raise ConfigError(f"agents.{agent}.chunk_size must be a positive integer")
+        req = a.get("request", {})
+        if not isinstance(req, dict) or set(req) - {"thinking", "effort"}:
+            raise ConfigError(f"agents.{agent}.request: only 'thinking' and 'effort' are allowed")
+        if req.get("thinking") not in (None, *THINKING):
+            raise ConfigError(f"agents.{agent}.request.thinking must be one of {THINKING}")
+        if req.get("effort") not in (None, *EFFORTS):
+            raise ConfigError(f"agents.{agent}.request.effort must be one of {EFFORTS}")
     caps = cfg["caps"]
     for scope in CAP_SCOPES:
         if scope not in caps:
@@ -150,6 +178,16 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
             if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float)) or v < 0):
                 raise ConfigError(f"caps.{scope}.{f} must be a non-negative number or null")
     return cfg
+
+
+def agent_max_output_tokens(cfg: dict, agent: str) -> int:
+    return cfg["agents"][agent].get("max_output_tokens") or cfg["max_output_tokens"]
+
+
+def agent_request(cfg: dict, agent: str) -> dict:
+    """{thinking, effort} for the agent (None = provider default)."""
+    req = cfg["agents"][agent].get("request") or {}
+    return {"thinking": req.get("thinking"), "effort": req.get("effort")}
 
 
 def caps_limits(cfg: dict) -> dict:
@@ -173,6 +211,8 @@ class Reply:
     text: str
     usage: Usage
     http_status: int | None = 200
+    stop_reason: str | None = None      # provider's stop reason (e.g. end_turn, refusal)
+    raw_usage: dict | None = None       # provider's usage object as reported (never stored)
 
 
 @dataclass(frozen=True)
@@ -184,6 +224,8 @@ class Result:
     error_type: str | None = None
     attempts: int = 0                   # attempts actually sent
     refusal: dict | None = None         # {scope, reason} if the body refused
+    stop_reason: str | None = None      # of the successful attempt
+    raw_usage: dict | None = None       # of the successful attempt (Gate 1 evidence)
 
 
 class Adapter(Protocol):
@@ -191,13 +233,19 @@ class Adapter(Protocol):
     needs_key: bool
 
     def call(self, *, model: str, system: str, messages: list[dict],
-             max_output_tokens: int, timeout: float, api_key: str | None) -> Reply: ...
+             max_output_tokens: int, timeout: float, api_key: str | None,
+             request: dict, output_schema: dict | None) -> Reply: ...
 
 
-# VERIFY AT FIRST REAL CALL (Stage 5.4 / 5.6): these usage mappings follow the
-# providers' documented fields, but must be checked against a real response.
-# Common rule: input_tokens = full-price input only; the whole prompt is
-# input + cached_input + cache_write.
+# Usage mappings. Common rule: input_tokens = full-price input only; the whole
+# prompt is input + cached_input + cache_write.
+# Anthropic: VERIFIED 2026-11-12 (Stage 5.4 Gate 1, designer checked the Console:
+#   885 input / 60 output) for UNCACHED, NON-THINKING calls only.
+#   STILL TO VERIFY: (a) that input_tokens excludes cache reads/writes (caching is
+#   off until 5.7, both cache fields were 0); (b) whether output_tokens includes
+#   thinking tokens (raw usage reports output_tokens_details.thinking_tokens; thinking
+#   was disabled, so 0).
+# OpenAI: VERIFY AT FIRST REAL CALL (Stage 5.6).
 
 def anthropic_usage(u: Any) -> Usage:
     """Anthropic input_tokens already EXCLUDES cache reads and cache writes."""
@@ -216,35 +264,72 @@ def openai_usage(u: Any) -> Usage:
                  cache_write_tokens=0, output_tokens=u.completion_tokens)
 
 
+def anthropic_request_kwargs(request: dict, output_schema: dict | None) -> dict:
+    """The optional Messages API fields for {thinking, effort} + structured output.
+    Sampling parameters (temperature/top_p/top_k) are never sent: Haiku 5.5 and API
+    version 2026-10-21 reject them (Stage 5.4 decision 1)."""
+    kw: dict = {}
+    if request.get("thinking") is not None:
+        kw["thinking"] = {"type": request["thinking"]}
+    output_config: dict = {}
+    if request.get("effort") is not None:
+        output_config["effort"] = request["effort"]
+    if output_schema is not None:
+        output_config["format"] = {"type": "json_schema", "schema": output_schema}
+    if output_config:
+        kw["output_config"] = output_config
+    return kw
+
+
 class AnthropicAdapter:
     provider = "anthropic"
     needs_key = True
 
-    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key):
+    def __init__(self, http_client_factory: Callable[[], Any] | None = None):
+        self.http_client_factory = http_client_factory  # tests: a mock transport
+
+    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
+             request, output_schema):
         if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
             raise ConfigError("no API key passed")
-        import anthropic  # lazy; pinned in requirements.txt in Stage 5.4
-        client = anthropic.Anthropic(api_key=api_key, timeout=timeout, max_retries=0)
+        import anthropic  # lazy; pinned in requirements.txt (anthropic==2.3.0)
+        # An explicit api_key means the SDK consults no credential env variable,
+        # profile or federation config; an explicit base_url means
+        # ANTHROPIC_BASE_URL can never redirect the key. No OpenTelemetry spans.
+        extra = {} if self.http_client_factory is None else \
+            {"http_client": self.http_client_factory()}
+        client = anthropic.Anthropic(api_key=api_key, base_url=ANTHROPIC_BASE_URL,
+                                     timeout=timeout, max_retries=0, open_telemetry=False,
+                                     **extra)
         resp = client.messages.create(model=model, system=system, messages=messages,
-                                      max_tokens=max_output_tokens)
+                                      max_tokens=max_output_tokens,
+                                      **anthropic_request_kwargs(request, output_schema))
+        # Read by block type: thinking blocks (if any) are never the answer.
         text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
-        return Reply(text=text, usage=anthropic_usage(resp.usage))
+        return Reply(text=text, usage=anthropic_usage(resp.usage),
+                     stop_reason=resp.stop_reason,
+                     raw_usage=resp.usage.model_dump(mode="json", exclude_none=True))
 
 
 class OpenAIAdapter:
     provider = "openai"
     needs_key = True
 
-    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key):
+    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
+             request, output_schema):
         if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
             raise ConfigError("no API key passed")
+        if any(v is not None for v in request.values()) or output_schema is not None:
+            raise ConfigError("request settings / output_schema are not mapped for OpenAI "
+                              "yet (Stage 5.6)")
         import openai  # lazy; pinned in requirements.txt in Stage 5.6
         client = openai.OpenAI(api_key=api_key, timeout=timeout, max_retries=0)
         resp = client.chat.completions.create(
             model=model, messages=[{"role": "system", "content": system}, *messages],
             max_completion_tokens=max_output_tokens)
         return Reply(text=resp.choices[0].message.content or "",
-                     usage=openai_usage(resp.usage))
+                     usage=openai_usage(resp.usage),
+                     stop_reason=resp.choices[0].finish_reason)
 
 
 DEFAULT_ADAPTERS: dict[str, Adapter] = {"anthropic": AnthropicAdapter(),
@@ -384,7 +469,8 @@ class LLMClient:
 
     def _refuse(self, run_dir, base: dict, refusal: dict, attempts_sent: int) -> Result:
         self._write(run_dir, {**base, "ok": False, "error_type": "refused",
-                              "http_status": None, "refusal": refusal, "input_tokens": 0,
+                              "http_status": None, "refusal": refusal, "stop_reason": None,
+                              "input_tokens": 0,
                               "cached_input_tokens": 0, "cache_write_tokens": 0,
                               "output_tokens": 0, "latency_ms": 0})
         return Result(ok=False, error=f"refused by the body: {refusal['scope']} "
@@ -394,7 +480,8 @@ class LLMClient:
     # -- the call -------------------------------------------------------------
     def complete(self, agent: str, model: str, system: str, messages: list[dict], *,
                  run_dir: Path, round: int | None = None, log_seq_first: int | None = None,
-                 log_seq_last: int | None = None, match_id: str | None = None) -> Result:
+                 log_seq_last: int | None = None, match_id: str | None = None,
+                 output_schema: dict | None = None) -> Result:
         if agent not in AGENTS:
             raise ValueError(f"unknown agent {agent!r}")
         if agent == "red" and (log_seq_first is not None or log_seq_last is not None):
@@ -414,7 +501,8 @@ class LLMClient:
         if entry is not None and entry["provider"] != provider:
             raise ConfigError(f"model {model!r} is priced as {entry['provider']}, but "
                               f"{agent} is configured for {provider}")
-        max_out = self.cfg["max_output_tokens"]
+        max_out = agent_max_output_tokens(self.cfg, agent)
+        request = agent_request(self.cfg, agent)
         attempts_sent = 0
 
         for attempt in range(1, self.cfg["max_retries"] + 2):
@@ -422,6 +510,10 @@ class LLMClient:
                               log_seq_first, log_seq_last, attempt, prompt_sha)
             if entry is None:
                 return self._refuse(run_dir, base, {"scope": agent, "reason": "missing_price"},
+                                    attempts_sent)
+            if provider != "fake" and entry.get("verified") is not True:
+                return self._refuse(run_dir, base,
+                                    {"scope": agent, "reason": "price_unverified"},
                                     attempts_sent)
             adapter = self.adapters.get(provider)
             if adapter is None:
@@ -442,12 +534,14 @@ class LLMClient:
             try:
                 reply = adapter.call(model=model, system=system, messages=messages,
                                      max_output_tokens=max_out,
-                                     timeout=self.cfg["timeout_s"], api_key=key)
+                                     timeout=self.cfg["timeout_s"], api_key=key,
+                                     request=request, output_schema=output_schema)
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
                 latency = max(0, round_ms(self.clock() - t0))
                 kind, status, retry_after = classify(exc)
                 self._write(run_dir, {**base, "ok": False, "error_type": kind,
                                       "http_status": status, "refusal": None,
+                                      "stop_reason": None,
                                       "input_tokens": None, "cached_input_tokens": None,
                                       "cache_write_tokens": None, "output_tokens": None,
                                       "latency_ms": latency})
@@ -465,11 +559,13 @@ class LLMClient:
             u = reply.usage
             self._write(run_dir, {**base, "ok": True, "error_type": None,
                                   "http_status": reply.http_status, "refusal": None,
+                                  "stop_reason": reply.stop_reason,
                                   "input_tokens": u.input_tokens,
                                   "cached_input_tokens": u.cached_input_tokens,
                                   "cache_write_tokens": u.cache_write_tokens,
                                   "output_tokens": u.output_tokens, "latency_ms": latency})
-            return Result(ok=True, text=reply.text, usage=u, attempts=attempts_sent)
+            return Result(ok=True, text=reply.text, usage=u, attempts=attempts_sent,
+                          stop_reason=reply.stop_reason, raw_usage=reply.raw_usage)
         raise AssertionError("unreachable")
 
 

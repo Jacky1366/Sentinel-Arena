@@ -372,7 +372,8 @@ def test_key_read_from_dotenv_when_not_in_environment(tmp_path):
 def test_real_adapters_refuse_to_call_without_an_explicit_key(adapter):
     with pytest.raises(lc.ConfigError):
         adapter.call(model="m", system="s", messages=[], max_output_tokens=1, timeout=1,
-                     api_key=None)
+                     api_key=None, request={"thinking": None, "effort": None},
+                     output_schema=None)
 
 
 def test_key_env_names_are_arena_prefixed():
@@ -447,3 +448,114 @@ def test_position_fields_follow_the_agent(tmp_path, agent, kw):
     client, _ = make_client()
     with pytest.raises(ValueError):
         client.complete(agent, "fake-small", SYSTEM, MESSAGES, run_dir=run_dir(tmp_path), **kw)
+
+
+# ---- Stage 5.4: price verification, per-agent request settings, stop_reason ----
+
+def test_unverified_price_refuses_a_real_provider_before_the_key(tmp_path):
+    d = run_dir(tmp_path)
+    adapter = FakeAdapter(provider="anthropic", needs_key=True)
+    client, _ = make_client(adapter, env={"ARENA_ANTHROPIC_API_KEY": "arena-test-value-3"},
+                            tmp_path=tmp_path)
+    r = blue(client, d, model="fake-keyed-unverified")
+    assert r.refusal == {"scope": "blue", "reason": "price_unverified"}
+    assert adapter.calls == [] and r.attempts == 0
+    [line] = lines(d)
+    assert line["refusal"]["reason"] == "price_unverified" and line["stop_reason"] is None
+
+
+def test_unverified_price_is_checked_after_missing_price_and_before_missing_key(tmp_path):
+    d = run_dir(tmp_path)
+    adapter = FakeAdapter(provider="anthropic", needs_key=True)
+    client, _ = make_client(adapter, tmp_path=tmp_path)  # no key at all
+    assert blue(client, d, model="fake-keyed-unverified").refusal["reason"] == \
+        "price_unverified"
+    assert blue(client, d, model="no-such-model").refusal["reason"] == "missing_price"
+
+
+def test_fake_provider_is_exempt_from_price_verification(tmp_path):
+    d = run_dir(tmp_path)
+    assert PRICES["models"]["fake-small"]["verified"] is False
+    client, _ = make_client()
+    assert blue(client, d).ok
+
+
+def test_committed_config_blue_settings():
+    cfg = lc.load_config()
+    assert lc.agent_max_output_tokens(cfg, "blue") == 256
+    assert lc.agent_max_output_tokens(cfg, "red") == cfg["max_output_tokens"] == 1024
+    assert lc.agent_request(cfg, "blue") == {"thinking": "disabled", "effort": "low"}
+    assert lc.agent_request(cfg, "red") == {"thinking": None, "effort": None}
+    assert cfg["agents"]["blue"]["chunk_size"] == 1
+
+
+def test_per_agent_settings_reach_the_adapter_and_the_worst_case(tmp_path):
+    d = run_dir(tmp_path)
+    cfg = config()
+    cfg["agents"]["blue"].update(max_output_tokens=7,
+                                 request={"thinking": "disabled", "effort": "low"})
+    adapter = FakeAdapter()
+    client, _ = make_client(adapter, cfg=cfg)
+    schema = {"type": "object"}
+    assert blue(client, d, output_schema=schema).ok
+    kw = adapter.calls[0]
+    assert kw["max_output_tokens"] == 7 and kw["output_schema"] == schema
+    assert kw["request"] == {"thinking": "disabled", "effort": "low"}
+    red(client, d)
+    assert adapter.calls[1]["max_output_tokens"] == 100  # global value
+    assert adapter.calls[1]["request"] == {"thinking": None, "effort": None}
+    assert adapter.calls[1]["output_schema"] is None
+
+
+def test_worst_case_uses_the_agent_max_output_tokens(tmp_path):
+    d = run_dir(tmp_path)
+    est_in = -(-len(lc.canonical_prompt("fake-small", SYSTEM, MESSAGES)) // 3)
+    cfg = config(blue={"max_tokens": est_in + 10})
+    cfg["agents"]["blue"]["max_output_tokens"] = 10
+    client, _ = make_client(cfg=cfg)
+    assert blue(client, d).ok  # fits exactly with the per-agent 10 (global 100 would not)
+
+
+@pytest.mark.parametrize("over,msg", [
+    ({"max_output_tokens": 0}, "max_output_tokens"),
+    ({"max_output_tokens": True}, "max_output_tokens"),
+    ({"chunk_size": 0}, "chunk_size"),
+    ({"request": {"temperature": 0}}, "only 'thinking' and 'effort'"),
+    ({"request": {"thinking": "enabled"}}, "thinking"),
+    ({"request": {"effort": "extreme"}}, "effort"),
+])
+def test_config_rejects_bad_agent_settings(tmp_path, over, msg):
+    cfg = json.loads(lc.CONFIG_PATH.read_text())
+    cfg["agents"]["blue"].update(over)
+    p = tmp_path / "llm.json"
+    p.write_text(json.dumps(cfg))
+    with pytest.raises(lc.ConfigError, match=msg):
+        lc.load_config(p)
+
+
+def test_stop_reason_and_raw_usage_are_carried(tmp_path):
+    d = run_dir(tmp_path)
+    adapter = FakeAdapter()
+    adapter.call = lambda **kw: lc.Reply(text="", usage=lc.Usage(3, 0, 0, 1),
+                                         stop_reason="refusal", raw_usage={"input_tokens": 3})
+    client, _ = make_client(adapter)
+    r = blue(client, d)
+    assert r.ok and r.stop_reason == "refusal" and r.raw_usage == {"input_tokens": 3}
+    [line] = lines(d)
+    assert line["ok"] is True and line["stop_reason"] == "refusal"
+    assert "raw_usage" not in line  # never stored in api_calls.jsonl
+
+
+def test_failed_attempt_has_null_stop_reason(tmp_path):
+    d = run_dir(tmp_path)
+    client, _ = make_client(FakeAdapter([APITimeoutError("slow")]))
+    blue(client, d)
+    assert lines(d)[0]["stop_reason"] is None
+
+
+def test_openai_adapter_refuses_unmapped_request_settings():
+    with pytest.raises(lc.ConfigError, match="not mapped"):
+        lc.OpenAIAdapter().call(model="m", system="s", messages=[], max_output_tokens=1,
+                                timeout=1, api_key="k", request={"thinking": "disabled",
+                                                                 "effort": None},
+                                output_schema=None)

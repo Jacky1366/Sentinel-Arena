@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/match_manifest.schema.json",
-  "title": "Match manifest (schema_version 0.2; contract 6.2)",
-  "description": "data/runs/<match_id>/match.json, schema_version 0.3 (Stage 5.2 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. Older manifests are validated by match_manifest_v0_1 / v0_2.schema.json.",
+  "title": "Match manifest (schema_version 0.4; contract 6.2)",
+  "description": "data/runs/<match_id>/match.json, schema_version 0.4 (Stage 5.4 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,7 +23,8 @@
     "budget",
     "price_table",
     "cost",
-    "traffic"
+    "traffic",
+    "blue_params"
   ],
   "$defs": {
     "utc": {
@@ -210,7 +211,7 @@
   },
   "properties": {
     "schema_version": {
-      "const": "0.3"
+      "const": "0.4"
     },
     "match_id": {
       "type": "string",
@@ -254,7 +255,8 @@
     },
     "blue_engine": {
       "enum": [
-        "scripted"
+        "scripted",
+        "claude"
       ]
     },
     "red_source": {
@@ -412,6 +414,7 @@
                     "max_usd",
                     "unpriced_usage",
                     "missing_price",
+                    "price_unverified",
                     "missing_key"
                   ]
                 }
@@ -574,6 +577,129 @@
           }
         }
       }
+    },
+    "blue_params": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "model",
+            "chunk_size",
+            "prompt_version",
+            "system_prompt_sha256",
+            "sdk",
+            "request"
+          ],
+          "properties": {
+            "provider": {
+              "enum": [
+                "openai",
+                "anthropic",
+                "gemini",
+                "fake"
+              ]
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "chunk_size": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "prompt_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "system_prompt_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "sdk": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "package",
+                    "version"
+                  ],
+                  "properties": {
+                    "package": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              ]
+            },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "max_output_tokens",
+                "thinking",
+                "effort",
+                "output_format",
+                "temperature",
+                "temperature_note"
+              ],
+              "properties": {
+                "max_output_tokens": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "thinking": {
+                  "enum": [
+                    null,
+                    "disabled",
+                    "adaptive"
+                  ]
+                },
+                "effort": {
+                  "enum": [
+                    null,
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                },
+                "output_format": {
+                  "enum": [
+                    "json_schema",
+                    "none"
+                  ]
+                },
+                "temperature": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "temperature_note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "allOf": [
@@ -640,6 +766,44 @@
           "budget": {
             "properties": {
               "stopped_by": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "comment": "scripted Blue has no model and no blue_params; claude Blue has both",
+      "if": {
+        "properties": {
+          "blue_engine": {
+            "const": "scripted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "blue_params": {
+            "type": "null"
+          },
+          "models": {
+            "properties": {
+              "blue": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "blue_params": {
+            "type": "object"
+          },
+          "models": {
+            "properties": {
+              "blue": {
                 "type": "object"
               }
             }

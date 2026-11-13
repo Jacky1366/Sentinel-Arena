@@ -63,7 +63,7 @@ def test_type_accuracy_only_over_detected():
 
 def test_counts():
     assert ms.counts(MIXED) == {"rounds": 7, "orphan": 1, "no_verdict": 1,
-                                "snapshot_missing": 1, "not_measurable": 1,
+                                "instrument_failure": 0, "snapshot_missing": 1, "not_measurable": 1,
                                 "already_solved": 1}
 
 

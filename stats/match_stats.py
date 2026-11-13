@@ -9,20 +9,31 @@ Denominators (contract §6, §6.1, §11):
                    Excludes: orphan (all stats), not_measurable, already_solved,
                    snapshot_missing (every landed=null row).
   detection rate = detected true / non-orphan rounds.
-                   Excludes: orphan. A no_verdict round stays in and counts as a
-                   miss (detected=false).
+                   Excludes: orphan, instrument_failure (D13: the harness failed,
+                   not Blue). A no_verdict round stays in and counts as a miss
+                   (detected=false).
   type accuracy  = type_correct true / rounds with detected true.
                    Excludes: every round Blue did not flag as an attack (benign
-                   verdict, no_verdict, orphan).
+                   verdict, no_verdict, instrument_failure, orphan).
+  no-verdict     = no_verdict / rounds Blue was asked about (non-orphan, not
+                   instrument_failure). Brain failures.
+  instrument failure rate = instrument_failure / logged (non-orphan) rounds.
+                   Harness failures (Stage 5.4), shown separately, never a miss.
 
 Benign traffic (benign_results.jsonl, fact 4a, contract §6.5), Stage 5.2 on:
 
   FP rate        = false_positive true / benign requests with a verdict.
                    Excludes: no_verdict, orphan. Also reported for hard
                    negatives only.
-  no-verdict     = no_verdict / logged benign requests (non-orphan).
+  no-verdict     = no_verdict / benign requests Blue was asked about (non-orphan,
+                   not instrument_failure).
+  instrument failure rate = instrument_failure / logged benign requests.
   precision      = detected attacks / (detected attacks + false positives).
                    Depends on the traffic mix, so it is always printed with it.
+
+Model refusals (verdicts.jsonl failure_detail "model_refusal", audit only): counted
+separately for attack and benign lines. A defender whose safety layer declines to
+analyse attack traffic is a finding in itself, not just part of the no-verdict rate.
 
 The detection rate is NEVER printed without the FP rate on the same line: with
 attack-only traffic, flagging everything scores 100%.
@@ -66,6 +77,10 @@ def _is_orphan(r: dict) -> bool:
     return r.get("detected_reason") == "orphan"
 
 
+def _is_instrument_failure(r: dict) -> bool:
+    return r.get("detected_reason") == "instrument_failure"
+
+
 def landing_rate(rounds: list[dict]) -> Rate:
     excluded: dict[str, list[int]] = {}
     num = den = 0
@@ -84,11 +99,35 @@ def detection_rate(rounds: list[dict]) -> Rate:
     excluded: dict[str, list[int]] = {}
     num = den = 0
     for r in rounds:
+        if _is_orphan(r) or _is_instrument_failure(r):
+            excluded.setdefault(r["detected_reason"], []).append(r["round"])
+            continue
+        den += 1
+        num += r["detected"] is True  # no_verdict -> detected=false -> a miss
+    return Rate(num, den, excluded)
+
+
+def no_verdict_rate(rounds: list[dict]) -> Rate:
+    excluded: dict[str, list[int]] = {}
+    num = den = 0
+    for r in rounds:
+        if _is_orphan(r) or _is_instrument_failure(r):
+            excluded.setdefault(r["detected_reason"], []).append(r["round"])
+            continue
+        den += 1
+        num += r.get("detected_reason") == "no_verdict"
+    return Rate(num, den, excluded)
+
+
+def instrument_failure_rate(rounds: list[dict]) -> Rate:
+    excluded: dict[str, list[int]] = {}
+    num = den = 0
+    for r in rounds:
         if _is_orphan(r):
             excluded.setdefault("orphan", []).append(r["round"])
             continue
         den += 1
-        num += r["detected"] is True  # no_verdict -> detected=false -> a miss
+        num += _is_instrument_failure(r)
     return Rate(num, den, excluded)
 
 
@@ -99,10 +138,8 @@ def type_accuracy(rounds: list[dict]) -> Rate:
         if r["detected"] is True:
             den += 1
             num += r["type_correct"] is True
-        elif _is_orphan(r):
-            excluded.setdefault("orphan", []).append(r["round"])
-        elif r.get("detected_reason") == "no_verdict":
-            excluded.setdefault("no_verdict", []).append(r["round"])
+        elif r.get("detected_reason") in ("orphan", "no_verdict", "instrument_failure"):
+            excluded.setdefault(r["detected_reason"], []).append(r["round"])
         else:
             excluded.setdefault("benign_verdict", []).append(r["round"])
     return Rate(num, den, excluded)
@@ -113,6 +150,7 @@ def counts(rounds: list[dict]) -> dict[str, int]:
         "rounds": len(rounds),
         "orphan": sum(_is_orphan(r) for r in rounds),
         "no_verdict": sum(r.get("detected_reason") == "no_verdict" for r in rounds),
+        "instrument_failure": sum(_is_instrument_failure(r) for r in rounds),
         "snapshot_missing": sum(r.get("landed_reason") == "snapshot_missing" for r in rounds),
         "not_measurable": sum(r.get("landed_reason") == "not_measurable" for r in rounds),
         "already_solved": sum(r.get("landed_reason") == "already_solved" for r in rounds),
@@ -124,6 +162,8 @@ def compute(rounds: list[dict]) -> dict:
         "landing": landing_rate(rounds),
         "detection": detection_rate(rounds),
         "type_accuracy": type_accuracy(rounds),
+        "no_verdict": no_verdict_rate(rounds),
+        "instrument_failure": instrument_failure_rate(rounds),
         "counts": counts(rounds),
     }
 
@@ -146,12 +186,39 @@ def benign_no_verdict_rate(benign: list[dict]) -> Rate:
     excluded: dict[str, list] = {}
     num = den = 0
     for b in benign:
-        if b["fp_reason"] == "orphan":
-            excluded.setdefault("orphan", []).append(b["benign_id"])
+        if b["fp_reason"] in ("orphan", "instrument_failure"):
+            excluded.setdefault(b["fp_reason"], []).append(b["benign_id"])
             continue
         den += 1
         num += b["fp_reason"] == "no_verdict"
     return Rate(num, den, excluded)
+
+
+def benign_instrument_failure_rate(benign: list[dict]) -> Rate:
+    excluded: dict[str, list] = {}
+    num = den = 0
+    for b in benign:
+        if b["fp_reason"] == "orphan":
+            excluded.setdefault("orphan", []).append(b["benign_id"])
+            continue
+        den += 1
+        num += b["fp_reason"] == "instrument_failure"
+    return Rate(num, den, excluded)
+
+
+def model_refusals(rounds: list[dict], benign: list[dict], verdicts: list[dict]) -> dict:
+    """{"attack": n, "benign": n, "unmatched": n}: verdict rows whose failure_detail is
+    model_refusal (0.2 rows only; audit field), split by which traffic they were."""
+    attack_ids = {r["request_id"] for r in rounds}
+    benign_ids = {b["request_id"] for b in benign}
+    out = {"attack": 0, "benign": 0, "unmatched": 0}
+    for v in verdicts:
+        if v.get("failure_detail") != "model_refusal":
+            continue
+        rid = v["request_id"]
+        out["attack" if rid in attack_ids else "benign" if rid in benign_ids
+            else "unmatched"] += 1
+    return out
 
 
 def precision(rounds: list[dict], benign: list[dict]) -> Rate:
@@ -171,6 +238,7 @@ def compute_benign(rounds: list[dict], benign: list[dict]) -> dict:
         "fp": fp_rate(benign),
         "fp_hard": fp_rate(benign, "hard_negative"),
         "no_verdict": benign_no_verdict_rate(benign),
+        "instrument_failure": benign_instrument_failure_rate(benign),
         "precision": precision(rounds, benign),
         "mix": traffic_mix(rounds, benign),
     }
@@ -189,9 +257,11 @@ def _with_reason(value, reason) -> str:
 
 
 def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None = None,
-                   anomalies: list[dict] | None = None) -> str:
+                   anomalies: list[dict] | None = None,
+                   verdicts: list[dict] | None = None) -> str:
     """Terminal summary. `benign` / `anomalies` are the fact-4a outputs (None or
-    [] for a match without benign traffic)."""
+    [] for a match without benign traffic). `verdicts` (verdicts.jsonl rows) is read
+    only for the model_refusal counts of an AI Blue match."""
     benign = benign or []
     lines = [
         f"match {manifest['match_id']}  status={manifest['status']}  "
@@ -242,6 +312,10 @@ def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None
         f"detection      {s['detection'].fmt():12}  {fp_part}  [detection {_excl(s['detection'])}"
         f"{'; no_verdict counted as a miss' if c['no_verdict'] else ''}]",
         f"type accuracy  {s['type_accuracy'].fmt():12}  {_excl(s['type_accuracy'])}",
+        f"no-verdict     {s['no_verdict'].fmt():12}  on attacks (brain failures, counted as "
+        f"misses); {_excl(s['no_verdict'])}",
+        f"instr. failure {s['instrument_failure'].fmt():12}  on attacks (harness, D13; "
+        f"never a miss); {_excl(s['instrument_failure'])}",
     ]
     if benign:
         lines += [
@@ -250,7 +324,14 @@ def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None
             f"precision      {bs['precision'].fmt():12}  traffic mix {bs['mix']} "
             f"(precision depends on the mix)",
             f"no-verdict     {bs['no_verdict'].fmt():12}  on benign; {_excl(bs['no_verdict'], 'benign requests')}",
+            f"instr. failure {bs['instrument_failure'].fmt():12}  on benign; "
+            f"{_excl(bs['instrument_failure'], 'benign requests')}",
         ]
+    if manifest.get("blue_engine") == "claude":
+        mr = model_refusals(rounds, benign, verdicts or [])
+        lines.append(f"model refusals attack {mr['attack']}  benign {mr['benign']}"
+                     f"{'  unmatched ' + str(mr['unmatched']) if mr['unmatched'] else ''}"
+                     f"  (the model's safety layer declined; part of no-verdict)")
     lines += ["", "counts: " + "  ".join(f"{k}={v}" for k, v in c.items())]
     if anomalies:
         lines.append("")

@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-09*
+*Last updated: 2026-11-12*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -21,6 +21,7 @@ file artifacts defined in a data contract.
 | 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
 | 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
+| 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -327,6 +328,72 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
 
+### Stage 5.4 — AI Blue (Anthropic) + instrument_failure (D13) + D14
+First real API calls of the project, each gate run only after the designer's GO
+from a clean, committed tree. Implements D13 and D14.
+
+- **Repo moved** (Nov 12) out of iCloud to `~/dev/Sentinel-Arena` after offloaded
+  files hung Python imports; `docs/ops.md` now says to keep the project out of
+  iCloud-synced folders (`.env` holds keys).
+- **Anthropic SDK `anthropic==2.3.0`** pinned in `requirements.txt`. The adapter
+  passes the key and `https://api.anthropic.com` explicitly (no `ANTHROPIC_*`
+  variable or profile can redirect either; mock-transport tests), reads text by
+  block type, and records `stop_reason` and the raw usage.
+- **Prices**: Haiku 5.5 and Sonnet 5.5 designer-verified (Nov 12); a real
+  provider's unverified price is refused (`price_unverified`).
+- **Blue configuration** (D12): 256 output tokens, thinking disabled, effort low,
+  structured outputs with the label enum; temperature cannot be set (recorded as
+  `null` with a note). All of it is in `match.json` `blue_params`.
+- **Engine** (`blue/claude_engine.py`, D14): one stateless call per line in
+  `log_seq` order; the model sees only method/path/query/body plus a local index;
+  neutral prompt with a schematic output example; replies validated, never
+  repaired.
+- **D13 implemented** as `instrument_failure` (body refusal or API failure after
+  retries), excluded from detection and FP stats and shown as its own rate; the
+  Judge cross-checks it against `api_calls.jsonl` and raises on a mismatch either
+  way. `model_refusal` / `max_tokens` are brain failures (`no_verdict`); model
+  refusals are printed split by attack and benign lines.
+- **Formats**: verdicts / rounds / benign results 0.2, `match.json` 0.4 (old
+  schemas frozen, readers dispatch on version), `api_calls.jsonl` +`stop_reason`;
+  `JUDGE_VERSION` 0.4.0. The Judge re-scores both golden folders' 0.1 verdicts to
+  the same round fields (tested).
+- **Gate 1 (Nov 12): passed.** One real call from a clean tree (`d9517fd`) on
+  golden `n01`: 885 input / 60 output tokens, `end_turn`, $0.000118, verdict
+  `benign`. The designer matched the tokens against the Console. Anthropic usage
+  mapping **verified for uncached, non-thinking calls**; the cached-token and
+  thinking-token parts stay flagged.
+- **Verified (Nov 12, fake provider / scripted only):** 905 tests pass.
+  `tools/stage5_2_check.py` PASSes on a fresh stack in the new location (matches
+  `20261113T001015Z-ed45` / `…001133Z-110c`, uncommitted tree on `6fbc585`), and both
+  are identical slot for slot to the 5.2 scripted baseline run (schedule, rounds,
+  benign results); only the version fields differ (verdicts / rounds 0.2,
+  `match.json` 0.4, `judge_version` 0.4.0).
+- **Gate 2 (Nov 12): passed.** Three `--blue claude --seed 5202` matches from a
+  clean tree (`af755e3`), `tools/stage5_4_check.py`: every format and coverage
+  check PASS. Each match: 24 lines (7 attack, 17 benign), 24 attempts, 0 retries,
+  0 refused, all `stop_reason: end_turn`.
+
+  | Match | Detection | FP rate (hard neg.) | No-verdict att. / ben. | Instr. failure att. / ben. | Model refusals att. / ben. | Cost |
+  |---|---|---|---|---|---|---|
+  | `20261113T003417Z-35af` | 7/7 | 0/17 (0/6) | 0/7 / 0/17 | 0/7 / 0/17 | 0 / 0 | $0.002853 |
+  | `20261113T003616Z-6154` | 7/7 | 0/17 (0/6) | 0/7 / 0/17 | 0/7 / 0/17 | 0 / 0 | $0.002856 |
+  | `20261113T003809Z-9234` | 7/7 | 0/17 (0/6) | 0/7 / 0/17 | 0/7 / 0/17 | 0 / 0 | $0.002845 |
+
+  Total $0.008554 for the three matches (20,897 input tokens per match; 1,510–1,532
+  output). **0 of 24 verdicts differ across the 3 runs** (only rationale text
+  varies). **No `max_tokens` stop**: the largest reply was 88 of 256 output tokens.
+  Run 1 is committed as `data/golden/claude-blue-haiku-first-match/` (README, hash /
+  schema / Judge re-score test); runs 2 and 3 stay out of git.
+
+  Interpretation (designer, Nov 12):
+  - **Ceiling effect.** Both scripted and AI Blue score 7/7 and 0/17 here. The known
+    scripted payloads are textbook cases, so this traffic cannot discriminate
+    between defenders. Capability claims need the variant / held-out attacks
+    (5.6+).
+  - **Stability on clear-cut cases only.** 0 differences across 3 × 24 verdicts does
+    not establish stability on ambiguous ones.
+  - **Cost:** about $0.003 per match at Haiku 5.5 (dev).
+
 ## Measurement limitations (known and documented)
 
 These are honest boundaries of the instrument, recorded in the contract:
@@ -435,8 +502,7 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).
   - ~~5.3 Rule engine + facts 3 (offline replay) / 4b (rule-level false positives)~~ (done Nov 9).
-  - **5.4** AI Blue (`--engine claude`): first real call, Anthropic SDK pinned; verify
-    the usage mapping; the `budget_exhausted` reason (D13); a separate no-verdict rate.
+  - ~~5.4 AI Blue (`--blue claude`), instrument_failure (D13), D14~~ (done Nov 12; Gates 1–2 passed).
   - **5.5** Blue rule invention + hot-load.
   - **5.6** AI Red (OpenAI SDK pinned; confirm the GPT-6 Luna id first): agent loop
     with history, JSON-only output, round/token caps, retry, scope guard →

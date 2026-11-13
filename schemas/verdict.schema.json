@@ -1,20 +1,192 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/verdict.schema.json",
-  "title": "Blue verdict (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/verdicts.jsonl. Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round (the Judge joins on request_id and takes round from Red). 'reason' is for humans only; the Judge never reads it.",
+  "title": "Blue verdict (contract 4, schema_version 0.2)",
+  "description": "One line of data/runs/<match_id>/verdicts.jsonl, exactly one per judged proxy line (Stage 5.4 on). Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round. Either a verdict (verdict + source) or the reason there is none (no_verdict_reason + failure_detail). no_verdict: the brain produced no usable answer (a miss on attacks). instrument_failure: the harness failed (body refusal or API failure after retries, D13); the Judge cross-checks it against api_calls.jsonl and excludes it from detection and FP stats. failure_detail is audit-only: the Judge reads only no_verdict_reason. 'reason' and 'rationale' are for humans only. 0.1 verdicts are validated by verdict_v0_1.schema.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "match_id", "log_seq", "request_id", "verdict", "reason"],
+  "required": [
+    "schema_version",
+    "match_id",
+    "log_seq",
+    "request_id",
+    "verdict",
+    "source",
+    "no_verdict_reason",
+    "failure_detail",
+    "reason"
+  ],
   "properties": {
-    "schema_version": { "const": "0.1" },
-    "match_id": { "type": "string", "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$" },
-    "log_seq": { "type": "integer", "minimum": 1 },
+    "schema_version": {
+      "const": "0.2"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "log_seq": {
+      "type": "integer",
+      "minimum": 1
+    },
     "request_id": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
-    "verdict": { "enum": ["CWE-89", "CWE-79", "CWE-22", "benign"] },
-    "reason": { "type": "string" }
-  }
+    "verdict": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        "benign",
+        null
+      ]
+    },
+    "source": {
+      "enum": [
+        "signature",
+        "ai",
+        null
+      ]
+    },
+    "no_verdict_reason": {
+      "enum": [
+        null,
+        "no_verdict",
+        "instrument_failure"
+      ]
+    },
+    "failure_detail": {
+      "enum": [
+        null,
+        "invalid_json",
+        "invalid_shape",
+        "missing_index",
+        "duplicate_index",
+        "unknown_index",
+        "unknown_label",
+        "model_refusal",
+        "max_tokens",
+        "refused_by_body",
+        "api_error"
+      ]
+    },
+    "rationale": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "comment": "a verdict carries its source and no reason; no verdict carries a reason and a detail",
+      "if": {
+        "properties": {
+          "verdict": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source": {
+            "const": null
+          },
+          "no_verdict_reason": {
+            "enum": [
+              "no_verdict",
+              "instrument_failure"
+            ]
+          },
+          "failure_detail": {
+            "type": "string"
+          }
+        },
+        "not": {
+          "required": [
+            "rationale"
+          ]
+        }
+      },
+      "else": {
+        "properties": {
+          "source": {
+            "enum": [
+              "signature",
+              "ai"
+            ]
+          },
+          "no_verdict_reason": {
+            "const": null
+          },
+          "failure_detail": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "comment": "failure_detail belongs to its reason",
+      "if": {
+        "properties": {
+          "no_verdict_reason": {
+            "const": "no_verdict"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "failure_detail": {
+            "enum": [
+              "invalid_json",
+              "invalid_shape",
+              "missing_index",
+              "duplicate_index",
+              "unknown_index",
+              "unknown_label",
+              "model_refusal",
+              "max_tokens"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "no_verdict_reason": {
+            "const": "instrument_failure"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "failure_detail": {
+            "enum": [
+              "refused_by_body",
+              "api_error"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "comment": "a signature verdict has no rationale",
+      "if": {
+        "properties": {
+          "source": {
+            "const": "signature"
+          }
+        }
+      },
+      "then": {
+        "not": {
+          "required": [
+            "rationale"
+          ]
+        }
+      }
+    }
+  ]
 }
