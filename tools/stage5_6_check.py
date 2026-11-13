@@ -102,12 +102,28 @@ def report_match(match_dir: Path) -> None:
     for a in mism:
         print(f"  ANOMALY label_mismatch round {a['detail']['round']} "
               f"{a['detail']['label']} -> {a['detail']['conflicts']}")
-    print("  --- every attack (manual label audit, D5) ---")
-    for rnd in sorted(attacks):
-        a = attacks[rnd]
-        print(f"  round {rnd} [{a['label']}] {a['method']} {a['endpoint']}")
-        print(f"    payload: {a['payload'][:200]}")
-        print(f"    rationale: {a['rationale']}")
+    # Every slot in round order: sent attacks and unsent proposals both, for the
+    # manual label audit (D5). Guard blocks carry the model's proposed request.
+    by_round = {r: ("sent", a) for r, a in attacks.items()}
+    for u in guard:
+        by_round[u["round"]] = ("unsent", u)
+    print("  --- every attack and proposal (manual label audit, D5) ---")
+    for rnd in sorted(by_round):
+        how, x = by_round[rnd]
+        if how == "sent":
+            print(f"  round {rnd} SENT   [{x['label']}] {x['method']} {x['endpoint']}")
+            print(f"    body: {x['payload'][:300]}")
+            print(f"    rationale: {x['rationale']}")
+        else:
+            prop = x.get("proposed")
+            tag = f"{x['kind']}/{x['reason']}"
+            if prop is None:  # brain / instrument failure: no usable proposal
+                print(f"  round {rnd} UNSENT [{tag}] (no proposal: {x.get('detail') or ''})")
+            else:
+                print(f"  round {rnd} UNSENT [{tag}] [{prop['label']}] {prop['method']} "
+                      f"{prop['path'][:200]}")
+                print(f"    body: {prop['body'][:300]}")
+                print(f"    rationale: {prop['rationale']}")
 
 
 def main(argv: list[str] | None = None) -> int:
