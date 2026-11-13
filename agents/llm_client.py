@@ -237,10 +237,15 @@ class Adapter(Protocol):
              request: dict, output_schema: dict | None) -> Reply: ...
 
 
-# VERIFY AT FIRST REAL CALL (Stage 5.4 / 5.6): these usage mappings follow the
-# providers' documented fields, but must be checked against a real response.
-# Common rule: input_tokens = full-price input only; the whole prompt is
-# input + cached_input + cache_write.
+# Usage mappings. Common rule: input_tokens = full-price input only; the whole
+# prompt is input + cached_input + cache_write.
+# Anthropic: VERIFIED 2026-11-12 (Stage 5.4 Gate 1, designer checked the Console:
+#   885 input / 60 output) for UNCACHED, NON-THINKING calls only.
+#   STILL TO VERIFY: (a) that input_tokens excludes cache reads/writes (caching is
+#   off until 5.7, both cache fields were 0); (b) whether output_tokens includes
+#   thinking tokens (raw usage reports output_tokens_details.thinking_tokens; thinking
+#   was disabled, so 0).
+# OpenAI: VERIFY AT FIRST REAL CALL (Stage 5.6).
 
 def anthropic_usage(u: Any) -> Usage:
     """Anthropic input_tokens already EXCLUDES cache reads and cache writes."""
