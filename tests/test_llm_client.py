@@ -484,13 +484,16 @@ def test_fake_provider_is_exempt_from_price_verification(tmp_path):
     assert blue(client, d).ok
 
 
-def test_committed_config_blue_settings():
+def test_committed_config_blue_and_red_settings():
     cfg = lc.load_config()
+    assert cfg["max_output_tokens"] == 1024  # the global default
     assert lc.agent_max_output_tokens(cfg, "blue") == 256
-    assert lc.agent_max_output_tokens(cfg, "red") == cfg["max_output_tokens"] == 1024
+    assert lc.agent_max_output_tokens(cfg, "red") == 2048  # Red overrides the global
     assert lc.agent_request(cfg, "blue") == {"thinking": "disabled", "effort": "low"}
-    assert lc.agent_request(cfg, "red") == {"thinking": None, "effort": None}
+    assert lc.agent_request(cfg, "red") == {"thinking": None, "effort": "low"}
     assert cfg["agents"]["blue"]["chunk_size"] == 1
+    assert cfg["agents"]["red"]["model"] == "gpt-6-luna"
+    assert cfg["agents"]["red"]["round_cap"] == 10
 
 
 def test_per_agent_settings_reach_the_adapter_and_the_worst_case(tmp_path):

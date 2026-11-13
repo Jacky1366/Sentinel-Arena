@@ -159,6 +159,9 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         cs = a.get("chunk_size")
         if cs is not None and (isinstance(cs, bool) or not isinstance(cs, int) or cs < 1):
             raise ConfigError(f"agents.{agent}.chunk_size must be a positive integer")
+        rc = a.get("round_cap")
+        if rc is not None and (isinstance(rc, bool) or not isinstance(rc, int) or rc < 1):
+            raise ConfigError(f"agents.{agent}.round_cap must be a positive integer")
         req = a.get("request", {})
         if not isinstance(req, dict) or set(req) - {"thinking", "effort"}:
             raise ConfigError(f"agents.{agent}.request: only 'thinking' and 'effort' are allowed")
