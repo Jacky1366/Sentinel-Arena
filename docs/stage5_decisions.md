@@ -1,7 +1,7 @@
 # Stage 5 — Locked decisions
 
-*Recorded 2026-11-08 (Stage 5.1); D14 added 2026-11-12 (Stage 5.4). These are decided.
-Later stage prompts refer to them by number (D1–D14) instead of repeating them. Changing one is a designer
+*Recorded 2026-11-08 (Stage 5.1); D14 added 2026-11-12 (Stage 5.4); D15 added 2026-11-13
+(Stage 5.6). These are decided. Later stage prompts refer to them by number (D1–D15) instead of repeating them. Changing one is a designer
 decision and is recorded here with a date. Where a decision touches an artifact
 format, `docs/contract.md` remains the source of truth.*
 
@@ -93,6 +93,19 @@ the Blue configuration and must be held constant within any comparison** (record
 `match.json` `blue_params`). Temperature cannot be set (Haiku 5.5, API version
 `2026-10-21`), so run-to-run variation is measured, not suppressed.
 *Recorded 2026-11-12 (Stage 5.4).*
+
+**D15 — Red's scope is enforced structurally, and its feedback is HTTP-only.** AI Red
+supplies only the method, the path (with any query string) and the body; the body fixes
+the scheme, host and headers and sends through the shared client (contract §2.2). Before
+anything is sent the body guards the proposed request; a failed guard sends nothing,
+records a `red_guard.jsonl` line, consumes the slot, and tells Red next turn that its
+request was blocked and why (rules of engagement, never Judge information). Guard reasons:
+`scope_violation`, `method_not_allowed` (allowlist GET/POST for dev), `invalid_encoding`,
+`above_root` (matches nginx limitation #1; `tools/verify_red_guard.py` checks it),
+`invalid_label`, `path_too_large`, `body_too_large`. Red's only feedback is its own HTTP
+result — the status code and a response body truncated to 500 chars, delimited as
+untrusted data — plus that rules-of-engagement text; never Judge facts, snapshots, Blue
+verdicts, or anything about other traffic (D6). *Recorded 2026-11-13 (Stage 5.6).*
 
 ## Implementation notes (Stage 5.1)
 
@@ -193,3 +206,38 @@ Designer decisions recorded 2026-11-12:
 - Two gates, each only after the designer's explicit GO: Gate 1
   (`tools/stage5_4_smoke.py`, one real call) and Gate 2 (`tools/stage5_4_check.py`, 3
   seeded `--blue claude` matches).
+
+## Implementation notes (Stage 5.6, D5, D6, D7, D13, D14, D15)
+
+Designer decisions recorded 2026-11-13:
+
+- **SDK `openai==3.41.0`** (newest release ≥ 14 days old), **Responses API**: it gives
+  `reasoning.effort`, structured output (`text.format` json_schema strict),
+  `max_output_tokens`, `store=false`, and clean brain-failure signals (`status`
+  incomplete → `max_output_tokens`; a refusal output item). Dev model **gpt-6-luna**
+  (D12; id confirmed from the pinned SDK's model list), reasoning effort **low**,
+  `max_output_tokens` **2048** (reasoning tokens count toward it), round cap **10**.
+- **OpenAI env isolation:** the adapter scrubs every `OPENAI_*` variable from the
+  environment while constructing the client and passes `api_key` and `base_url`
+  explicitly, so no env value can change the key, host, organization, project or
+  headers. The test keeps sentinel `OPENAI_*` values set *during the request* and
+  asserts only our key and host go out (per request, not only at construction).
+- **Prices:** `gpt-6-luna` moved from `placeholders` into `models` (two tiers;
+  `verified: false` until the designer confirms). Caching off (D11): the adapter sends
+  `prompt_cache_options` with the implicit breakpoint disabled.
+- **D13 for Red:** a body refusal or an API failure after retries is an
+  `instrument_failure` slot (counted, never a subject failure); a model refusal,
+  truncation or invalid output is a `brain_failure` slot. Both are `red_guard.jsonl`
+  lines; neither crashes the match; Red is never re-asked within a slot.
+- **label_mismatch (D5)** lives in `judge/red_facts.py` (a separate module; it shares
+  `judge/anomalies.py` with fact 4a, which stays about benign traffic). It appends to
+  `anomalies.jsonl` after the benign step.
+- **Formats:** `red_attacks.jsonl` 0.2 (source + rationale; v0_1 frozen); new
+  `red_guard.jsonl`; `match.json` 0.5 (red_engine, red_params, nullable red_source,
+  `judge_red` step; v0_4 frozen); `anomaly` gains `label_mismatch`; `JUDGE_VERSION`
+  0.5.0. The scripted Red path is unchanged (the 5.2 stage check still passes).
+- **Gates, each only after the designer's explicit GO:** Gate 1
+  (`tools/stage5_6_smoke.py --real-call`, one generation, nothing sent) and Gate 2
+  (`tools/stage5_6_check.py --real-calls`, 3 seeded `--red ai --blue scripted` matches,
+  every attack printed for the D5 label audit). `tools/verify_red_guard.py` (zero-token)
+  checks the guard against the real nginx before Gate 1.

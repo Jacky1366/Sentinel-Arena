@@ -62,8 +62,8 @@ sys.path.insert(0, str(REPO))
 from blue import claude_engine, run_blue  # noqa: E402
 from agents import llm_client  # noqa: E402
 from benign import send_benign  # noqa: E402
-from judge import JUDGE_VERSION, fact1_landed, fact4_benign, round_record  # noqa: E402
-from red import scripted_red  # noqa: E402
+from judge import JUDGE_VERSION, fact1_landed, fact4_benign, red_facts, round_record  # noqa: E402
+from red import ai_red, scripted_red  # noqa: E402
 from runner import match_ops  # noqa: E402
 from runner.schedule import Schedule, new_seed  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
@@ -74,9 +74,10 @@ def _schema(name: str) -> dict:
     return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
-MANIFEST_VERSION = "0.4"
+MANIFEST_VERSION = "0.5"
 MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest_v0_2"),
-                    "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest")}
+                    "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest_v0_4"),
+                    "0.5": _schema("match_manifest")}
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -151,8 +152,15 @@ class Ops:
         return match_ops.rotate_proxy_log(live_dir)
 
     def traffic(self, match_id: str, match_dir: Path, attacks: list[dict],
-                benign_entries: list[dict], schedule: Schedule, settle: float) -> None:
-        match_ops.run_traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)
+                benign_entries: list[dict], schedule: Schedule, settle: float,
+                red_driver=None) -> None:
+        match_ops.run_traffic(match_id, match_dir, attacks, benign_entries, schedule, settle,
+                              red_driver=red_driver)
+
+    def red_client(self, config: dict, prices: dict) -> llm_client.LLMClient:
+        """The AI body for --red ai: real adapters, real keys, real (paid) calls.
+        A NETWORK step: test fakes must override it."""
+        return llm_client.LLMClient(config=config, prices=prices)
 
     def freeze(self, live_dir: Path, match_dir: Path) -> None:
         match_ops.freeze_proxy_log(live_dir, match_dir)
@@ -182,6 +190,9 @@ class Ops:
 
     def judge_benign(self, match_dir: Path) -> None:
         fact4_benign.main(["--run-dir", str(match_dir)])
+
+    def judge_red(self, match_dir: Path) -> None:
+        red_facts.main(["--run-dir", str(match_dir)])
 
 
 def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
@@ -214,6 +225,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               runs_dir: Path = match_ops.RUNS, payloads: Path = scripted_red.PAYLOADS,
               benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
+              red_engine: str = "scripted", red_model: str | None = None,
               out=print) -> tuple[int, Path | None]:
     """Run one match. Returns (exit_code, match_dir or None if never started)."""
     ops = ops or Ops()
@@ -228,11 +240,24 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         seed_source = "generated" if seed is None else "cli"
         seed = new_seed() if seed is None else seed
         benign_ids = [e["benign_id"] for e in bset["entries"]]
-        schedule = Schedule(len(attacks), benign_ids, seed)  # ValueError on a bad seed
-        provenance = {
-            "red_source": {"path": _display_path(payloads), "sha256": sha256_file(payloads)},
-            "git": ops.git_info(),
-        }
+        if red_engine not in ("scripted", "ai"):
+            raise ValueError(f"unknown Red engine {red_engine!r}")
+        if red_engine == "ai":
+            red_m = red_model or llm_config["agents"]["red"]["model"]
+            if not red_m:
+                raise ValueError("no Red model: set agents.red.model in config/llm.json "
+                                 "or pass --red-model")
+            n_red = ai_red.round_cap_of(llm_config)
+            red_params = ai_red.red_params(llm_config, red_m)
+            red_source = None
+            red_models = {"red": {"provider": red_params["provider"], "model": red_m}}
+        else:
+            red_m, red_params = None, None
+            n_red = len(attacks)
+            red_source = {"path": _display_path(payloads), "sha256": sha256_file(payloads)}
+            red_models = {"red": None}
+        schedule = Schedule(n_red, benign_ids, seed)  # ValueError on a bad seed
+        provenance = {"git": ops.git_info()}
         if engine not in run_blue.ENGINE_NAMES:
             raise ValueError(f"unknown Blue engine {engine!r}")
         if engine == "claude":
@@ -242,11 +267,11 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
                 raise ValueError(f"agents.blue.chunk_size is {chunk}: a scored match is one "
                                  f"line per call (D4); chunk_size > 1 is for unscored runs")
             blue_params = claude_engine.blue_params(llm_config, model, chunk)
-            models = {"red": None, "blue": {"provider": blue_params["provider"],
-                                            "model": model}, "analyst": None}
+            models = {**red_models, "blue": {"provider": blue_params["provider"],
+                                             "model": model}, "analyst": None}
         else:
             model, blue_params = None, None
-            models = {"red": None, "blue": None, "analyst": None}
+            models = {**red_models, "blue": None, "analyst": None}
         traffic = {"seed": seed, "seed_source": seed_source,
                    "benign_set": {"path": _display_path(benign_set),
                                   "sha256": sha256_file(benign_set),
@@ -293,7 +318,13 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             out(f"previous proxy log archived: {_display_path(archived)}")
 
         step = "traffic"
-        ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle)
+        red_driver = None
+        if red_engine == "ai":
+            red = ai_red.AIRed(ops.red_client(llm_config, prices), red_m, match_dir,
+                               match_id, n_red)
+            red_driver = match_ops.AIDriver(red)
+        ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle,
+                    red_driver=red_driver)
 
         step = "freeze"
         ops.freeze(live_dir, match_dir)
@@ -311,6 +342,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         ops.judge_rounds(match_dir)
         step = "judge_benign"
         ops.judge_benign(match_dir)
+        step = "judge_red"
+        ops.judge_red(match_dir)
         step = "done"
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 - finalize on ANY failure
         failed_step = step
@@ -347,6 +380,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             "judge_version": JUDGE_VERSION,
             "blue_engine": engine,
             "blue_params": blue_params,
+            "red_engine": red_engine,
+            "red_params": red_params,
+            "red_source": red_source,
             **provenance,
             "traffic": traffic,
             "images": images,
@@ -373,7 +409,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         match_stats.read_rounds(match_dir / "rounds.jsonl"), manifest,
         benign=match_stats.read_rounds(match_dir / fact4_benign.RESULTS),
         anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES),
-        verdicts=match_stats.read_rounds(match_dir / "verdicts.jsonl")))
+        verdicts=match_stats.read_rounds(match_dir / "verdicts.jsonl"),
+        red_guard=match_stats.read_rounds(match_dir / match_ops.RED_GUARD)))
     return EXIT[manifest["status"]], match_dir
 
 
@@ -389,11 +426,17 @@ def main(argv: list[str] | None = None) -> int:
                              "paid API calls through agents/llm_client.py)")
     parser.add_argument("--blue-model", default=None,
                         help="claude: model id (default: config/llm.json agents.blue.model)")
+    parser.add_argument("--red", choices=("scripted", "ai"), default="scripted",
+                        help="Red engine: scripted payload set, or ai (OpenAI; real, paid "
+                             "API calls through agents/llm_client.py)")
+    parser.add_argument("--red-model", default=None,
+                        help="ai: model id (default: config/llm.json agents.red.model)")
     parser.add_argument("--settle", type=float, default=3.0,
                         help="max seconds to wait for a solve to register")
     args = parser.parse_args(argv)
     code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
-                        settle=args.settle, engine=args.blue, blue_model=args.blue_model)
+                        settle=args.settle, engine=args.blue, blue_model=args.blue_model,
+                        red_engine=args.red, red_model=args.red_model)
     return code
 
 

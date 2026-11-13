@@ -82,7 +82,8 @@ def test_key_never_in_match_json_or_terminal(tmp_path, monkeypatch):
     monkeypatch.setenv("ARENA_ANTHROPIC_API_KEY", SENTINEL)
 
     class LeakingRed(FakeOps):
-        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle,
+                red_driver=None):
             super().traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)
             raise RuntimeError(f"provider said: bad key {SENTINEL}")
 

@@ -40,18 +40,17 @@
       "tiers": [
         {"max_prompt_tokens": null, "input": 2, "cached_input": 0.10, "cache_write": null, "output": 10}
       ]
-    }
-  },
-  "placeholders": {
-    "GPT-6 Luna": {
-      "note": "MODEL ID UNCONFIRMED - not callable. Confirm the id before Stage 5.6, then move this entry into models under that id.",
+    },
+    "gpt-6-luna": {
       "provider": "openai",
-      "as_of": "2026-11-08",
-      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
+      "as_of": "2026-11-13",
+      "source": "designer-supplied 2026-11-13 (Stage 5.6); model id confirmed in the pinned SDK's model list (openai==3.41.0); prices pending designer verification against the official model page. Tier 2 (prompt above 272K tokens): 2x input and cache rates, 1.5x output, for the full request",
       "verified": false,
       "tiers": [
-        {"max_prompt_tokens": null, "input": 0.10, "cached_input": null, "cache_write": null, "output": 0.50}
+        {"max_prompt_tokens": 272000, "input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50},
+        {"max_prompt_tokens": null, "input": 0.20, "cached_input": 0.02, "cache_write": 0.25, "output": 0.75}
       ]
     }
-  }
+  },
+  "placeholders": {}
 }

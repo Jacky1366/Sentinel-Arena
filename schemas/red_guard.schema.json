@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/red_guard.schema.json",
+  "title": "Red slot without a sent attack (contract 2.2)",
+  "description": "One line of data/runs/<match_id>/red_guard.jsonl per Red slot that produced NO sent attack (Stage 5.6, AI Red). guard_block: the body's guard rejected the proposed request before anything was sent (D15); proposed holds it, fields cut to their caps. brain_failure: the model gave no usable request (refusal, truncated, invalid output); never re-asked. instrument_failure: the harness failed (body refusal or API failure after retries, D13). No Red record and no request exist for these slots; the round number is consumed. Blue must NEVER read this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "round",
+    "kind",
+    "reason",
+    "detail",
+    "proposed",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "kind": {
+      "enum": [
+        "guard_block",
+        "brain_failure",
+        "instrument_failure"
+      ]
+    },
+    "reason": {
+      "enum": [
+        "scope_violation",
+        "method_not_allowed",
+        "invalid_encoding",
+        "above_root",
+        "invalid_label",
+        "path_too_large",
+        "body_too_large",
+        "refusal",
+        "max_tokens",
+        "incomplete",
+        "empty",
+        "invalid_json",
+        "invalid_shape",
+        "missing_field",
+        "refused_by_body",
+        "api_error"
+      ]
+    },
+    "detail": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 300
+    },
+    "proposed": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "path",
+            "body",
+            "label",
+            "rationale"
+          ],
+          "properties": {
+            "method": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 2048
+            },
+            "body": {
+              "type": "string",
+              "maxLength": 4096
+            },
+            "label": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "rationale": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "guard_block"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "scope_violation",
+              "method_not_allowed",
+              "invalid_encoding",
+              "above_root",
+              "invalid_label",
+              "path_too_large",
+              "body_too_large"
+            ]
+          },
+          "proposed": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "brain_failure"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "refusal",
+              "max_tokens",
+              "incomplete",
+              "empty",
+              "invalid_json",
+              "invalid_shape",
+              "missing_field"
+            ]
+          },
+          "proposed": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "instrument_failure"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "refused_by_body",
+              "api_error"
+            ]
+          },
+          "proposed": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

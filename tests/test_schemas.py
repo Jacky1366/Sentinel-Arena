@@ -19,6 +19,8 @@ CONFIG_DIR = ROOT / "config"
 
 SCHEMA_NAMES = [
     "red_attack",
+    "red_attack_v0_1",
+    "red_guard",
     "proxy_log",
     "challenge_snapshot",
     "verdict",
@@ -31,6 +33,7 @@ SCHEMA_NAMES = [
     "match_manifest_v0_1",
     "match_manifest_v0_2",
     "match_manifest_v0_3",
+    "match_manifest_v0_4",
     "match_manifest",
     "api_call",
     "prices",
@@ -84,7 +87,7 @@ RULE = {
 }
 
 VALID = {
-    "red_attack": {
+    "red_attack_v0_1": {
         "schema_version": "0.1",
         "match_id": "m001",
         "round": 7,
@@ -221,8 +224,19 @@ VALID["round_record"] = {
     "schema_version": "0.2", "verdict_source": "ai"}
 VALID["benign_result"] = {**VALID["benign_result_v0_1"], "schema_version": "0.2",
                           "verdict_source": "ai"}
-VALID["match_manifest"] = {**VALID["match_manifest_v0_3"], "schema_version": "0.4",
-                           "judge_version": "0.4.0", "blue_params": None}
+VALID["match_manifest_v0_4"] = {**VALID["match_manifest_v0_3"], "schema_version": "0.4",
+                                "judge_version": "0.4.0", "blue_params": None}
+RED_PARAMS = {
+    "provider": "openai", "model": "gpt-6-luna", "round_cap": 10, "prompt_version": "1",
+    "system_prompt_sha256": SHA, "sdk": {"package": "openai", "version": "3.41.0"},
+    "request": {"max_output_tokens": 2048, "reasoning_effort": "low",
+                "output_format": "json_schema", "store": False,
+                "prompt_caching": "disabled", "temperature": None, "temperature_note": "x"},
+    "feedback_body_chars": 500,
+    "guard": {"methods": ["GET", "POST"], "max_path_chars": 2048, "max_body_chars": 4096}}
+VALID["match_manifest"] = {**VALID["match_manifest_v0_4"], "schema_version": "0.5",
+                           "judge_version": "0.5.0", "red_engine": "scripted",
+                           "red_params": None}
 BLUE_PARAMS = {
     "provider": "anthropic", "model": "claude-haiku-5-5", "chunk_size": 1,
     "prompt_version": "1", "system_prompt_sha256": SHA,
@@ -235,6 +249,20 @@ CLAUDE_MANIFEST = {**VALID["match_manifest"], "blue_engine": "claude",
                    "models": {"red": None, "blue": {"provider": "anthropic",
                                                     "model": "claude-haiku-5-5"},
                               "analyst": None}}
+AI_RED_MANIFEST = {**VALID["match_manifest"], "red_engine": "ai", "red_params": RED_PARAMS,
+                   "red_source": None,
+                   "models": {"red": {"provider": "openai", "model": "gpt-6-luna"},
+                              "blue": None, "analyst": None}}
+VALID["red_attack"] = {
+    "schema_version": "0.2", "match_id": "m001", "round": 7, "request_id": RID,
+    "label": "CWE-89", "payload": "p", "endpoint": "/rest/user/login", "method": "POST",
+    "timestamp": "2026-11-02T22:15:03Z", "source": "ai", "rationale": "login tautology"}
+VALID["red_guard"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "round": 3, "kind": "guard_block",
+    "reason": "scope_violation", "detail": "path carries a scheme",
+    "proposed": {"method": "GET", "path": "/x", "body": "", "label": "CWE-22",
+                 "rationale": "traversal"},
+    "timestamp": "2026-11-09T15:30:14.001Z"}
 VALID["anomaly"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "kind": "benign_solved_challenge",
     "request_id": RID, "detail": {"benign_id": "n04", "newly_solved": ["Score Board"],
@@ -297,15 +325,38 @@ def _drop(key):
 
 
 INVALID = {
-    "red_attack": [
+    "red_attack_v0_1": [
         ("label not in taxonomy", _set("label", "CWE-78")),
         ("label benign (Red may not label benign)", _set("label", "benign")),
         ("missing request_id", _drop("request_id")),
-        ("missing match_id", _drop("match_id")),
-        ("request_id not uuid4", _set("request_id", "not-a-uuid")),
-        ("timestamp not UTC Z", _set("timestamp", "2026-11-02T22:15:03+08:00")),
-        ("extra property", _set("blue_hint", "x")),
+        ("source is 0.2 only", _set("source", "scripted")),
         ("wrong schema_version", _set("schema_version", "0.2")),
+    ],
+    "red_attack": [
+        ("label not in taxonomy", _set("label", "CWE-78")),
+        ("label benign (Red may not label benign)", _set("label", "benign")),
+        ("missing source", _drop("source")),
+        ("missing rationale", _drop("rationale")),
+        ("ai without rationale", lambda r: {**r, "source": "ai", "rationale": None}),
+        ("scripted with a rationale", _set("source", "scripted")),
+        ("source not in enum", _set("source", "manual")),
+        ("rationale over 500 chars", _set("rationale", "x" * 501)),
+        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("extra property", _set("blue_hint", "x")),
+    ],
+    "red_guard": [
+        ("kind not in enum", _set("kind", "mystery")),
+        ("guard_block reason from brain set",
+         lambda r: {**r, "kind": "guard_block", "reason": "refusal"}),
+        ("guard_block without proposed", _set("proposed", None)),
+        ("brain_failure with proposed",
+         lambda r: {**r, "kind": "brain_failure", "reason": "invalid_json"}),
+        ("instrument_failure reason from guard set",
+         lambda r: {**r, "kind": "instrument_failure", "reason": "above_root",
+                    "proposed": None}),
+        ("reason not in any enum", _set("reason", "nope")),
+        ("missing timestamp", _drop("timestamp")),
+        ("extra property", _set("sent", True)),
     ],
     "proxy_log": [
         ("missing request_id (stray traffic)", _drop("request_id")),
@@ -533,7 +584,15 @@ INVALID = {
         ("claude engine is 0.4 only", _set("blue_engine", "claude")),
         ("missing traffic", _drop("traffic")),
     ],
+    "match_manifest_v0_4": [
+        ("schema_version 0.5", _set("schema_version", "0.5")),
+        ("red_engine is 0.5 only", _set("red_engine", "scripted")),
+        ("red_params is 0.5 only", _set("red_params", None)),
+    ],
     "match_manifest": [
+        ("schema_version 0.4", _set("schema_version", "0.4")),
+        ("missing red_engine", _drop("red_engine")),
+        ("missing red_params", _drop("red_params")),
         ("schema_version 0.3", _set("schema_version", "0.3")),
         ("missing blue_params", _drop("blue_params")),
         ("scripted with blue_params", _set("blue_params", BLUE_PARAMS)),
@@ -791,7 +850,7 @@ def test_round_record_instrument_failure_shape_valid():
 
 def test_match_manifest_failed_shape_valid():
     for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
-                 "match_manifest"):
+                 "match_manifest_v0_4", "match_manifest"):
         validator(name).validate({
             **VALID[name], "status": "failed", "failed_step": "blue",
             "error": "ValueError: duplicate verdict"})
@@ -811,6 +870,21 @@ def test_match_manifest_claude_shape_valid():
     v = validator("match_manifest")
     v.validate(CLAUDE_MANIFEST)
     v.validate({**CLAUDE_MANIFEST, "blue_params": {**BLUE_PARAMS, "sdk": None}})  # fake
+
+
+def test_match_manifest_ai_red_shape_valid():
+    v = validator("match_manifest")
+    v.validate(AI_RED_MANIFEST)
+    v.validate({**AI_RED_MANIFEST, "red_params": {**RED_PARAMS, "sdk": None}})  # fake
+    # scripted Red must not carry red_params or a red model; AI Red must not carry a payload file
+    assert not v.is_valid({**VALID["match_manifest"], "red_params": RED_PARAMS})
+    assert not v.is_valid({**AI_RED_MANIFEST, "red_source": {"path": "x", "sha256": SHA}})
+    assert not v.is_valid({**AI_RED_MANIFEST, "red_params": None})
+    both = {**AI_RED_MANIFEST, "blue_engine": "claude", "blue_params": BLUE_PARAMS,
+            "models": {"red": {"provider": "openai", "model": "gpt-6-luna"},
+                       "blue": {"provider": "anthropic", "model": "claude-haiku-5-5"},
+                       "analyst": None}}
+    v.validate(both)  # AI Red + AI Blue together
 
 
 def test_match_manifest_failed_may_record_stopped_by():
@@ -866,7 +940,8 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
         assert entry["verified"] is (name in DESIGNER_VERIFIED), name
         if entry["verified"]:  # a verified entry names who verified it, when, and where
             assert entry["source"].startswith("designer-verified 2026-11-12 against "), name
-    assert "GPT-6 Luna" in prices["placeholders"] and "GPT-6 Luna" not in prices["models"]
+    # Stage 5.6: the luna id is confirmed (pinned SDK); priced, still unverified.
+    assert prices["placeholders"] == {} and prices["models"]["gpt-6-luna"]["verified"] is False
 
 
 @pytest.mark.parametrize("match_id,ok", [
@@ -876,10 +951,11 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
 ])
 def test_match_id_accepts_both_forms(match_id, ok):
     # Contract §0: legacy m+digits, or the run_match.py timestamp form.
-    for name in ("red_attack", "verdict", "verdict_v0_1", "round_record", "round_record_v0_1",
-                 "landed_fact", "match_manifest_v0_1", "match_manifest_v0_2",
-                 "match_manifest_v0_3", "match_manifest", "api_call", "benign_request",
-                 "benign_result", "benign_result_v0_1", "anomaly"):
+    for name in ("red_attack", "red_attack_v0_1", "red_guard", "verdict", "verdict_v0_1",
+                 "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
+                 "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
+                 "match_manifest", "api_call", "benign_request", "benign_result",
+                 "benign_result_v0_1", "anomaly"):
         rec = {**VALID[name], "match_id": match_id}
         assert validator(name).is_valid(rec) is ok, (name, match_id)
     rule = {**RULE, "created_match": match_id}
@@ -891,10 +967,11 @@ def test_rules_file_empty_rules_is_valid():
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "verdict", "verdict_v0_1", "round_record", "round_record_v0_1",
-                 "landed_fact", "match_manifest_v0_1", "match_manifest_v0_2",
-                 "match_manifest_v0_3", "match_manifest", "api_call", "benign_request",
-                 "benign_result", "benign_result_v0_1", "anomaly"):
+    for name in ("red_attack", "red_attack_v0_1", "red_guard", "verdict", "verdict_v0_1",
+                 "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
+                 "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
+                 "match_manifest", "api_call", "benign_request", "benign_result",
+                 "benign_result_v0_1", "anomaly"):
         required = SCHEMAS[name]["required"]
         assert "schema_version" in required and "match_id" in required, name
     assert "schema_version" in SCHEMAS["rules_file"]["required"]
@@ -978,10 +1055,10 @@ def test_manifest_dispatch_covers_every_version():
     import sys
     sys.path.insert(0, str(ROOT))
     import run_match
-    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4"}
-    assert run_match.MANIFEST_VERSION == "0.4"
+    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5"}
+    assert run_match.MANIFEST_VERSION == "0.5"
     for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
-                 "match_manifest"):
+                 "match_manifest_v0_4", "match_manifest"):
         assert run_match.validate_manifest(VALID[name]) == [], name
 
 

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/match_manifest.schema.json",
-  "title": "Match manifest (schema_version 0.4; contract 6.2)",
-  "description": "data/runs/<match_id>/match.json, schema_version 0.4 (Stage 5.4 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3.schema.json.",
+  "title": "Match manifest (schema_version 0.5; contract 6.2)",
+  "description": "data/runs/<match_id>/match.json, schema_version 0.5 (Stage 5.6 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. red_engine says who chose the attacks; red_source (the payload file) is non-null iff scripted, red_params and models.red iff ai. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3 / v0_4.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,7 +24,9 @@
     "price_table",
     "cost",
     "traffic",
-    "blue_params"
+    "blue_params",
+    "red_engine",
+    "red_params"
   ],
   "$defs": {
     "utc": {
@@ -211,7 +213,7 @@
   },
   "properties": {
     "schema_version": {
-      "const": "0.4"
+      "const": "0.5"
     },
     "match_id": {
       "type": "string",
@@ -240,7 +242,8 @@
         "judge_fact1",
         "blue",
         "judge_rounds",
-        "judge_benign"
+        "judge_benign",
+        "judge_red"
       ]
     },
     "error": {
@@ -260,21 +263,28 @@
       ]
     },
     "red_source": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "path",
-        "sha256"
-      ],
-      "properties": {
-        "path": {
-          "type": "string",
-          "minLength": 1
+      "oneOf": [
+        {
+          "type": "null"
         },
-        "sha256": {
-          "$ref": "#/$defs/sha256"
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
         }
-      }
+      ]
     },
     "git": {
       "type": "object",
@@ -700,6 +710,170 @@
           }
         }
       ]
+    },
+    "red_engine": {
+      "enum": [
+        "scripted",
+        "ai"
+      ]
+    },
+    "red_params": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "provider",
+            "model",
+            "round_cap",
+            "prompt_version",
+            "system_prompt_sha256",
+            "sdk",
+            "request",
+            "feedback_body_chars",
+            "guard"
+          ],
+          "properties": {
+            "provider": {
+              "enum": [
+                "openai",
+                "anthropic",
+                "gemini",
+                "fake"
+              ]
+            },
+            "model": {
+              "type": "string",
+              "minLength": 1
+            },
+            "round_cap": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "prompt_version": {
+              "type": "string",
+              "minLength": 1
+            },
+            "system_prompt_sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "sdk": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "package",
+                    "version"
+                  ],
+                  "properties": {
+                    "package": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "version": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
+                }
+              ]
+            },
+            "request": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "max_output_tokens",
+                "reasoning_effort",
+                "output_format",
+                "store",
+                "prompt_caching",
+                "temperature",
+                "temperature_note"
+              ],
+              "properties": {
+                "max_output_tokens": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "reasoning_effort": {
+                  "enum": [
+                    null,
+                    "none",
+                    "minimal",
+                    "low",
+                    "medium",
+                    "high",
+                    "xhigh",
+                    "max"
+                  ]
+                },
+                "output_format": {
+                  "enum": [
+                    "json_schema",
+                    "none"
+                  ]
+                },
+                "store": {
+                  "type": "boolean"
+                },
+                "prompt_caching": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "temperature": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "temperature_note": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "feedback_body_chars": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "guard": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "methods",
+                "max_path_chars",
+                "max_body_chars"
+              ],
+              "properties": {
+                "methods": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                },
+                "max_path_chars": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "max_body_chars": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "allOf": [
@@ -804,6 +978,50 @@
           "models": {
             "properties": {
               "blue": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "comment": "scripted Red: payload file, no model; AI Red: model + red_params, no payload file",
+      "if": {
+        "properties": {
+          "red_engine": {
+            "const": "scripted"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "red_source": {
+            "type": "object"
+          },
+          "red_params": {
+            "type": "null"
+          },
+          "models": {
+            "properties": {
+              "red": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "red_source": {
+            "type": "null"
+          },
+          "red_params": {
+            "type": "object"
+          },
+          "models": {
+            "properties": {
+              "red": {
                 "type": "object"
               }
             }

@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-12*
+*Last updated: 2026-11-13*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -22,6 +22,7 @@ file artifacts defined in a data contract.
 | 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
+| 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch | Nov 13–19 (Stage 5) | Built + tested on the fake provider (Nov 13); done before 5.5; Gates wait for the designer's GO |
 
 Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
 
@@ -328,6 +329,33 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
 
+### Stage 5.6 — AI Red (OpenAI gpt-6-luna) + D15 + label_mismatch
+Done before 5.5 (5.5's rule invention needs varied attacks). Built and tested on the
+fake provider only; **no real API call has been made**. Gate 1 (one generation, nothing
+sent) and Gate 2 (3 seeded matches) run only after the designer's GO.
+
+- **SDK `openai==3.41.0`, Responses API.** The adapter passes key and base URL
+  explicitly and scrubs every `OPENAI_*` variable while building the client, so no env
+  value can redirect the key/host/org/project (mock-transport test keeps the sentinels
+  set during the request). Usage maps cached tokens into `cached_input`, cache writes
+  into `cache_write`, reasoning tokens into `output`; flagged until Gate 1.
+- **Model `gpt-6-luna`** (D12; id confirmed from the pinned SDK), reasoning effort low,
+  `max_output_tokens` 2048, round cap 10. Priced (two tiers, 272K boundary), unverified.
+- **The loop (D5–D7, D15):** one proposal per slot through `agents/llm_client.py`; the
+  body guards it (`red/red_guard.py`), writes the 0.2 ground-truth record, sends through
+  the shared client, and feeds back only the HTTP result (status + 500-char delimited
+  body) or rules-of-engagement text. History is append-only; no cross-match memory.
+- **Guards** block before sending: scope (Red gives only the path), method allowlist,
+  encoding, above-root (matches nginx, checked by `tools/verify_red_guard.py`), label,
+  size. A blocked/failed slot writes a `red_guard.jsonl` line and consumes the round.
+- **D13 for Red:** body refusal / API failure → `instrument_failure`; model refusal /
+  truncation / invalid output → `brain_failure`. Both counted, never a crash, never
+  re-asked. **label_mismatch** tripwire in `judge/red_facts.py` (D5).
+- **Formats:** `red_attacks.jsonl` 0.2, new `red_guard.jsonl`, `match.json` 0.5
+  (red_engine/red_params/nullable red_source, `judge_red` step), `anomaly` +
+  `label_mismatch`; `JUDGE_VERSION` 0.5.0. Old schemas frozen; readers dispatch.
+- **Scripted Red unchanged** (shares `write_and_send`); the 5.2 stage check still passes.
+
 ### Stage 5.4 — AI Blue (Anthropic) + instrument_failure (D13) + D14
 First real API calls of the project, each gate run only after the designer's GO
 from a clean, committed tree. Implements D13 and D14.
@@ -504,9 +532,8 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
   - ~~5.3 Rule engine + facts 3 (offline replay) / 4b (rule-level false positives)~~ (done Nov 9).
   - ~~5.4 AI Blue (`--blue claude`), instrument_failure (D13), D14~~ (done Nov 12; Gates 1–2 passed).
   - **5.5** Blue rule invention + hot-load.
-  - **5.6** AI Red (OpenAI SDK pinned; confirm the GPT-6 Luna id first): agent loop
-    with history, JSON-only output, round/token caps, retry, scope guard →
-    `red_guard.jsonl`.
+  - ~~5.6 AI Red (OpenAI gpt-6-luna), D15 scope guard, label_mismatch~~ (built Nov 13,
+    before 5.5; Gates wait for GO).
   - **5.7** Integration + provider-side caching.
   - Also in Stage 5: variant / held-out attacks for any AI-vs-baseline comparison;
     revisit the CWE-22 challenge map (round-5 finding).

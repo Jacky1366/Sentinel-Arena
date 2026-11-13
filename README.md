@@ -43,8 +43,9 @@ Stage 5.2 done: benign traffic interleaved with Red by a seeded schedule, and
 false-positive scoring (Judge fact 4a), so the detection rate is always reported
 next to an FP rate. Stage 5.3 done: the rule format, RE2 rule engine and Judge facts
 3 / 4b. Stage 5.4 done: AI Blue (`run_match.py --blue claude`, Anthropic Haiku 5.5), with its
-first real calls verified (Gates 1–2; about $0.003 per match). AI
-Red and the dashboard are not implemented yet. See
+first real calls verified (Gates 1–2; about $0.003 per match). Stage 5.6 built: AI Red
+(`run_match.py --red ai`, OpenAI gpt-6-luna), tested on the fake provider; its gates
+wait for the designer's GO. The dashboard is not implemented yet. See
 [`docs/progress.md`](docs/progress.md) and
 [`docs/stage5_decisions.md`](docs/stage5_decisions.md).
 
@@ -76,6 +77,7 @@ docker compose up -d --wait     # starts Juice Shop + nginx; returns once health
 tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
 .venv/bin/python run_match.py            # one complete match -> data/runs/<match_id>/
 .venv/bin/python run_match.py --blue claude  # AI Blue: real, paid calls (ARENA_ANTHROPIC_API_KEY)
+.venv/bin/python run_match.py --red ai       # AI Red: real, paid calls (ARENA_OPENAI_API_KEY)
 .venv/bin/python tools/stage4_check.py   # Stage 4: run_match + frozen-dir checks, all PASS
 .venv/bin/python tools/stage2_check.py   # Stage 2: scripted Red + Judge, all PASS
 .venv/bin/python tools/stage3_check.py   # Stage 3: full pipeline vs expectations

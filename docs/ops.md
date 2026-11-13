@@ -33,6 +33,17 @@ sentinel values in all of those variables. The SDK sends the key as
 `Authorization: Bearer`. A real provider's model is called only if its price entry is
 designer-verified (`price_unverified` refusal otherwise).
 
+**OpenAI SDK (`openai==3.41.0`, Responses API, Stage 5.6).** The SDK reads
+`OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_ORG_ID`, `OPENAI_PROJECT_ID`,
+`OPENAI_ADMIN_KEY` and `OPENAI_CUSTOM_HEADERS` from the environment whenever the
+matching argument is unset. The adapter therefore **removes every `OPENAI_*` variable
+from the environment while it builds the client** and passes `api_key` and
+`base_url="https://api.openai.com/v1"` explicitly, so no env value can choose the key,
+host, organization, project or headers; the variables are restored immediately after.
+`tests/test_openai_adapter.py` keeps sentinel `OPENAI_*` values set **during the actual
+request** and asserts only our key and host go out. Responses are sent with
+`store=false`.
+
 ## Keeping keys out of Claude Code sessions
 
 `.claude/settings.json` (committed, applies to every clone) **denies Claude Code

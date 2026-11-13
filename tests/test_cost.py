@@ -144,8 +144,19 @@ def test_cost_line_flags():
 
 
 def test_placeholder_never_priced():
+    prices = {**PRICES, "placeholders": {"Unconfirmed": PRICES["models"][next(
+        iter(PRICES["models"]))]}}
+    assert cost.entry_for(prices, "Unconfirmed") is None
+
+
+def test_luna_tier_boundary_at_272k_prompt_tokens():
     prices = cost.load_prices()
-    assert cost.entry_for(prices, "GPT-6 Luna") is None
+    e = cost.entry_for(prices, "gpt-6-luna")
+    assert e["verified"] is False and e["provider"] == "openai"
+    assert cost.tier_for(e, 272_000)["input"] == 0.10
+    t2 = cost.tier_for(e, 272_001)
+    assert (t2["input"], t2["cached_input"], t2["cache_write"], t2["output"]) == \
+        (0.20, 0.02, 0.25, 0.75)
 
 
 def test_price_table_ref_ties_snapshot_to_file(tmp_path):

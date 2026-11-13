@@ -194,3 +194,18 @@ def test_benign_send_failure_keeps_the_record(server, tmp_path):
     res = send_benign.send_one(entry, "m001", tmp_path)
     assert res["status"] is None and res["error"]
     assert len((tmp_path / "benign_requests.jsonl").read_text().splitlines()) == 1
+
+
+# ---- Stage 5.6: response body text for AI Red's feedback --------------------
+
+def test_body_text_is_captured_and_capped(server):
+    server(b"HTTP/1.1 200 OK\r\nContent-Length: 5000\r\nConnection: close\r\n\r\n"
+           + "é".encode() + b"y" * 4998)
+    resp = arena_client.send("GET", "/", arena_client.new_request_id())
+    assert resp.body_text.startswith("éy") and len(resp.body_text.encode()) <= 4096
+
+
+def test_short_body_still_returns_its_partial_text(server):
+    server(b"HTTP/1.1 200 OK\r\nContent-Length: 50\r\nConnection: close\r\n\r\npartial")
+    resp = arena_client.send("GET", "/ftp/", arena_client.new_request_id())
+    assert resp.body_incomplete and resp.body_text == "partial"

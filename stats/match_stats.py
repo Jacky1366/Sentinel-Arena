@@ -206,6 +206,17 @@ def benign_instrument_failure_rate(benign: list[dict]) -> Rate:
     return Rate(num, den, excluded)
 
 
+def red_guard_summary(guard_rows: list[dict]) -> dict:
+    """Counts over red_guard.jsonl (AI Red slots with no sent attack, Stage 5.6):
+    guard blocks by reason, brain failures by detail, instrument failures by detail."""
+    out = {"guard_block": {}, "brain_failure": {}, "instrument_failure": {}, "total": 0}
+    for g in guard_rows:
+        out["total"] += 1
+        bucket = out[g["kind"]]
+        bucket[g["reason"]] = bucket.get(g["reason"], 0) + 1
+    return out
+
+
 def model_refusals(rounds: list[dict], benign: list[dict], verdicts: list[dict]) -> dict:
     """{"attack": n, "benign": n, "unmatched": n}: verdict rows whose failure_detail is
     model_refusal (0.2 rows only; audit field), split by which traffic they were."""
@@ -258,16 +269,28 @@ def _with_reason(value, reason) -> str:
 
 def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None = None,
                    anomalies: list[dict] | None = None,
-                   verdicts: list[dict] | None = None) -> str:
+                   verdicts: list[dict] | None = None,
+                   red_guard: list[dict] | None = None) -> str:
     """Terminal summary. `benign` / `anomalies` are the fact-4a outputs (None or
     [] for a match without benign traffic). `verdicts` (verdicts.jsonl rows) is read
-    only for the model_refusal counts of an AI Blue match."""
+    only for the model_refusal counts of an AI Blue match. `red_guard` (red_guard.jsonl
+    rows) gives the AI Red diagnostics (attacks sent, guard blocks, brain / instrument
+    failures)."""
     benign = benign or []
     lines = [
         f"match {manifest['match_id']}  status={manifest['status']}  "
         f"judge {manifest['judge_version']}  blue={manifest['blue_engine']}  "
         f"git {manifest['git']['commit'][:10]}{' (dirty)' if manifest['git']['dirty'] else ''}",
     ]
+    if manifest.get("red_engine") == "ai":
+        g = red_guard_summary(red_guard or [])
+        sent = sum(1 for r in rounds if r.get("detected_reason") != "orphan") \
+            if rounds else 0
+        lines.append(f"red={manifest['red_engine']}  attacks sent {len(rounds)}  "
+                     f"guard blocks {sum(g['guard_block'].values())} {g['guard_block']}  "
+                     f"brain failures {sum(g['brain_failure'].values())} {g['brain_failure']}  "
+                     f"instr. failures {sum(g['instrument_failure'].values())} "
+                     f"{g['instrument_failure']}")
     if manifest["status"] == "failed":
         lines.append(f"FAILED at step '{manifest['failed_step']}': {manifest['error']}")
     stop = (manifest.get("budget") or {}).get("stopped_by")
