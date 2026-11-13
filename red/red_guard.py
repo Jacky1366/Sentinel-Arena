@@ -3,7 +3,7 @@
 The body runs these checks on Red's proposed request BEFORE anything is sent. Red
 supplies only the method, the path (with any query string) and the body; the body
 fixes the scheme, host and headers. A failed check means: nothing is sent, no Red
-record is written, a `red_guard.jsonl` line records the reason, and the slot is
+record is written, a `red_unsent.jsonl` line records the reason, and the slot is
 consumed (the next turn tells Red its request was blocked and why).
 
 Each reason is one machine-readable string:

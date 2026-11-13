@@ -45,6 +45,9 @@ PROBES = [
     ("/ftp/..%2f..%2fetc/passwd", "rejected"),       # encoded, climbs out
     ("/%2e%2e/%2e%2e/etc/passwd", "rejected"),       # encoded .. from the root
     ("/../../../package.json", "rejected"),          # literal, climbs out
+    ("/ftp/%2E%2E/%2E%2E/etc/passwd", "rejected"),   # uppercase encoded .., climbs out
+    ("/ftp/%252e%252e/legal.md", "logged"),          # double-encoded: nginx decodes once -> literal
+    ("/ftp/..%5c..%5cwindows/win.ini", "logged"),    # backslash is not a separator on nginx (Linux)
 ]
 
 

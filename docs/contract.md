@@ -86,7 +86,7 @@ fact-4b fixture `benign/fixture_v1.jsonl`, and anomaly kind `rule_source_benign`
 Responses API). **`red_attacks.jsonl` moves to `"0.2"`** (§2): new `source`
 (`scripted` | `ai`) and `rationale` (the AI's one-sentence reason, untrusted text ≤ 500
 chars; `null` for scripted); 0.1 records are validated by `red_attack_v0_1.schema.json`.
-**New artifact `red_guard.jsonl`** (§2.2): one line per Red slot that produced no sent
+**New artifact `red_unsent.jsonl`** (§2.2): one line per Red slot that produced no sent
 attack (a blocked proposal, a brain failure, or an instrument failure). **`match.json`
 moves to `"0.5"`** (§6.2): `blue_engine` gains nothing, new `red_engine`
 (`scripted` | `ai`), new `red_params` (null iff scripted), `red_source` becomes nullable
@@ -206,13 +206,13 @@ Red sends `request_id` in the HTTP header `X-Arena-Request-Id`.
 
 ---
 
-## 2.2 Red guard — `data/runs/<match_id>/red_guard.jsonl`
+## 2.2 Red unsent slots — `data/runs/<match_id>/red_unsent.jsonl`
 
 > **Blue must NEVER read this file.** It is Red-side ground truth.
 
 AI Red only (scripted Red's payloads are pre-verified, so it writes none). One line per
 Red slot that produced **no sent attack**; the slot's round number is consumed, and
-there is no Red record and no proxy line for it. Schema `red_guard.schema.json`
+there is no Red record and no proxy line for it. Schema `red_unsent.schema.json`
 (`"0.1"`). Three kinds:
 
 - `guard_block` — the body's guard rejected the proposed request before sending (D15).
@@ -1002,7 +1002,7 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Taxonomy | `config/taxonomy.json` | Designer | Red, Blue, Judge, schemas/tests | — |
 | Challenge map | `config/challenge_map.json` | Designer | Judge | Blue |
 | Red attacks | `data/runs/<match_id>/red_attacks.jsonl` | Red (scripted or AI, via the body) | Judge, Dashboard | **Blue** |
-| Red guard | `data/runs/<match_id>/red_guard.jsonl` | AI Red / the body (§2.2) | stats, Dashboard, humans | Red (no feedback loop), **Blue** |
+| Red unsent slots | `data/runs/<match_id>/red_unsent.jsonl` | AI Red / the body (§2.2) | stats, Dashboard, humans | Red (no feedback loop), **Blue** |
 | Proxy log | `data/runs/<match_id>/proxy.jsonl` | nginx proxy | Blue, Judge, Dashboard | — |
 | Challenge snapshots | `data/runs/<match_id>/challenge_snapshots.jsonl` | Measurement runner | Judge | **Blue** |
 | Landed fact | `data/runs/<match_id>/landed.jsonl` | Judge (Stage 2) | Judge (Stage 3 join) | Red, Blue, Dashboard |

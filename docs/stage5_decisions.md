@@ -98,7 +98,7 @@ the Blue configuration and must be held constant within any comparison** (record
 supplies only the method, the path (with any query string) and the body; the body fixes
 the scheme, host and headers and sends through the shared client (contract §2.2). Before
 anything is sent the body guards the proposed request; a failed guard sends nothing,
-records a `red_guard.jsonl` line, consumes the slot, and tells Red next turn that its
+records a `red_unsent.jsonl` line, consumes the slot, and tells Red next turn that its
 request was blocked and why (rules of engagement, never Judge information). Guard reasons:
 `scope_violation`, `method_not_allowed` (allowlist GET/POST for dev), `invalid_encoding`,
 `above_root` (matches nginx limitation #1; `tools/verify_red_guard.py` checks it),
@@ -227,13 +227,13 @@ Designer decisions recorded 2026-11-13:
   `prompt_cache_options` with the implicit breakpoint disabled.
 - **D13 for Red:** a body refusal or an API failure after retries is an
   `instrument_failure` slot (counted, never a subject failure); a model refusal,
-  truncation or invalid output is a `brain_failure` slot. Both are `red_guard.jsonl`
+  truncation or invalid output is a `brain_failure` slot. Both are `red_unsent.jsonl`
   lines; neither crashes the match; Red is never re-asked within a slot.
 - **label_mismatch (D5)** lives in `judge/red_facts.py` (a separate module; it shares
   `judge/anomalies.py` with fact 4a, which stays about benign traffic). It appends to
   `anomalies.jsonl` after the benign step.
 - **Formats:** `red_attacks.jsonl` 0.2 (source + rationale; v0_1 frozen); new
-  `red_guard.jsonl`; `match.json` 0.5 (red_engine, red_params, nullable red_source,
+  `red_unsent.jsonl`; `match.json` 0.5 (red_engine, red_params, nullable red_source,
   `judge_red` step; v0_4 frozen); `anomaly` gains `label_mismatch`; `JUDGE_VERSION`
   0.5.0. The scripted Red path is unchanged (the 5.2 stage check still passes).
 - **Gates, each only after the designer's explicit GO:** Gate 1

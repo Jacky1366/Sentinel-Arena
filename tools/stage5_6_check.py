@@ -9,7 +9,7 @@ FORMAT AND COVERAGE ONLY, never the AI's choices:
   - each match finished (exit 0, or 4 with stopped_by reported); match.json is
     schema-valid with red_engine ai, models.red and red_params
   - red_attacks.jsonl is 0.2 (source ai, with rationale), one per sent attack
-  - red_guard.jsonl lines are schema-valid; every consumed Red round is either a sent
+  - red_unsent.jsonl lines are schema-valid; every consumed Red round is either a sent
     attack or one red_guard line
   - api_calls.jsonl has one Red line per generation
 
@@ -45,7 +45,7 @@ RUNS = 3
 check = stage4_check.check
 read = stage2_check._read_jsonl
 SCHEMA = {n: Draft202012Validator(json.loads((REPO / "schemas" / f"{n}.schema.json").read_text()))
-          for n in ("red_attack", "red_guard")}
+          for n in ("red_attack", "red_unsent")}
 
 
 def check_match(match_dir: Path, code: int) -> list[str]:
@@ -62,8 +62,8 @@ def check_match(match_dir: Path, code: int) -> list[str]:
     check("red_attacks 0.2, source ai, with rationale",
           all(SCHEMA["red_attack"].is_valid(a) and a["source"] == "ai" and a["rationale"]
               for a in attacks), fails)
-    guard = read(match_dir / "red_guard.jsonl")
-    check("red_guard schema-valid", all(SCHEMA["red_guard"].is_valid(g) for g in guard), fails)
+    guard = read(match_dir / "red_unsent.jsonl")
+    check("red_unsent schema-valid", all(SCHEMA["red_unsent"].is_valid(g) for g in guard), fails)
     rounds_used = {a["round"] for a in attacks} | {g["round"] for g in guard}
     check("every consumed Red round is an attack xor a red_guard line",
           len(rounds_used) == len(attacks) + len(guard), fails,
@@ -78,10 +78,10 @@ def report_match(match_dir: Path) -> None:
     m = json.loads((match_dir / "match.json").read_text())
     rounds = read(match_dir / "rounds.jsonl")
     benign = read(match_dir / "benign_results.jsonl")
-    guard = read(match_dir / "red_guard.jsonl")
+    guard = read(match_dir / "red_unsent.jsonl")
     anomalies = read(match_dir / "anomalies.jsonl")
     attacks = {a["round"]: a for a in read(match_dir / "red_attacks.jsonl")}
-    g = ms.red_guard_summary(guard)
+    g = ms.red_unsent_summary(guard)
     s, b = ms.compute(rounds), ms.compute_benign(rounds, benign)
     stops = Counter(c["stop_reason"] for c in read(match_dir / "api_calls.jsonl")
                     if c["agent"] == "red" and c["ok"])

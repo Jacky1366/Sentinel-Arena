@@ -152,7 +152,7 @@ def test_placeholder_never_priced():
 def test_luna_tier_boundary_at_272k_prompt_tokens():
     prices = cost.load_prices()
     e = cost.entry_for(prices, "gpt-6-luna")
-    assert e["verified"] is False and e["provider"] == "openai"
+    assert e["verified"] is True and e["provider"] == "openai"
     assert cost.tier_for(e, 272_000)["input"] == 0.10
     t2 = cost.tier_for(e, 272_001)
     assert (t2["input"], t2["cached_input"], t2["cache_write"], t2["output"]) == \

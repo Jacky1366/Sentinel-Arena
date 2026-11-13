@@ -44,7 +44,7 @@ from red import ai_red, scripted_red  # noqa: E402
 from red import red_guard  # noqa: E402
 from runner.schedule import Schedule  # noqa: E402
 
-RED_GUARD = "red_guard.jsonl"
+RED_UNSENT = "red_unsent.jsonl"
 
 RUNS = REPO / "data" / "runs"
 LIVE = RUNS / "live"
@@ -318,7 +318,7 @@ class RedAction:
 
 
 class ScriptedDriver(RedDriver):
-    """Scripted Red: the fixed payload set, one at a time. No guard, no red_guard.jsonl
+    """Scripted Red: the fixed payload set, one at a time. No guard, no red_unsent.jsonl
     (scripted payloads are pre-verified). Behaviour unchanged from Stage 2."""
 
     def __init__(self, attacks: list[dict]):
@@ -392,7 +392,7 @@ def run_traffic(match_id: str, match_dir: Path, attacks: list[dict],
     benign_requests.jsonl and challenge_snapshots.jsonl straight into match_dir."""
     match_dir.mkdir(parents=True, exist_ok=True)
     for name in ("red_attacks.jsonl", "benign_requests.jsonl", "challenge_snapshots.jsonl",
-                 RED_GUARD):
+                 RED_UNSENT):
         (match_dir / name).write_text("", encoding="utf-8")
     snap_path = match_dir / "challenge_snapshots.jsonl"
     benign_by_id = {e["benign_id"]: e for e in benign_entries}
@@ -400,7 +400,7 @@ def run_traffic(match_id: str, match_dir: Path, attacks: list[dict],
 
     results = []
     with snap_path.open("a", encoding="utf-8") as snap_fh, \
-            (match_dir / RED_GUARD).open("a", encoding="utf-8") as guard_fh:
+            (match_dir / RED_UNSENT).open("a", encoding="utf-8") as guard_fh:
         while (slot := schedule.next()) is not None:
             if slot.kind == "red":
                 action = red.red_action(slot.round, match_id, match_dir)

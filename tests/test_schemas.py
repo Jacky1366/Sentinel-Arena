@@ -20,7 +20,7 @@ CONFIG_DIR = ROOT / "config"
 SCHEMA_NAMES = [
     "red_attack",
     "red_attack_v0_1",
-    "red_guard",
+    "red_unsent",
     "proxy_log",
     "challenge_snapshot",
     "verdict",
@@ -257,7 +257,7 @@ VALID["red_attack"] = {
     "schema_version": "0.2", "match_id": "m001", "round": 7, "request_id": RID,
     "label": "CWE-89", "payload": "p", "endpoint": "/rest/user/login", "method": "POST",
     "timestamp": "2026-11-02T22:15:03Z", "source": "ai", "rationale": "login tautology"}
-VALID["red_guard"] = {
+VALID["red_unsent"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "round": 3, "kind": "guard_block",
     "reason": "scope_violation", "detail": "path carries a scheme",
     "proposed": {"method": "GET", "path": "/x", "body": "", "label": "CWE-22",
@@ -344,7 +344,7 @@ INVALID = {
         ("schema_version 0.1", _set("schema_version", "0.1")),
         ("extra property", _set("blue_hint", "x")),
     ],
-    "red_guard": [
+    "red_unsent": [
         ("kind not in enum", _set("kind", "mystery")),
         ("guard_block reason from brain set",
          lambda r: {**r, "kind": "guard_block", "reason": "refusal"}),
@@ -929,8 +929,9 @@ def test_api_call_refusal_and_failure_shapes_valid():
     v.validate({**base, "agent": "analyst", "log_seq_first": None, "log_seq_last": None})
 
 
-# Only the designer verifies a price (Stage 5.4: Haiku 5.5 and Sonnet 5.5, 2026-11-12).
-DESIGNER_VERIFIED = {"claude-haiku-5-5", "claude-sonnet-5-5"}
+# Only the designer verifies a price (Stage 5.4: Haiku 5.5, Sonnet 5.5; Stage 5.6:
+# gpt-6-luna — all checked 2026-11-12).
+DESIGNER_VERIFIED = {"claude-haiku-5-5", "claude-sonnet-5-5", "gpt-6-luna"}
 
 
 def test_committed_price_table_is_valid_and_only_designer_verified():
@@ -940,8 +941,11 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
         assert entry["verified"] is (name in DESIGNER_VERIFIED), name
         if entry["verified"]:  # a verified entry names who verified it, when, and where
             assert entry["source"].startswith("designer-verified 2026-11-12 against "), name
-    # Stage 5.6: the luna id is confirmed (pinned SDK); priced, still unverified.
-    assert prices["placeholders"] == {} and prices["models"]["gpt-6-luna"]["verified"] is False
+    # Stage 5.6: luna is priced and designer-verified; placeholders is empty.
+    assert prices["placeholders"] == {}
+    luna = prices["models"]["gpt-6-luna"]
+    assert [t["max_prompt_tokens"] for t in luna["tiers"]] == [272000, None]
+    assert luna["tiers"][0]["cache_write"] == 0.125 and luna["tiers"][1]["output"] == 0.75
 
 
 @pytest.mark.parametrize("match_id,ok", [
@@ -951,7 +955,7 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
 ])
 def test_match_id_accepts_both_forms(match_id, ok):
     # Contract §0: legacy m+digits, or the run_match.py timestamp form.
-    for name in ("red_attack", "red_attack_v0_1", "red_guard", "verdict", "verdict_v0_1",
+    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "verdict", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
                  "match_manifest", "api_call", "benign_request", "benign_result",
@@ -967,7 +971,7 @@ def test_rules_file_empty_rules_is_valid():
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "red_attack_v0_1", "red_guard", "verdict", "verdict_v0_1",
+    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "verdict", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
                  "match_manifest", "api_call", "benign_request", "benign_result",

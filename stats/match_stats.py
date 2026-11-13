@@ -206,11 +206,11 @@ def benign_instrument_failure_rate(benign: list[dict]) -> Rate:
     return Rate(num, den, excluded)
 
 
-def red_guard_summary(guard_rows: list[dict]) -> dict:
-    """Counts over red_guard.jsonl (AI Red slots with no sent attack, Stage 5.6):
+def red_unsent_summary(unsent_rows: list[dict]) -> dict:
+    """Counts over red_unsent.jsonl (AI Red slots with no sent attack, Stage 5.6):
     guard blocks by reason, brain failures by detail, instrument failures by detail."""
     out = {"guard_block": {}, "brain_failure": {}, "instrument_failure": {}, "total": 0}
-    for g in guard_rows:
+    for g in unsent_rows:
         out["total"] += 1
         bucket = out[g["kind"]]
         bucket[g["reason"]] = bucket.get(g["reason"], 0) + 1
@@ -270,10 +270,10 @@ def _with_reason(value, reason) -> str:
 def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None = None,
                    anomalies: list[dict] | None = None,
                    verdicts: list[dict] | None = None,
-                   red_guard: list[dict] | None = None) -> str:
+                   red_unsent: list[dict] | None = None) -> str:
     """Terminal summary. `benign` / `anomalies` are the fact-4a outputs (None or
     [] for a match without benign traffic). `verdicts` (verdicts.jsonl rows) is read
-    only for the model_refusal counts of an AI Blue match. `red_guard` (red_guard.jsonl
+    only for the model_refusal counts of an AI Blue match. `red_unsent` (red_unsent.jsonl
     rows) gives the AI Red diagnostics (attacks sent, guard blocks, brain / instrument
     failures)."""
     benign = benign or []
@@ -283,7 +283,7 @@ def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None
         f"git {manifest['git']['commit'][:10]}{' (dirty)' if manifest['git']['dirty'] else ''}",
     ]
     if manifest.get("red_engine") == "ai":
-        g = red_guard_summary(red_guard or [])
+        g = red_unsent_summary(red_unsent or [])
         sent = sum(1 for r in rounds if r.get("detected_reason") != "orphan") \
             if rounds else 0
         lines.append(f"red={manifest['red_engine']}  attacks sent {len(rounds)}  "

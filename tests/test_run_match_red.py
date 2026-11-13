@@ -1,5 +1,5 @@
 """run_match / run_traffic with AI Red (Stage 5.6). The driver loop (guard, send,
-feedback, red_guard.jsonl) with stubbed network; the orchestrator wiring (match.json
+feedback, red_unsent.jsonl) with stubbed network; the orchestrator wiring (match.json
 red_params / models.red, judge_red label_mismatch, cap mid-match). No Docker."""
 
 from __future__ import annotations
@@ -78,7 +78,7 @@ def test_driver_sends_guards_brain_and_feeds_back(no_target, tmp_path):
     assert [s["target"] for s in no_target] == ["/rest/products/search?q=1", "/rest/x"]
     assert all("X-Arena-Request-Id" not in str(s) for s in no_target)  # header added by client
 
-    guard = [json.loads(l) for l in (tmp_path / "red_guard.jsonl").read_text().splitlines()]
+    guard = [json.loads(l) for l in (tmp_path / "red_unsent.jsonl").read_text().splitlines()]
     assert [(g["kind"], g["reason"]) for g in guard] == [
         ("guard_block", "scope_violation"), ("brain_failure", "invalid_json")]
     assert guard[0]["proposed"]["label"] == "CWE-22" and guard[0]["round"] == 2
@@ -102,7 +102,7 @@ def test_cap_reached_midmatch_then_instrument_failures_and_benign_continues(no_t
     schedule = Schedule(3, ["n01"], 7)
     match_ops.run_traffic(M, tmp_path, [], benign, schedule, settle=0,
                           log=lambda *a: None, red_driver=driver)
-    guard = [json.loads(l) for l in (tmp_path / "red_guard.jsonl").read_text().splitlines()]
+    guard = [json.loads(l) for l in (tmp_path / "red_unsent.jsonl").read_text().splitlines()]
     # First red call succeeds (cap 1), the rest are refused -> instrument failures.
     insts = [g for g in guard if g["kind"] == "instrument_failure"]
     assert insts and all(g["reason"] == "refused_by_body" for g in insts)
@@ -172,7 +172,7 @@ class AIRedSimOps(run_match.Ops):
             (match_dir / name).write_text("", encoding="utf-8")
         with (match_dir / "red_attacks.jsonl").open("w") as ra, \
                 (match_dir / "challenge_snapshots.jsonl").open("w") as snap, \
-                (match_dir / match_ops.RED_GUARD).open("w") as guard, \
+                (match_dir / match_ops.RED_UNSENT).open("w") as guard, \
                 (self.live / "proxy.jsonl").open("a") as proxy:
             for rid, rnd, label, path, newly in SIM_RED:
                 ra.write(json.dumps(ai_red.red_record(
@@ -223,7 +223,7 @@ def test_ai_red_match_records_red_params_and_label_mismatch(dirs):
     assert mism[0]["detail"]["conflicts"][0]["mapped_cwe"] == "CWE-22"
     flat = " ".join(" ".join(out).split())
     assert "red=ai" in flat and "attacks sent 2" in flat and "guard blocks 1" in flat
-    assert "red_guard.jsonl" in m["artifacts"]
+    assert "red_unsent.jsonl" in m["artifacts"]
 
 
 def test_no_red_model_is_refused_at_preflight(dirs):

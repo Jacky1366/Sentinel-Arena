@@ -46,7 +46,7 @@ docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, 
 schemas/                JSON Schema (draft 2020-12) per artifact
   red_attack.schema.json          Red ground truth, schema_version 0.2 (source + rationale; Blue never reads)
   red_attack_v0_1.schema.json     frozen 0.1 Red attack schema
-  red_guard.schema.json           red_guard.jsonl: AI-Red slots with no sent attack (Blue never reads)
+  red_unsent.schema.json           red_unsent.jsonl: AI-Red slots with no sent attack (Blue never reads)
   proxy_log.schema.json           nginx log line (Blue's only input)
   challenge_snapshot.schema.json  before/after solved state (measurement)
   verdict.schema.json             Blue verdict, schema_version 0.2 (verdict or no_verdict_reason)

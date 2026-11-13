@@ -347,11 +347,11 @@ sent) and Gate 2 (3 seeded matches) run only after the designer's GO.
   body) or rules-of-engagement text. History is append-only; no cross-match memory.
 - **Guards** block before sending: scope (Red gives only the path), method allowlist,
   encoding, above-root (matches nginx, checked by `tools/verify_red_guard.py`), label,
-  size. A blocked/failed slot writes a `red_guard.jsonl` line and consumes the round.
+  size. A blocked/failed slot writes a `red_unsent.jsonl` line and consumes the round.
 - **D13 for Red:** body refusal / API failure → `instrument_failure`; model refusal /
   truncation / invalid output → `brain_failure`. Both counted, never a crash, never
   re-asked. **label_mismatch** tripwire in `judge/red_facts.py` (D5).
-- **Formats:** `red_attacks.jsonl` 0.2, new `red_guard.jsonl`, `match.json` 0.5
+- **Formats:** `red_attacks.jsonl` 0.2, new `red_unsent.jsonl`, `match.json` 0.5
   (red_engine/red_params/nullable red_source, `judge_red` step), `anomaly` +
   `label_mismatch`; `JUDGE_VERSION` 0.5.0. Old schemas frozen; readers dispatch.
 - **Scripted Red unchanged** (shares `write_and_send`); the 5.2 stage check still passes.

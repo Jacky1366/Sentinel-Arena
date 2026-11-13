@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://sentinel-arena.local/schemas/red_guard.schema.json",
+  "$id": "https://sentinel-arena.local/schemas/red_unsent.schema.json",
   "title": "Red slot without a sent attack (contract 2.2)",
-  "description": "One line of data/runs/<match_id>/red_guard.jsonl per Red slot that produced NO sent attack (Stage 5.6, AI Red). guard_block: the body's guard rejected the proposed request before anything was sent (D15); proposed holds it, fields cut to their caps. brain_failure: the model gave no usable request (refusal, truncated, invalid output); never re-asked. instrument_failure: the harness failed (body refusal or API failure after retries, D13). No Red record and no request exist for these slots; the round number is consumed. Blue must NEVER read this file.",
+  "description": "One line of data/runs/<match_id>/red_unsent.jsonl per Red slot that produced NO sent attack (Stage 5.6, AI Red). guard_block: the body's guard rejected the proposed request before anything was sent (D15); proposed holds it, fields cut to their caps. brain_failure: the model gave no usable request (refusal, truncated, invalid output); never re-asked. instrument_failure: the harness failed (body refusal or API failure after retries, D13). No Red record and no request exist for these slots; the round number is consumed. Blue must NEVER read this file.",
   "type": "object",
   "additionalProperties": false,
   "required": [

@@ -410,7 +410,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         benign=match_stats.read_rounds(match_dir / fact4_benign.RESULTS),
         anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES),
         verdicts=match_stats.read_rounds(match_dir / "verdicts.jsonl"),
-        red_guard=match_stats.read_rounds(match_dir / match_ops.RED_GUARD)))
+        red_unsent=match_stats.read_rounds(match_dir / match_ops.RED_UNSENT)))
     return EXIT[manifest["status"]], match_dir
 
 
