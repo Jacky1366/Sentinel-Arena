@@ -250,10 +250,11 @@ class Adapter(Protocol):
 #   off until 5.7, both cache fields were 0); (b) whether output_tokens includes
 #   thinking tokens (raw usage reports output_tokens_details.thinking_tokens; thinking
 #   was disabled, so 0).
-# OpenAI (Responses API): VERIFY AT GATE 1 (Stage 5.6). input_tokens is the whole
-#   prompt, so cached and cache-write tokens are subtracted (that input_tokens
-#   includes cache writes is an assumption until a cached call shows it);
-#   output_tokens includes reasoning tokens (billed as output), kept as is.
+# OpenAI (Responses API): VERIFIED 2026-11-12 (Stage 5.6 Gate 1, designer checked the
+#   dashboard: 357 input / 114 output) for UNCACHED calls with ZERO reasoning tokens.
+#   STILL TO VERIFY: (a) that input_tokens includes cache reads/writes so subtracting
+#   both is right (caching is off until 5.7, both were 0); (b) that output_tokens
+#   includes reasoning tokens (effort low produced 0 on the Gate-1 turn).
 
 def anthropic_usage(u: Any) -> Usage:
     """Anthropic input_tokens already EXCLUDES cache reads and cache writes."""

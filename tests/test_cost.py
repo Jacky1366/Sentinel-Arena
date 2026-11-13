@@ -171,3 +171,17 @@ def test_summarize_never_mutates_input():
     before = copy.deepcopy(calls)
     cost.summarize(calls, PRICES)
     assert calls == before
+
+
+def test_summarize_sums_from_raw_tokens_never_rounds_per_call():
+    # 1000 calls that each cost 1e-7 USD (gpt-6-luna Short input 0.10/M, 1 token).
+    # Each rounds to 0.0 at 6 dp; the RAW sum is 1e-4, which must survive. If cost
+    # ever rounded per call before summing, this would read 0.0.
+    prices = cost.load_prices()
+    per_call = cost.call_cost(call(model="gpt-6-luna", agent="red", i=1), prices)["usd"]
+    assert round(per_call, 6) == 0.0 and per_call > 0  # underflows 6 dp on its own
+    calls = [call(model="gpt-6-luna", agent="red", i=1) for _ in range(1000)]
+    s = cost.summarize(calls, prices)
+    assert s["total_usd"] == pytest.approx(0.0001)  # 1000 * 1e-7, summed raw then rounded
+    assert s["by_model"]["gpt-6-luna"]["usd"] == pytest.approx(0.0001)
+    assert s["attempts"] == 1000 and s["tokens"]["input"] == 1000
