@@ -17,14 +17,14 @@ file artifacts defined in a data contract.
 | 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
 | 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
 | 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7; verified + merged Nov 8) |
-| — | Progress Report | Nov 12 | In progress |
+| — | Progress Report | Nov 12 | Done (submitted Nov 12) |
 | 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
 | 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
 | 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch, D16 label audit | Nov 13–19 (Stage 5) | Gates 1–2 passed + first label audit (Nov 13); done before 5.5; branch not merged |
 
-Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
+Currently ~4 days ahead of plan. Next milestone: Assignment 3 (Nov 26).
 
 ## Completed
 
@@ -582,7 +582,8 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
   runs, and the AI demo golden run will also live there.
 
 ## Next
-- **Progress Report** (Nov 12).
+- ~~Progress Report~~ (submitted Nov 12).
+- **Assignment 3** (Nov 26).
 - **Stage 5 — AI brains** (Nov 13–19), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).
