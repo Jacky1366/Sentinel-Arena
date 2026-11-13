@@ -23,7 +23,7 @@ from runner import match_ops  # noqa: E402
 MANIFEST = Draft202012Validator(run_match.MANIFEST_SCHEMA)
 IMAGE = {"image": "x:1", "image_id": "sha256:" + "b" * 64, "repo_digest": None}
 STEPS = ["reset", "rotate", "traffic", "freeze", "judge_fact1", "blue", "judge_rounds",
-         "judge_benign"]
+         "judge_benign", "judge_red"]
 PREVIOUS = '{"request_id":"","note":"previous match traffic"}\n'
 
 ATTACKS = [
@@ -77,7 +77,8 @@ class FakeOps(run_match.Ops):
         return match_ops.rotate_proxy_log(live_dir, reopen=fake_reopen(live_dir),
                                           poll_timeout=0.1)
 
-    def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+    def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle,
+                red_driver=None):
         self.calls.append("traffic")
         for i, (rid, label, method, path, query, body, before, after) in \
                 enumerate(self.attacks, start=1):
@@ -134,6 +135,16 @@ class FakeOps(run_match.Ops):
         self.calls.append("blue_client")
         return llm_client.LLMClient(config=config, prices=prices,
                                     adapters={"fake": FakeAdapter(text=self.blue_reply)},
+                                    env={}, dotenv_path=REPO / "nonexistent" / "no.env",
+                                    sleep=lambda s: None)
+
+    def red_client(self, config, prices):
+        """Fake provider only (never used: this FakeOps.traffic simulates traffic)."""
+        from llm_fakes import FakeAdapter
+        from agents import llm_client
+        self.calls.append("red_client")
+        return llm_client.LLMClient(config=config, prices=prices,
+                                    adapters={"fake": FakeAdapter()},
                                     env={}, dotenv_path=REPO / "nonexistent" / "no.env",
                                     sleep=lambda s: None)
 
@@ -239,7 +250,8 @@ def test_red_fails_midway_partial_artifacts_moved(dirs):
     live, _ = dirs
 
     class RedDiesAfterOne(FakeOps):
-        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle,
+                red_driver=None):
             super().traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)  # first attack only
             raise ConnectionError("arena went away")
 
@@ -439,9 +451,10 @@ def test_freeze_raises_without_any_log(tmp_path):
 def test_scripted_match_manifest_v0_4_zero_cost(dirs):
     code, match_dir, out = go(FakeOps(dirs[0]), dirs)
     m = manifest_of(match_dir)
-    assert code == 0 and m["schema_version"] == "0.4"
+    assert code == 0 and m["schema_version"] == "0.5"
     assert m["blue_engine"] == "scripted" and m["blue_params"] is None
-    assert m["models"] == {"red": None, "blue": None, "analyst": None}
+    assert m["red_engine"] == "scripted" and m["red_params"] is None
+    assert m["red_source"]["path"] and m["models"] == {"red": None, "blue": None, "analyst": None}
     assert m["budget"]["stopped_by"] is None
     assert m["budget"]["limits"]["blue"] == {"max_calls": 100, "max_tokens": 300000,
                                              "max_usd": 0.25}
@@ -456,7 +469,8 @@ def _red_with_ai_calls(max_calls):
     from llm_fakes import FakeAdapter, MESSAGES, SYSTEM, config, make_client
 
     class AIRed(FakeOps):
-        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle):
+        def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle,
+                red_driver=None):
             super().traffic(match_id, match_dir, attacks, benign_entries, schedule, settle)
             client, _ = make_client(FakeAdapter(), cfg=config(red={"max_calls": max_calls}))
             for i in range(1, 4):
@@ -510,7 +524,7 @@ def test_bad_llm_config_refused_at_preflight(dirs):
 # ---- Stage 5.2: the fakes never touch the network; benign traffic end to end ----
 
 NETWORK_STEPS = ("preflight", "reset", "rotate", "traffic", "freeze", "reopen",
-                 "blue_client")
+                 "blue_client", "red_client")
 
 
 def test_fake_ops_override_every_network_step():
@@ -519,7 +533,7 @@ def test_fake_ops_override_every_network_step():
     for name in NETWORK_STEPS:
         assert getattr(FakeOps, name) is not getattr(run_match.Ops, name), name
     assert set(NETWORK_STEPS) | {"git_info", "llm_setup", "judge_fact1", "blue",
-                                 "judge_rounds", "judge_benign"} >= {
+                                 "judge_rounds", "judge_benign", "judge_red"} >= {
         n for n in vars(run_match.Ops) if not n.startswith("_")}
 
 
@@ -528,7 +542,7 @@ def test_benign_traffic_scored_and_recorded(dirs):
     code, match_dir, out = go(FakeOps(live, benign=BENIGN), dirs)
     assert code == 0, out
     m = manifest_of(match_dir)
-    assert m["schema_version"] == "0.4" and m["status"] == "completed"
+    assert m["schema_version"] == "0.5" and m["status"] == "completed"
     t = m["traffic"]
     assert t["seed_source"] == "generated" and 0 <= t["seed"] < 2**32
     assert t["benign_set"]["path"] == "benign/benign_set.json"

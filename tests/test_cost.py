@@ -144,8 +144,19 @@ def test_cost_line_flags():
 
 
 def test_placeholder_never_priced():
+    prices = {**PRICES, "placeholders": {"Unconfirmed": PRICES["models"][next(
+        iter(PRICES["models"]))]}}
+    assert cost.entry_for(prices, "Unconfirmed") is None
+
+
+def test_luna_tier_boundary_at_272k_prompt_tokens():
     prices = cost.load_prices()
-    assert cost.entry_for(prices, "GPT-6 Luna") is None
+    e = cost.entry_for(prices, "gpt-6-luna")
+    assert e["verified"] is True and e["provider"] == "openai"
+    assert cost.tier_for(e, 272_000)["input"] == 0.10
+    t2 = cost.tier_for(e, 272_001)
+    assert (t2["input"], t2["cached_input"], t2["cache_write"], t2["output"]) == \
+        (0.20, 0.02, 0.25, 0.75)
 
 
 def test_price_table_ref_ties_snapshot_to_file(tmp_path):
@@ -160,3 +171,17 @@ def test_summarize_never_mutates_input():
     before = copy.deepcopy(calls)
     cost.summarize(calls, PRICES)
     assert calls == before
+
+
+def test_summarize_sums_from_raw_tokens_never_rounds_per_call():
+    # 1000 calls that each cost 1e-7 USD (gpt-6-luna Short input 0.10/M, 1 token).
+    # Each rounds to 0.0 at 6 dp; the RAW sum is 1e-4, which must survive. If cost
+    # ever rounded per call before summing, this would read 0.0.
+    prices = cost.load_prices()
+    per_call = cost.call_cost(call(model="gpt-6-luna", agent="red", i=1), prices)["usd"]
+    assert round(per_call, 6) == 0.0 and per_call > 0  # underflows 6 dp on its own
+    calls = [call(model="gpt-6-luna", agent="red", i=1) for _ in range(1000)]
+    s = cost.summarize(calls, prices)
+    assert s["total_usd"] == pytest.approx(0.0001)  # 1000 * 1e-7, summed raw then rounded
+    assert s["by_model"]["gpt-6-luna"]["usd"] == pytest.approx(0.0001)
+    assert s["attempts"] == 1000 and s["tokens"]["input"] == 1000

@@ -39,6 +39,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from judge import anomalies as anomalies_mod
 from judge import fact2_detected
 
 REPO = Path(__file__).resolve().parent.parent
@@ -109,7 +110,7 @@ def compute(run_dir: Path) -> tuple[list[dict], list[dict]]:
                               "kind": "unmatched_verdict", "request_id": v["request_id"],
                               "detail": {"log_seq": v["log_seq"], "verdict": v["verdict"]}})
     _validate(results, "benign_result")
-    _validate(anomalies, "anomaly")
+    anomalies_mod.validate(anomalies)  # shared anomaly validator (Stage 5.6)
     return results, anomalies
 
 

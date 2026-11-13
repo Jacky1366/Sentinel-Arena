@@ -10,8 +10,20 @@
       "source": "designer-verified 2026-11-12 against the Claude Haiku 5.5 launch page and platform.claude.com/docs/en/about-claude/pricing (tier rule confirmed there: prompt length counts all input tokens incl. cache reads and writes; each request priced on its own)",
       "verified": true,
       "tiers": [
-        {"max_prompt_tokens": 100000, "input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50},
-        {"max_prompt_tokens": null, "input": 0.50, "cached_input": 0.05, "cache_write": 0.625, "output": 2.50}
+        {
+          "max_prompt_tokens": 100000,
+          "input": 0.1,
+          "cached_input": 0.01,
+          "cache_write": 0.125,
+          "output": 0.5
+        },
+        {
+          "max_prompt_tokens": null,
+          "input": 0.5,
+          "cached_input": 0.05,
+          "cache_write": 0.625,
+          "output": 2.5
+        }
       ]
     },
     "claude-sonnet-5-5": {
@@ -20,7 +32,13 @@
       "source": "designer-verified 2026-11-12 against platform.claude.com/docs/en/about-claude/pricing (cache hits 0.05x base input; cache_write = 5-minute write)",
       "verified": true,
       "tiers": [
-        {"max_prompt_tokens": null, "input": 2, "cached_input": 0.10, "cache_write": 2.50, "output": 10}
+        {
+          "max_prompt_tokens": null,
+          "input": 2,
+          "cached_input": 0.1,
+          "cache_write": 2.5,
+          "output": 10
+        }
       ]
     },
     "claude-opus-5-5": {
@@ -29,7 +47,13 @@
       "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
       "verified": false,
       "tiers": [
-        {"max_prompt_tokens": null, "input": 4, "cached_input": 0.20, "cache_write": 5.00, "output": 20}
+        {
+          "max_prompt_tokens": null,
+          "input": 4,
+          "cached_input": 0.2,
+          "cache_write": 5.0,
+          "output": 20
+        }
       ]
     },
     "gpt-6.1-sol": {
@@ -38,20 +62,37 @@
       "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
       "verified": false,
       "tiers": [
-        {"max_prompt_tokens": null, "input": 2, "cached_input": 0.10, "cache_write": null, "output": 10}
+        {
+          "max_prompt_tokens": null,
+          "input": 2,
+          "cached_input": 0.1,
+          "cache_write": 2.5,
+          "output": 10
+        }
+      ]
+    },
+    "gpt-6-luna": {
+      "provider": "openai",
+      "as_of": "2026-11-12",
+      "source": "designer-verified 2026-11-12 against the official OpenAI pricing page (Standard, both context tabs): Short 0.10 input / 0.50 output, cached 0.01, write 0.125; Long (>272K input tokens) 0.20 / 0.75, cached 0.02, write 0.25. cache_write is the 30-minute write price; if a response ever reports 12-hour cache writes, stop with unpriced_usage. Model id confirmed in the pinned SDK (openai==3.41.0).",
+      "verified": true,
+      "tiers": [
+        {
+          "max_prompt_tokens": 272000,
+          "input": 0.1,
+          "cached_input": 0.01,
+          "cache_write": 0.125,
+          "output": 0.5
+        },
+        {
+          "max_prompt_tokens": null,
+          "input": 0.2,
+          "cached_input": 0.02,
+          "cache_write": 0.25,
+          "output": 0.75
+        }
       ]
     }
   },
-  "placeholders": {
-    "GPT-6 Luna": {
-      "note": "MODEL ID UNCONFIRMED - not callable. Confirm the id before Stage 5.6, then move this entry into models under that id.",
-      "provider": "openai",
-      "as_of": "2026-11-08",
-      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
-      "verified": false,
-      "tiers": [
-        {"max_prompt_tokens": null, "input": 0.10, "cached_input": null, "cache_write": null, "output": 0.50}
-      ]
-    }
-  }
+  "placeholders": {}
 }

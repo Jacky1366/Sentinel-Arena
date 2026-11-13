@@ -20,7 +20,7 @@ GOLDEN = [REPO / "data" / "golden" / "scripted-baseline-match",
           REPO / "data" / "golden" / "scripted-baseline-benign-match"]
 M = "20261109T153012Z-a1b2"
 RIDS = ["11111111-1111-4111-8111-11111111111%d" % i for i in range(1, 10)]
-FORBIDDEN = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed.jsonl",
+FORBIDDEN = ["red_attacks.jsonl", "red_unsent.jsonl", "challenge_snapshots.jsonl", "landed.jsonl",
              "benign_requests.jsonl", "benign_set.json", "benign_results.jsonl",
              "anomalies.jsonl", "rule_results.jsonl", "challenge_map.json", "payloads.json",
              "rounds.jsonl", "api_calls.jsonl", "match.json"]

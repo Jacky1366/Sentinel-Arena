@@ -43,9 +43,10 @@ and an optional `request` block ({thinking, effort}) passed to the adapter, plus
 an optional per-call `output_schema` (structured outputs). They are part of the
 agent's configuration and are recorded in match.json (blue_params).
 
-SDKs are imported lazily, so tests need neither network nor keys. Pinned SDK
-versions are added when first used: Anthropic in Stage 5.4 (anthropic==2.3.0),
-OpenAI in 5.6.
+SDKs are imported lazily, so tests need neither network nor keys. Pinned SDKs:
+Anthropic since Stage 5.4 (anthropic==2.3.0), OpenAI since 5.6 (openai==3.41.0,
+Responses API). For OpenAI, `effort` maps to reasoning effort; `thinking` is an
+Anthropic setting and is refused.
 """
 
 from __future__ import annotations
@@ -57,6 +58,7 @@ import os
 import re
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -157,6 +159,9 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         cs = a.get("chunk_size")
         if cs is not None and (isinstance(cs, bool) or not isinstance(cs, int) or cs < 1):
             raise ConfigError(f"agents.{agent}.chunk_size must be a positive integer")
+        rc = a.get("round_cap")
+        if rc is not None and (isinstance(rc, bool) or not isinstance(rc, int) or rc < 1):
+            raise ConfigError(f"agents.{agent}.round_cap must be a positive integer")
         req = a.get("request", {})
         if not isinstance(req, dict) or set(req) - {"thinking", "effort"}:
             raise ConfigError(f"agents.{agent}.request: only 'thinking' and 'effort' are allowed")
@@ -245,7 +250,11 @@ class Adapter(Protocol):
 #   off until 5.7, both cache fields were 0); (b) whether output_tokens includes
 #   thinking tokens (raw usage reports output_tokens_details.thinking_tokens; thinking
 #   was disabled, so 0).
-# OpenAI: VERIFY AT FIRST REAL CALL (Stage 5.6).
+# OpenAI (Responses API): VERIFIED 2026-11-12 (Stage 5.6 Gate 1, designer checked the
+#   dashboard: 357 input / 114 output) for UNCACHED calls with ZERO reasoning tokens.
+#   STILL TO VERIFY: (a) that input_tokens includes cache reads/writes so subtracting
+#   both is right (caching is off until 5.7, both were 0); (b) that output_tokens
+#   includes reasoning tokens (effort low produced 0 on the Gate-1 turn).
 
 def anthropic_usage(u: Any) -> Usage:
     """Anthropic input_tokens already EXCLUDES cache reads and cache writes."""
@@ -256,12 +265,13 @@ def anthropic_usage(u: Any) -> Usage:
 
 
 def openai_usage(u: Any) -> Usage:
-    """OpenAI prompt_tokens INCLUDES cached tokens; there is no cache-write charge.
-    Reasoning tokens are inside completion_tokens (billed as output)."""
-    details = getattr(u, "prompt_tokens_details", None)
+    """Responses API usage. input_tokens INCLUDES cached (and cache-write) tokens;
+    output_tokens INCLUDES reasoning tokens (billed as output)."""
+    details = getattr(u, "input_tokens_details", None)
     cached = getattr(details, "cached_tokens", None) or 0
-    return Usage(input_tokens=u.prompt_tokens - cached, cached_input_tokens=cached,
-                 cache_write_tokens=0, output_tokens=u.completion_tokens)
+    write = getattr(details, "cache_write_tokens", None) or 0
+    return Usage(input_tokens=u.input_tokens - cached - write, cached_input_tokens=cached,
+                 cache_write_tokens=write, output_tokens=u.output_tokens)
 
 
 def anthropic_request_kwargs(request: dict, output_schema: dict | None) -> dict:
@@ -311,25 +321,88 @@ class AnthropicAdapter:
                      raw_usage=resp.usage.model_dump(mode="json", exclude_none=True))
 
 
+OPENAI_BASE_URL = "https://api.openai.com/v1"  # explicit: OPENAI_BASE_URL is never read
+# Disables OpenAI's implicit prompt-cache breakpoint (no explicit breakpoints are
+# sent), so no prompt caching happens until Stage 5.7 (D11).
+OPENAI_PROMPT_CACHE = {"mode": "explicit"}
+
+
+@contextmanager
+def scrubbed_env(prefix: str):
+    """Remove every `prefix*` variable from os.environ for the duration (the SDK
+    reads OPENAI_* for key, base URL, org, project, admin key and custom headers
+    whenever an argument is unset). Restored afterwards, even on error."""
+    saved = {k: os.environ.pop(k) for k in [k for k in os.environ if k.startswith(prefix)]}
+    try:
+        yield
+    finally:
+        os.environ.update(saved)
+
+
+def openai_request_kwargs(request: dict, output_schema: dict | None) -> dict:
+    """Responses API fields for the agent's request settings + structured output.
+    Sampling parameters are never sent; responses are never stored server-side."""
+    if request.get("thinking") is not None:
+        raise ConfigError("'thinking' is an Anthropic setting; use 'effort' for OpenAI")
+    kw: dict = {"store": False, "prompt_cache_options": dict(OPENAI_PROMPT_CACHE)}
+    if request.get("effort") is not None:
+        kw["reasoning"] = {"effort": request["effort"]}
+    if output_schema is not None:
+        kw["text"] = {"format": {"type": "json_schema", "name": "response",
+                                 "schema": output_schema, "strict": True}}
+    return kw
+
+
+def openai_reply_parts(resp: Any) -> tuple[str, str | None]:
+    """(text, stop_reason) read by output item type. stop_reason is normalized:
+    refusal -> "refusal"; incomplete at the output cap -> "max_tokens"; other
+    incomplete -> "incomplete:<reason>"; else the response status."""
+    texts, refused = [], False
+    for item in getattr(resp, "output", None) or []:
+        if getattr(item, "type", None) != "message":
+            continue  # reasoning items are never the answer
+        for c in getattr(item, "content", None) or []:
+            if getattr(c, "type", None) == "output_text":
+                texts.append(c.text or "")
+            elif getattr(c, "type", None) == "refusal":
+                refused = True
+    status = getattr(resp, "status", None)
+    if refused:
+        stop = "refusal"
+    elif status == "incomplete":
+        reason = getattr(getattr(resp, "incomplete_details", None), "reason", None)
+        stop = "max_tokens" if reason == "max_output_tokens" else f"incomplete:{reason}"
+    else:
+        stop = status
+    return "".join(texts), stop
+
+
 class OpenAIAdapter:
     provider = "openai"
     needs_key = True
+
+    def __init__(self, http_client_factory: Callable[[], Any] | None = None):
+        self.http_client_factory = http_client_factory  # tests: a mock transport
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
              request, output_schema):
         if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
             raise ConfigError("no API key passed")
-        if any(v is not None for v in request.values()) or output_schema is not None:
-            raise ConfigError("request settings / output_schema are not mapped for OpenAI "
-                              "yet (Stage 5.6)")
-        import openai  # lazy; pinned in requirements.txt in Stage 5.6
-        client = openai.OpenAI(api_key=api_key, timeout=timeout, max_retries=0)
-        resp = client.chat.completions.create(
-            model=model, messages=[{"role": "system", "content": system}, *messages],
-            max_completion_tokens=max_output_tokens)
-        return Reply(text=resp.choices[0].message.content or "",
-                     usage=openai_usage(resp.usage),
-                     stop_reason=resp.choices[0].finish_reason)
+        kwargs = openai_request_kwargs(request, output_schema)
+        import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
+        extra = {} if self.http_client_factory is None else \
+            {"http_client": self.http_client_factory()}
+        # The client is built with every OPENAI_* variable removed, and the key and
+        # base URL passed explicitly: no environment value can choose the key, the
+        # host, the organization, the project or extra headers.
+        with scrubbed_env("OPENAI_"):
+            client = openai.OpenAI(api_key=api_key, base_url=OPENAI_BASE_URL,
+                                   timeout=timeout, max_retries=0, **extra)
+        resp = client.responses.create(model=model, instructions=system, input=messages,
+                                       max_output_tokens=max_output_tokens, **kwargs)
+        text, stop = openai_reply_parts(resp)
+        return Reply(text=text, usage=openai_usage(resp.usage), stop_reason=stop,
+                     raw_usage=resp.usage.model_dump(mode="json", exclude_none=True))
 
 
 DEFAULT_ADAPTERS: dict[str, Adapter] = {"anthropic": AnthropicAdapter(),

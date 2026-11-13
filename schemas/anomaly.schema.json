@@ -25,7 +25,8 @@
         "benign_solved_challenge",
         "benign_snapshot_missing",
         "unmatched_verdict",
-        "rule_source_benign"
+        "rule_source_benign",
+        "label_mismatch"
       ]
     },
     "request_id": {
@@ -167,6 +168,72 @@
               "benign_id": {
                 "type": "string",
                 "pattern": "^[nh][0-9]{2}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "label_mismatch"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "round",
+              "label",
+              "newly_solved",
+              "conflicts"
+            ],
+            "properties": {
+              "round": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "label": {
+                "enum": [
+                  "CWE-89",
+                  "CWE-79",
+                  "CWE-22"
+                ]
+              },
+              "newly_solved": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "conflicts": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "challenge",
+                    "mapped_cwe"
+                  ],
+                  "properties": {
+                    "challenge": {
+                      "type": "string"
+                    },
+                    "mapped_cwe": {
+                      "enum": [
+                        "CWE-89",
+                        "CWE-79",
+                        "CWE-22"
+                      ]
+                    }
+                  }
+                }
               }
             }
           }

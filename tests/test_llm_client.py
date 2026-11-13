@@ -336,8 +336,10 @@ def test_agent_without_a_provider_is_a_config_error(tmp_path):
 def test_placeholder_model_is_never_callable(tmp_path):
     d = run_dir(tmp_path)
     adapter = FakeAdapter(provider="openai", needs_key=True)
-    client, _ = make_client(adapter, prices=lc.cost_mod.load_prices())
-    r = red(client, d, model="GPT-6 Luna")
+    prices = {**PRICES, "placeholders": {"Unconfirmed Model": {
+        **PRICES["models"]["fake-keyed"], "provider": "openai"}}}
+    client, _ = make_client(adapter, prices=prices)
+    r = red(client, d, model="Unconfirmed Model")
     assert r.refusal["reason"] == "missing_price" and adapter.calls == []
 
 
@@ -392,12 +394,14 @@ def test_anthropic_usage_mapping():
     assert lc.anthropic_usage(bare) == lc.Usage(100, 0, 0, 20)
 
 
-def test_openai_usage_mapping_subtracts_cached_from_prompt():
-    u = SimpleNamespace(prompt_tokens=1000, completion_tokens=40,
-                        prompt_tokens_details=SimpleNamespace(cached_tokens=768))
-    assert lc.openai_usage(u) == lc.Usage(232, 768, 0, 40)
-    assert lc.openai_usage(SimpleNamespace(prompt_tokens=10, completion_tokens=1,
-                                           prompt_tokens_details=None)) == lc.Usage(10, 0, 0, 1)
+def test_openai_usage_mapping_subtracts_cached_and_written_from_prompt():
+    # Responses API: input_tokens is the whole prompt; output includes reasoning.
+    u = SimpleNamespace(input_tokens=1000, output_tokens=40,
+                        input_tokens_details=SimpleNamespace(cached_tokens=768,
+                                                             cache_write_tokens=32))
+    assert lc.openai_usage(u) == lc.Usage(200, 768, 32, 40)
+    assert lc.openai_usage(SimpleNamespace(input_tokens=10, output_tokens=1,
+                                           input_tokens_details=None)) == lc.Usage(10, 0, 0, 1)
 
 
 def test_classify_reads_status_from_response_and_retry_after_header():
@@ -480,13 +484,16 @@ def test_fake_provider_is_exempt_from_price_verification(tmp_path):
     assert blue(client, d).ok
 
 
-def test_committed_config_blue_settings():
+def test_committed_config_blue_and_red_settings():
     cfg = lc.load_config()
+    assert cfg["max_output_tokens"] == 1024  # the global default
     assert lc.agent_max_output_tokens(cfg, "blue") == 256
-    assert lc.agent_max_output_tokens(cfg, "red") == cfg["max_output_tokens"] == 1024
+    assert lc.agent_max_output_tokens(cfg, "red") == 2048  # Red overrides the global
     assert lc.agent_request(cfg, "blue") == {"thinking": "disabled", "effort": "low"}
-    assert lc.agent_request(cfg, "red") == {"thinking": None, "effort": None}
+    assert lc.agent_request(cfg, "red") == {"thinking": None, "effort": "low"}
     assert cfg["agents"]["blue"]["chunk_size"] == 1
+    assert cfg["agents"]["red"]["model"] == "gpt-6-luna"
+    assert cfg["agents"]["red"]["round_cap"] == 10
 
 
 def test_per_agent_settings_reach_the_adapter_and_the_worst_case(tmp_path):
@@ -553,8 +560,8 @@ def test_failed_attempt_has_null_stop_reason(tmp_path):
     assert lines(d)[0]["stop_reason"] is None
 
 
-def test_openai_adapter_refuses_unmapped_request_settings():
-    with pytest.raises(lc.ConfigError, match="not mapped"):
+def test_openai_adapter_refuses_the_anthropic_thinking_setting():
+    with pytest.raises(lc.ConfigError, match="thinking"):
         lc.OpenAIAdapter().call(model="m", system="s", messages=[], max_output_tokens=1,
                                 timeout=1, api_key="k", request={"thinking": "disabled",
                                                                  "effort": None},

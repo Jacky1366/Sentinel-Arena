@@ -40,8 +40,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 from benign import send_benign  # noqa: E402
-from red import scripted_red  # noqa: E402
+from red import ai_red, scripted_red  # noqa: E402
+from red import red_guard  # noqa: E402
 from runner.schedule import Schedule  # noqa: E402
+
+RED_UNSENT = "red_unsent.jsonl"
 
 RUNS = REPO / "data" / "runs"
 LIVE = RUNS / "live"
@@ -297,33 +300,126 @@ def snapshot_after(before, settle: float, poll: float = 0.25, stable_polls: int 
     return last
 
 
+class RedDriver:
+    """How one Red slot is handled. Returns an action for run_traffic, which brackets
+    any send with challenge snapshots. The driver owns Red's feedback (D6)."""
+
+    def red_action(self, round_num: int, match_id: str, match_dir: Path) -> "RedAction":
+        raise NotImplementedError
+
+
+class RedAction:
+    SEND, NO_SEND, EXHAUSTED = "send", "no_send", "exhausted"
+
+    def __init__(self, kind: str, send=None, guard_line: dict | None = None):
+        self.kind = kind
+        self.send = send              # SEND: () -> result dict (writes record, sends)
+        self.guard_line = guard_line  # NO_SEND: red_guard fields (kind/reason/detail/proposed)
+
+
+class ScriptedDriver(RedDriver):
+    """Scripted Red: the fixed payload set, one at a time. No guard, no red_unsent.jsonl
+    (scripted payloads are pre-verified). Behaviour unchanged from Stage 2."""
+
+    def __init__(self, attacks: list[dict]):
+        self.red = scripted_red.ScriptedRed(attacks)
+        self.last_status: int | None = None
+
+    def red_action(self, round_num, match_id, match_dir):
+        attack = self.red.next_attack(self.last_status)
+        if attack is None:
+            return RedAction(RedAction.EXHAUSTED)
+
+        def send():
+            res = scripted_red.send_one(attack, match_id, round_num, match_dir)
+            self.last_status = res["status"]
+            return res
+        return RedAction(RedAction.SEND, send=send)
+
+
+class AIDriver(RedDriver):
+    """AI Red: propose one request, guard it, then send or record a no-send. Feedback
+    to Red is only its own HTTP result or rules-of-engagement text (D6)."""
+
+    def __init__(self, red: ai_red.AIRed):
+        self.red = red
+        self._feedback: str | None = None
+
+    def _proposed_fields(self, a: dict) -> dict:
+        return {"method": a["method"][:16], "path": a["path"][:red_guard.MAX_PATH_CHARS],
+                "body": a["body"][:red_guard.MAX_BODY_CHARS], "label": a["label"][:32],
+                "rationale": a["rationale"][:ai_red.RATIONALE_MAX]}
+
+    def red_action(self, round_num, match_id, match_dir):
+        prop = self.red.propose(self._feedback, round_num)
+        if prop.kind == "instrument_failure":  # no model turn; feedback unchanged
+            return RedAction(RedAction.NO_SEND, guard_line={
+                "kind": "instrument_failure", "reason": prop.reason,
+                "detail": prop.detail, "proposed": None})
+        if prop.kind == "brain_failure":
+            self._feedback = ai_red.feedback_brain(prop.reason)
+            return RedAction(RedAction.NO_SEND, guard_line={
+                "kind": "brain_failure", "reason": prop.reason, "detail": None,
+                "proposed": None})
+        a = prop.attack
+        g = red_guard.check(a["method"], a["path"], a["body"], a["label"])
+        if not g.ok:
+            self._feedback = ai_red.feedback_blocked(g.reason, g.detail)
+            return RedAction(RedAction.NO_SEND, guard_line={
+                "kind": "guard_block", "reason": g.reason, "detail": g.detail,
+                "proposed": self._proposed_fields(a)})
+
+        def send():
+            record = ai_red.red_record(a, scripted_red.arena_client.new_request_id(),
+                                       match_id, round_num)
+            body = a["body"] if a["body"] else None
+            res = scripted_red.write_and_send(record, a["method"], a["path"], body, match_dir)
+            if res["error"] is None:
+                self._feedback = ai_red.feedback_sent(res["status"], res["body_text"])
+            else:
+                self._feedback = ai_red.feedback_blocked("the request could not be sent",
+                                                         res["error"])
+            return res
+        return RedAction(RedAction.SEND, send=send)
+
+
 def run_traffic(match_id: str, match_dir: Path, attacks: list[dict],
                 benign_entries: list[dict], schedule: Schedule, settle: float = 3.0,
-                log=print) -> list[dict]:
+                log=print, red_driver: RedDriver | None = None) -> list[dict]:
     """Drive the match one slot at a time: Red and benign traffic interleaved by
     `schedule` (each keeps its own order), every request bracketed by challenge
     snapshots marked with its traffic kind. Writes red_attacks.jsonl,
     benign_requests.jsonl and challenge_snapshots.jsonl straight into match_dir."""
     match_dir.mkdir(parents=True, exist_ok=True)
-    for name in ("red_attacks.jsonl", "benign_requests.jsonl", "challenge_snapshots.jsonl"):
+    for name in ("red_attacks.jsonl", "benign_requests.jsonl", "challenge_snapshots.jsonl",
+                 RED_UNSENT):
         (match_dir / name).write_text("", encoding="utf-8")
     snap_path = match_dir / "challenge_snapshots.jsonl"
     benign_by_id = {e["benign_id"]: e for e in benign_entries}
-    red = scripted_red.ScriptedRed(attacks)
-    last_red_status: int | None = None
+    red = red_driver if red_driver is not None else ScriptedDriver(attacks)
 
     results = []
-    with snap_path.open("a", encoding="utf-8") as snap_fh:
+    with snap_path.open("a", encoding="utf-8") as snap_fh, \
+            (match_dir / RED_UNSENT).open("a", encoding="utf-8") as guard_fh:
         while (slot := schedule.next()) is not None:
             if slot.kind == "red":
-                attack = red.next_attack(last_red_status)
-                if attack is None:  # Red is done: drop its remaining slots
+                action = red.red_action(slot.round, match_id, match_dir)
+                if action.kind == RedAction.EXHAUSTED:  # Red is done: drop remaining slots
                     schedule.red_exhausted()
+                    continue
+                if action.kind == RedAction.NO_SEND:
+                    # Nothing sent: no snapshot, no proxy line; the round is consumed.
+                    line = {"schema_version": "0.1", "match_id": match_id,
+                            "round": slot.round, "timestamp": utc_now(), **action.guard_line}
+                    guard_fh.write(json.dumps(line) + "\n")
+                    guard_fh.flush()
+                    log(f"slot {slot.slot:>2} round {slot.round} RED {line['kind']} "
+                        f"({line['reason']}); nothing sent")
+                    results.append({**line, "slot": slot.slot, "kind": "red_no_send"})
                     continue
             before = solved_now()
             if slot.kind == "red":
-                res = scripted_red.send_one(attack, match_id, slot.round, match_dir)
-                last_red_status = res["status"]
+                res = action.send()
                 what = f"round {slot.round} {res['label']:7}"
             else:
                 res = send_benign.send_one(benign_by_id[slot.benign_id], match_id, match_dir)

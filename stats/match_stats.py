@@ -206,6 +206,46 @@ def benign_instrument_failure_rate(benign: list[dict]) -> Rate:
     return Rate(num, den, excluded)
 
 
+def red_unsent_summary(unsent_rows: list[dict]) -> dict:
+    """Counts over red_unsent.jsonl (AI Red slots with no sent attack, Stage 5.6):
+    guard blocks by reason, brain failures by detail, instrument failures by detail."""
+    out = {"guard_block": {}, "brain_failure": {}, "instrument_failure": {}, "total": 0}
+    for g in unsent_rows:
+        out["total"] += 1
+        bucket = out[g["kind"]]
+        bucket[g["reason"]] = bucket.get(g["reason"], 0) + 1
+    return out
+
+
+def audit_first(rounds: list[dict], challenge_map: dict) -> dict[int, list[str]]:
+    """D16 advisory flag: {round: [solved challenges outside challenge_map]}. Derived,
+    never stored, and it excludes nothing: a SQLi that also solves an unmapped
+    challenge (e.g. Error Handling) is legitimate, it is only looked at first."""
+    mapped = {name for names in challenge_map.values() for name in names}
+    out = {}
+    for r in rounds:
+        extra = sorted(set(r.get("newly_solved") or []) - mapped)
+        if extra:
+            out[r["round"]] = extra
+    return out
+
+
+def apply_audit(rounds: list[dict], audit_rows: list[dict]) -> dict:
+    """D16 audited view. A round whose label the designer judged `invalid` is EXCLUDED
+    (like an orphan), never relabeled. The view exists only when every non-orphan
+    round carries a decided verdict; otherwise `rounds` is None (incomplete), so a
+    partial audit never produces a number. Pure: the Judge's rounds are not changed."""
+    by_round = {a["round"]: a for a in audit_rows}
+    pending = sorted(r["round"] for r in rounds if not _is_orphan(r)
+                     and by_round.get(r["round"], {}).get("verdict") not in ("valid", "invalid"))
+    invalid = sorted(r["round"] for r in rounds
+                     if by_round.get(r["round"], {}).get("verdict") == "invalid")
+    kept = None if pending else [r for r in rounds if r["round"] not in set(invalid)]
+    return {"rounds": kept, "unaudited": pending, "invalid": invalid,
+            "valid": sorted(r["round"] for r in rounds
+                            if by_round.get(r["round"], {}).get("verdict") == "valid")}
+
+
 def model_refusals(rounds: list[dict], benign: list[dict], verdicts: list[dict]) -> dict:
     """{"attack": n, "benign": n, "unmatched": n}: verdict rows whose failure_detail is
     model_refusal (0.2 rows only; audit field), split by which traffic they were."""
@@ -258,16 +298,29 @@ def _with_reason(value, reason) -> str:
 
 def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None = None,
                    anomalies: list[dict] | None = None,
-                   verdicts: list[dict] | None = None) -> str:
+                   verdicts: list[dict] | None = None,
+                   red_unsent: list[dict] | None = None,
+                   challenge_map: dict | None = None) -> str:
     """Terminal summary. `benign` / `anomalies` are the fact-4a outputs (None or
     [] for a match without benign traffic). `verdicts` (verdicts.jsonl rows) is read
-    only for the model_refusal counts of an AI Blue match."""
+    only for the model_refusal counts of an AI Blue match. `red_unsent` (red_unsent.jsonl
+    rows) gives the AI Red diagnostics (attacks sent, guard blocks, brain / instrument
+    failures)."""
     benign = benign or []
     lines = [
         f"match {manifest['match_id']}  status={manifest['status']}  "
         f"judge {manifest['judge_version']}  blue={manifest['blue_engine']}  "
         f"git {manifest['git']['commit'][:10]}{' (dirty)' if manifest['git']['dirty'] else ''}",
     ]
+    if manifest.get("red_engine") == "ai":
+        g = red_unsent_summary(red_unsent or [])
+        sent = sum(1 for r in rounds if r.get("detected_reason") != "orphan") \
+            if rounds else 0
+        lines.append(f"red={manifest['red_engine']}  attacks sent {len(rounds)}  "
+                     f"guard blocks {sum(g['guard_block'].values())} {g['guard_block']}  "
+                     f"brain failures {sum(g['brain_failure'].values())} {g['brain_failure']}  "
+                     f"instr. failures {sum(g['instrument_failure'].values())} "
+                     f"{g['instrument_failure']}")
     if manifest["status"] == "failed":
         lines.append(f"FAILED at step '{manifest['failed_step']}': {manifest['error']}")
     stop = (manifest.get("budget") or {}).get("stopped_by")
@@ -332,6 +385,11 @@ def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None
         lines.append(f"model refusals attack {mr['attack']}  benign {mr['benign']}"
                      f"{'  unmatched ' + str(mr['unmatched']) if mr['unmatched'] else ''}"
                      f"  (the model's safety layer declined; part of no-verdict)")
+    if challenge_map is not None and manifest.get("red_engine") == "ai":
+        flagged = audit_first(rounds, challenge_map)
+        lines.append("audit first    " + (", ".join(f"round {k} {v}" for k, v in flagged.items())
+                                          if flagged else "none")
+                     + "  (solved a challenge outside challenge_map; advisory, D16)")
     lines += ["", "counts: " + "  ".join(f"{k}={v}" for k, v in c.items())]
     if anomalies:
         lines.append("")

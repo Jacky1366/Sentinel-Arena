@@ -9,22 +9,34 @@ here: the status line and headers were fully received and the body is shorter
 than its Content-Length -> the status is returned with body_incomplete=True.
 Everything else stays an error (connection closed or reset before the headers,
 timeouts, malformed responses): the catch is deliberately narrow.
+
+Stage 5.6: the response body's first BODY_CAPTURE bytes are returned as text
+(`body_text`, decoded with replacement) for AI Red's feedback (D6: its only
+feedback is its own HTTP result). Reading the body is what the client always did;
+the request (method, target, headers, body) is unchanged for every sender.
 """
 
 from __future__ import annotations
 
 import http.client
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 ARENA_HOST, ARENA_PORT = "127.0.0.1", 8080
 DEFAULT_TIMEOUT = 15.0
+BODY_CAPTURE = 4096  # bytes of the response body kept as text (AI Red feedback)
+
+
+def _text(raw: bytes) -> str:
+    return raw[:BODY_CAPTURE].decode("utf-8", errors="replace")
 
 
 @dataclass(frozen=True)
 class Response:
     status: int
     body_incomplete: bool = False
+    # Not part of equality: the status (and the short-body flag) is the result.
+    body_text: str = field(default="", compare=False)
 
 
 def new_request_id() -> str:
@@ -53,13 +65,13 @@ def send(method: str, target: str, request_id: str, body: str | None = None,
         conn.request(method, target, body=body, headers=build_headers(request_id, body))
         resp = conn.getresponse()  # raises unless the status line + headers arrived
         try:
-            resp.read()
-        except http.client.IncompleteRead:
+            raw = resp.read()
+        except http.client.IncompleteRead as exc:
             # Only a body shorter than a declared Content-Length is tolerated;
             # a chunked body cut short is a malformed response and still raises.
             if resp.chunked or resp.getheader("Content-Length") is None:
                 raise
-            return Response(resp.status, body_incomplete=True)
-        return Response(resp.status)
+            return Response(resp.status, body_incomplete=True, body_text=_text(exc.partial))
+        return Response(resp.status, body_text=_text(raw))
     finally:
         conn.close()

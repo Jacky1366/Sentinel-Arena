@@ -2,15 +2,23 @@
   "agents": {
     "red": {
       "provider": "openai",
-      "model": null,
-      "note": "AI Red arrives in Stage 5.6 (OpenAI). Dev default will be GPT-6 Luna once its model id is confirmed (config/prices.json placeholders)."
+      "model": "gpt-6-luna",
+      "note": "AI Red (Stage 5.6, OpenAI). gpt-6-luna is the cheapest current model (D12; id confirmed in the pinned SDK). effort maps to reasoning effort; max_output_tokens 2048 (reasoning tokens count toward it); round_cap is the number of Red slots. These are recorded in match.json red_params; hold them constant within any comparison. The guard caps live in red/red_guard.py.",
+      "max_output_tokens": 2048,
+      "request": {
+        "effort": "low"
+      },
+      "round_cap": 10
     },
     "blue": {
       "provider": "anthropic",
       "model": "claude-haiku-5-5",
       "note": "AI Blue (Stage 5.4, Anthropic). Cheapest current-generation model for development (D12). max_output_tokens, request and the structured output format are part of the Blue configuration: hold them constant within any comparison (recorded in match.json blue_params). chunk_size > 1 is refused for scored matches (D4).",
       "max_output_tokens": 256,
-      "request": {"thinking": "disabled", "effort": "low"},
+      "request": {
+        "thinking": "disabled",
+        "effort": "low"
+      },
       "chunk_size": 1
     },
     "analyst": {
@@ -27,9 +35,25 @@
   "chars_per_token": 3,
   "provider_caching": false,
   "caps": {
-    "red": {"max_calls": 60, "max_tokens": 400000, "max_usd": 0.25},
-    "blue": {"max_calls": 100, "max_tokens": 300000, "max_usd": 0.25},
-    "analyst": {"max_calls": 0, "max_tokens": 0, "max_usd": 0},
-    "match": {"max_calls": null, "max_tokens": null, "max_usd": 0.50}
+    "red": {
+      "max_calls": 60,
+      "max_tokens": 400000,
+      "max_usd": 0.25
+    },
+    "blue": {
+      "max_calls": 100,
+      "max_tokens": 300000,
+      "max_usd": 0.25
+    },
+    "analyst": {
+      "max_calls": 0,
+      "max_tokens": 0,
+      "max_usd": 0
+    },
+    "match": {
+      "max_calls": null,
+      "max_tokens": null,
+      "max_usd": 0.5
+    }
   }
 }

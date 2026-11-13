@@ -21,7 +21,7 @@ VERDICT_SCHEMA = Draft202012Validator(
 RID = "3f2b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 RID2 = "4a5b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 
-FORBIDDEN = ["red_attacks.jsonl", "challenge_snapshots.jsonl", "landed.jsonl",
+FORBIDDEN = ["red_attacks.jsonl", "red_unsent.jsonl", "challenge_snapshots.jsonl", "landed.jsonl",
              "benign_requests.jsonl", "benign_set.json", "benign_results.jsonl",
              "anomalies.jsonl", "verification.json", "rule_results.jsonl", "rule_score.json",
              "fixture_v1.jsonl",

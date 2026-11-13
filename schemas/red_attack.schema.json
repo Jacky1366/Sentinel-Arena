@@ -1,26 +1,107 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/red_attack.schema.json",
-  "title": "Red attack record (contract v0.1)",
-  "description": "One line of data/runs/<match_id>/red_attacks.jsonl. Ground truth. Blue must NEVER read this.",
+  "title": "Red attack record (contract 2, schema_version 0.2)",
+  "description": "One line of data/runs/<match_id>/red_attacks.jsonl, schema_version 0.2 (Stage 5.6 on). Ground truth, written by the body BEFORE the request is sent. Blue must NEVER read this. source: who chose the attack (scripted payloads or the AI). rationale: the AI's one-sentence reason (untrusted model text, cut to 500 chars), the primary evidence for the D5 label audit; null for scripted Red. 0.1 records are validated by red_attack_v0_1.schema.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "match_id", "round", "request_id", "label", "payload", "endpoint", "method", "timestamp"],
+  "required": [
+    "schema_version",
+    "match_id",
+    "round",
+    "request_id",
+    "label",
+    "payload",
+    "endpoint",
+    "method",
+    "timestamp",
+    "source",
+    "rationale"
+  ],
   "properties": {
-    "schema_version": { "const": "0.1" },
-    "match_id": { "type": "string", "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$" },
-    "round": { "type": "integer", "minimum": 1 },
+    "schema_version": {
+      "const": "0.2"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
     "request_id": {
       "type": "string",
       "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     },
-    "label": { "enum": ["CWE-89", "CWE-79", "CWE-22"] },
-    "payload": { "type": "string" },
-    "endpoint": { "type": "string", "pattern": "^/" },
-    "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] },
+    "label": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22"
+      ]
+    },
+    "payload": {
+      "type": "string"
+    },
+    "endpoint": {
+      "type": "string",
+      "pattern": "^/"
+    },
+    "method": {
+      "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "HEAD",
+        "OPTIONS"
+      ]
+    },
     "timestamp": {
       "type": "string",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "source": {
+      "enum": [
+        "scripted",
+        "ai"
+      ]
+    },
+    "rationale": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
     }
-  }
+  },
+  "allOf": [
+    {
+      "comment": "an AI attack carries its rationale; a scripted one has none",
+      "if": {
+        "properties": {
+          "source": {
+            "const": "ai"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "rationale": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
 }

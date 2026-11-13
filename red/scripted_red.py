@@ -67,7 +67,7 @@ def red_record(attack: dict, request_id: str, match_id: str, round_num: int) -> 
     else:
         payload = attack["endpoint"]
     return {
-        "schema_version": "0.1",
+        "schema_version": "0.2",
         "match_id": match_id,
         "round": round_num,
         "request_id": request_id,
@@ -76,6 +76,8 @@ def red_record(attack: dict, request_id: str, match_id: str, round_num: int) -> 
         "endpoint": attack["endpoint"],
         "method": attack["method"],
         "timestamp": utc_now(),
+        "source": "scripted",
+        "rationale": None,
     }
 
 
@@ -101,41 +103,40 @@ class ScriptedRed:
         return self._attacks[self._i - 1]
 
 
-def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DIR,
-             timeout: float = DEFAULT_TIMEOUT) -> dict:
-    """Write the Red record, then fire one attack. Returns a result dict; on a send
-    failure `status` is None and `error` is set (the record stays -> orphan)."""
+def write_and_send(record: dict, method: str, target: str, body: str | None,
+                   out_dir: Path, timeout: float = DEFAULT_TIMEOUT) -> dict:
+    """Write one Red record (ground truth), THEN send its request through the shared
+    arena client. The record carries request_id. Returns the HTTP result; on a send
+    failure `status` is None and `error` is set (the record stays -> orphan). Used by
+    scripted Red and AI Red, so both write the same way and send the same way."""
     out_dir.mkdir(parents=True, exist_ok=True)
-    request_id = arena_client.new_request_id()
-    record = red_record(attack, request_id, match_id, round_num)
-
-    # Record FIRST, so a crash or network failure still leaves ground truth.
+    request_id = record["request_id"]
     with (out_dir / "red_attacks.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record) + "\n")
 
+    status, error, incomplete, body_text = None, None, False, ""
+    try:
+        resp = arena_client.send(method, target, request_id, body=body, timeout=timeout)
+        status, incomplete, body_text = resp.status, resp.body_incomplete, resp.body_text
+    except Exception as exc:  # noqa: BLE001 - any failure -> orphan, no retry
+        error = f"{type(exc).__name__}: {exc}"
+    return {"request_id": request_id, "round": record["round"], "label": record["label"],
+            "status": status, "body_incomplete": incomplete, "error": error,
+            "body_text": body_text}
+
+
+def send_one(attack: dict, match_id: str, round_num: int, out_dir: Path = OUT_DIR,
+             timeout: float = DEFAULT_TIMEOUT) -> dict:
+    """Write the scripted Red record, then fire one attack."""
+    request_id = arena_client.new_request_id()
+    record = red_record(attack, request_id, match_id, round_num)
     body = None
     if attack.get("json_body") is not None:
         body = json.dumps(attack["json_body"])
-
-    status, error, incomplete = None, None, False
-    try:
-        resp = arena_client.send(attack["method"], request_target(attack), request_id,
-                                 body=body, timeout=timeout)
-        status, incomplete = resp.status, resp.body_incomplete
-    except Exception as exc:  # noqa: BLE001 - any failure -> orphan, no retry
-        error = f"{type(exc).__name__}: {exc}"
-
-    return {
-        "request_id": request_id,
-        "round": round_num,
-        "label": attack["label"],
-        "status": status,
-        "body_incomplete": incomplete,
-        "error": error,
-        "expected_landed": attack.get("expected_landed"),
-        "expected_reason": attack.get("expected_reason"),
-        "note": attack.get("note", ""),
-    }
+    res = write_and_send(record, attack["method"], request_target(attack), body, out_dir,
+                         timeout)
+    return {**res, "expected_landed": attack.get("expected_landed"),
+            "expected_reason": attack.get("expected_reason"), "note": attack.get("note", "")}
 
 
 def main(argv: list[str] | None = None) -> int:
