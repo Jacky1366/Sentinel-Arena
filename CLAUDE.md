@@ -120,6 +120,7 @@ data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); 
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
+data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
@@ -194,8 +195,8 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stage 5.4 (AI Blue) is implemented and tested on the fake provider; Gates 1 and 2
-  (real calls) wait for the designer's GO. Before that: Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
+- Stage 5.4 (AI Blue, Anthropic) is done: Gates 1 and 2 passed (first real calls,
+  Nov 12). Before that: Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
   fact 1; Blue v0 + Judge fact 2 + round record; `run_match.py` orchestrator +
   `match.json`; the AI body `agents/llm_client.py` + cost tracking, no real calls
   yet; benign traffic + Judge fact 4a; the rule format, RE2 rule engine and Judge

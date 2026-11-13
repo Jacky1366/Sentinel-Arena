@@ -1044,6 +1044,48 @@ def test_committed_benign_baseline_validates_and_is_clean():
     assert (d / "anomalies.jsonl").read_text() == ""
 
 
+def test_committed_claude_blue_first_match_validates_and_is_clean():
+    # Stage 5.4 Gate 2, run 1: the first AI Blue reference run (Haiku 5.5).
+    import sys
+    sys.path.insert(0, str(ROOT))
+    import run_match
+    from judge import fact4_benign, round_record
+    d = ROOT / "data" / "golden" / "claude-blue-haiku-first-match"
+    m = _load(d / "match.json")
+    assert m["schema_version"] == "0.4" and m["status"] == "completed"
+    assert m["git"] == {"commit": "af755e395ae921e1358c12de529996b95fb5920b", "dirty": False}
+    assert m["traffic"]["seed"] == 5202 and m["blue_engine"] == "claude"
+    assert m["models"]["blue"] == {"provider": "anthropic", "model": "claude-haiku-5-5"}
+    p = m["blue_params"]
+    assert (p["prompt_version"], p["chunk_size"], p["sdk"]["version"]) == ("1", 1, "2.3.0")
+    assert p["request"]["max_output_tokens"] == 256
+    assert run_match.validate_manifest(m) == []
+    a = run_match.artifact_hashes(d)
+    a.pop("README.md")
+    assert a == m["artifacts"]
+    for name, schema in (("benign_requests.jsonl", "benign_request"),
+                         ("benign_results.jsonl", "benign_result"),
+                         ("verdicts.jsonl", "verdict"),
+                         ("rounds.jsonl", "round_record"),
+                         ("api_calls.jsonl", "api_call"),
+                         ("challenge_snapshots.jsonl", "challenge_snapshot")):
+        rows = [json.loads(l) for l in (d / name).read_text().splitlines()]
+        assert rows, name
+        for row in rows:
+            validator(schema).validate(row)
+    calls = [json.loads(l) for l in (d / "api_calls.jsonl").read_text().splitlines()]
+    assert len(calls) == 24 and all(c["ok"] and c["stop_reason"] == "end_turn" for c in calls)
+    verdicts = [json.loads(l) for l in (d / "verdicts.jsonl").read_text().splitlines()]
+    assert len(verdicts) == 24 and {v["source"] for v in verdicts} == {"ai"}
+    assert (d / "anomalies.jsonl").read_text() == ""
+    # The Judge re-scores the folder offline to exactly the committed outputs
+    # (incl. the instrument_failure cross-check against api_calls.jsonl).
+    assert round_record.build_round_records(d) == \
+        [json.loads(l) for l in (d / "rounds.jsonl").read_text().splitlines()]
+    assert fact4_benign.compute(d) == (
+        [json.loads(l) for l in (d / "benign_results.jsonl").read_text().splitlines()], [])
+
+
 def test_rule_result_invalid_and_null_shapes_valid():
     v = validator("rule_result")
     base = VALID["rule_result"]

@@ -42,8 +42,8 @@ budget caps and cost tracking, tested with a fake provider (no real calls yet).
 Stage 5.2 done: benign traffic interleaved with Red by a seeded schedule, and
 false-positive scoring (Judge fact 4a), so the detection rate is always reported
 next to an FP rate. Stage 5.3 done: the rule format, RE2 rule engine and Judge facts
-3 / 4b. Stage 5.4 built: AI Blue (`run_match.py --blue claude`, Anthropic), tested on
-the fake provider; its first real calls (Gates 1–2) wait for the designer's GO. AI
+3 / 4b. Stage 5.4 done: AI Blue (`run_match.py --blue claude`, Anthropic Haiku 5.5), with its
+first real calls verified (Gates 1–2; about $0.003 per match). AI
 Red and the dashboard are not implemented yet. See
 [`docs/progress.md`](docs/progress.md) and
 [`docs/stage5_decisions.md`](docs/stage5_decisions.md).
