@@ -1,7 +1,7 @@
 # Stage 5 — Locked decisions
 
-*Recorded 2026-11-08 (Stage 5.1); D14 added 2026-11-12 (Stage 5.4); D15 added 2026-11-13
-(Stage 5.6). These are decided. Later stage prompts refer to them by number (D1–D15) instead of repeating them. Changing one is a designer
+*Recorded 2026-11-08 (Stage 5.1); D14 added 2026-11-12 (Stage 5.4); D15 and D16 added
+2026-11-13 (Stage 5.6). These are decided. Later stage prompts refer to them by number (D1–D16) instead of repeating them. Changing one is a designer
 decision and is recorded here with a date. Where a decision touches an artifact
 format, `docs/contract.md` remains the source of truth.*
 
@@ -106,6 +106,26 @@ request was blocked and why (rules of engagement, never Judge information). Guar
 result — the status code and a response body truncated to 500 chars, delimited as
 untrusted data — plus that rules-of-engagement text; never Judge facts, snapshots, Blue
 verdicts, or anything about other traffic (D6). *Recorded 2026-11-13 (Stage 5.6).*
+
+**D16 — Red's labels are audited by the designer; an invalid label is excluded, never
+corrected.** Red's techniques can fall outside the taxonomy while its label cannot (D5),
+so the raw scoring can charge Blue for Red's mislabel (Stage 5.6 Gate 2, match 3 round 9:
+a plain file fetch labeled CWE-22). The Judge's output is unchanged: it records Red's
+claimed label, and the raw numbers stand. After the match the designer writes one audit
+file per match, outside the immutable match folder (`data/audits/<match_id>.jsonl`;
+committed golden matches: `data/golden/audits/`), one line per round: verdict `valid` |
+`invalid` (or the scaffold default `unaudited`), reason, auditor, date; schema-validated.
+**An invalid label is EXCLUDED, never corrected:** relabeling would mean a human
+rewriting ground truth, and the human's label could itself be contested; exclusion is the
+conservative choice. Stats print raw and audited numbers side by side; audited excludes
+invalid rounds like orphans, and exists only when the audit is complete. **The JSONL file
+is the single source of truth;** any human-facing sheet is a generated, read-only view of
+it. A round whose `newly_solved` includes a challenge outside `challenge_map` is flagged
+**audit first** — advisory only, it never excludes anything (a SQLi that also solves
+Error Handling is legitimate). Audited numbers and the flag are derived on demand, never
+stored (`tools/audit_match.py apply`, `--json` to stdout). No version bumps: Judge output,
+`rounds.jsonl`, `match.json` and `JUDGE_VERSION` are unchanged. *Recorded 2026-11-13
+(Stage 5.6).*
 
 ## Implementation notes (Stage 5.1)
 

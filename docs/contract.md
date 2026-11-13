@@ -82,6 +82,14 @@ fact-4b fixture `benign/fixture_v1.jsonl`, and anomaly kind `rule_source_benign`
 (§6.6). `replay_blocked` and `benign_fp` are both always `null` in round records
 (§6). `judge_version` 0.3.0.*
 
+*Revised 2026-11-13 (Stage 5.6, D16): designer label audit. New artifact
+**`data/audits/<match_id>.jsonl`** (dev, git-ignored) / **`data/golden/audits/<match_id>.jsonl`**
+(committed golden matches), schema `match_audit.schema.json` `"0.1"` (§6.8): one line per
+Red round, written by the designer after the match, outside the immutable match folder.
+An `invalid` label is **excluded** from the audited statistics, never corrected. Judge
+output, `rounds.jsonl`, `match.json` and `JUDGE_VERSION` are unchanged (no version bumps):
+audited numbers and the audit-first flag are derived on demand, never stored.*
+
 *Revised 2026-11-13 (Stage 5.6): AI Red (`--red ai`, OpenAI `gpt-6-luna`, `openai==3.41.0`,
 Responses API). **`red_attacks.jsonl` moves to `"0.2"`** (§2): new `source`
 (`scripted` | `ai`) and `rationale` (the AI's one-sentence reason, untrusted text ≤ 500
@@ -955,6 +963,58 @@ false positives as well as detections: the hand rule `union\s+\w+` hits benign
 
 ---
 
+## 6.8 Designer label audit (D16) — `data/audits/<match_id>.jsonl`
+
+> **Red and Blue never read this file.** It is designer ground truth about Red's labels.
+
+Red's techniques can fall outside the taxonomy while its label cannot (D5): an AI-Red
+attack may carry a CWE label it is not an instance of (Stage 5.6 Gate 2, match 3 round 9:
+`GET /ftp/acquisitions.md` labeled CWE-22, no traversal). The raw scoring then charges
+Blue for Red's mislabel. The audit lets the designer judge each label after the match,
+without touching the match.
+
+- **Location.** Outside the immutable match folder, so no artifact hash in `match.json`
+  changes: `data/audits/<match_id>.jsonl` for dev matches (git-ignored, like
+  `data/runs/`), `data/golden/audits/<match_id>.jsonl` for committed golden reference
+  matches (the golden location wins when both exist). Strictly one file per match.
+- **Single source of truth.** The JSONL file. Any human-facing sheet (which may span
+  matches) is a generated, read-only view (`tools/audit_match.py sheet`) that reads
+  verdicts and reasons from the files, empty where unaudited.
+- **Format** (`schemas/match_audit.schema.json`, `"0.1"`), one line per round in
+  `rounds.jsonl` (sent attacks only; unsent slots are not rounds):
+
+```json
+{"schema_version":"0.1","match_id":"<id>","round":9,"verdict":"invalid",
+ "reason":"plain file fetch, no traversal — not a CWE-22 instance",
+ "auditor":"designer","date":"2026-11-13"}
+```
+
+| Field | Type | Rationale |
+|---|---|---|
+| `schema_version` / `match_id` | `"0.1"` / match_id | §0. `match_id` must equal the file's match. |
+| `round` | int ≥ 1 | The Red round (the Judge's spine). Each round exactly once. |
+| `verdict` | `valid` \| `invalid` \| `unaudited` | `valid`: a genuine instance of its claimed CWE. `invalid`: not; the round is **excluded** from the audited statistics. `unaudited`: the scaffold default. |
+| `reason` | string ≤ 500 | One line, required (non-empty) for `valid` / `invalid`; `""` when `unaudited`. |
+| `auditor` / `date` | string / `YYYY-MM-DD`, or both `null` | Who decided and when; required for a decided verdict, `null` when `unaudited`. |
+
+- **Excluded, never corrected.** An `invalid` label is never replaced by a "correct" one:
+  relabeling would be a human rewriting ground truth, and the human's label could itself
+  be contested. Exclusion is the conservative choice. The Judge's output keeps Red's
+  claimed label and the raw numbers stand.
+- **Statistics** (`stats/match_stats.py`, via `tools/audit_match.py apply`): raw and
+  audited side by side. Audited excludes every `invalid` round from all attack-side
+  denominators (landing, detection, type accuracy, precision), like an orphan; `valid`
+  rounds count normally; benign FP numbers are unaffected. The audited view exists only
+  when every non-orphan round has a decided verdict; otherwise it reads "incomplete" and
+  gives no number. `--json` writes the same summary to stdout. Nothing is stored: derived
+  data is recomputed, never written.
+- **Audit first** (advisory, never an exclusion): a round whose `newly_solved` contains a
+  challenge outside `config/challenge_map.json` is flagged to be audited first. It
+  excludes nothing on its own (a SQLi that also solves Error Handling is legitimate).
+  Derived on demand, never stored.
+
+---
+
 ## 7. Challenge map — `config/challenge_map.json`
 
 ```json
@@ -1003,6 +1063,7 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Challenge map | `config/challenge_map.json` | Designer | Judge | Blue |
 | Red attacks | `data/runs/<match_id>/red_attacks.jsonl` | Red (scripted or AI, via the body) | Judge, Dashboard | **Blue** |
 | Red unsent slots | `data/runs/<match_id>/red_unsent.jsonl` | AI Red / the body (§2.2) | stats, Dashboard, humans | Red (no feedback loop), **Blue** |
+| Label audit | `data/audits/<match_id>.jsonl` / `data/golden/audits/<match_id>.jsonl` | Designer (after the match; `tools/audit_match.py scaffold`) | `tools/audit_match.py` (audited stats, sheet), humans | **Red**, **Blue**, the Judge (its output never depends on the audit) |
 | Proxy log | `data/runs/<match_id>/proxy.jsonl` | nginx proxy | Blue, Judge, Dashboard | — |
 | Challenge snapshots | `data/runs/<match_id>/challenge_snapshots.jsonl` | Measurement runner | Judge | **Blue** |
 | Landed fact | `data/runs/<match_id>/landed.jsonl` | Judge (Stage 2) | Judge (Stage 3 join) | Red, Blue, Dashboard |

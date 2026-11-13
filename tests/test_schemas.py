@@ -21,6 +21,7 @@ SCHEMA_NAMES = [
     "red_attack",
     "red_attack_v0_1",
     "red_unsent",
+    "match_audit",
     "proxy_log",
     "challenge_snapshot",
     "verdict",
@@ -263,6 +264,9 @@ VALID["red_unsent"] = {
     "proposed": {"method": "GET", "path": "/x", "body": "", "label": "CWE-22",
                  "rationale": "traversal"},
     "timestamp": "2026-11-09T15:30:14.001Z"}
+VALID["match_audit"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "round": 9, "verdict": "invalid",
+    "reason": "plain file fetch, no traversal", "auditor": "designer", "date": "2026-11-13"}
 VALID["anomaly"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "kind": "benign_solved_challenge",
     "request_id": RID, "detail": {"benign_id": "n04", "newly_solved": ["Score Board"],
@@ -343,6 +347,15 @@ INVALID = {
         ("rationale over 500 chars", _set("rationale", "x" * 501)),
         ("schema_version 0.1", _set("schema_version", "0.1")),
         ("extra property", _set("blue_hint", "x")),
+    ],
+    "match_audit": [
+        ("verdict not in enum", _set("verdict", "relabeled")),
+        ("decided without reason", _set("reason", "")),
+        ("decided without auditor", _set("auditor", None)),
+        ("unaudited with a reason", lambda r: {**r, "verdict": "unaudited",
+                                               "auditor": None, "date": None}),
+        ("corrected label field", _set("corrected_label", "CWE-89")),
+        ("date not ISO", _set("date", "13/11/2026")),
     ],
     "red_unsent": [
         ("kind not in enum", _set("kind", "mystery")),
@@ -955,7 +968,7 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
 ])
 def test_match_id_accepts_both_forms(match_id, ok):
     # Contract §0: legacy m+digits, or the run_match.py timestamp form.
-    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "verdict", "verdict_v0_1",
+    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
                  "match_manifest", "api_call", "benign_request", "benign_result",
@@ -971,7 +984,7 @@ def test_rules_file_empty_rules_is_valid():
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "verdict", "verdict_v0_1",
+    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
                  "match_manifest", "api_call", "benign_request", "benign_result",

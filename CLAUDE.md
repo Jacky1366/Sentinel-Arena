@@ -39,7 +39,7 @@ README.md               overview, architecture diagram, how to run tests and the
 docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :8081)
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
-docs/stage5_decisions.md  locked Stage 5 decisions D1–D15 + sub-stage map
+docs/stage5_decisions.md  locked Stage 5 decisions D1–D16 + sub-stage map
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
 .claude/settings.json   Claude Code deny rules: never read .env / .env.* (docs/ops.md)
@@ -47,6 +47,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   red_attack.schema.json          Red ground truth, schema_version 0.2 (source + rationale; Blue never reads)
   red_attack_v0_1.schema.json     frozen 0.1 Red attack schema
   red_unsent.schema.json           red_unsent.jsonl: AI-Red slots with no sent attack (Blue never reads)
+  match_audit.schema.json         D16 designer label audit, one line per Red round (never read by Red/Blue)
   proxy_log.schema.json           nginx log line (Blue's only input)
   challenge_snapshot.schema.json  before/after solved state (measurement)
   verdict.schema.json             Blue verdict, schema_version 0.2 (verdict or no_verdict_reason)
@@ -123,6 +124,7 @@ tools/stage5_3_rules.json     hand-written test rules; tools/stage5_3_expected.j
 tools/stage5_4_smoke.py       Gate 1: ONE real Blue call on one golden line (--real-call; designer GO only)
 tools/stage5_4_check.py       Gate 2: 3 seeded --blue claude matches, format + coverage (--real-calls; GO only)
 tools/verify_red_guard.py     zero-token probe: the above_root guard matches real nginx (contract 9)
+tools/audit_match.py          D16 label audit: scaffold / validate / apply (raw vs audited, --json) / sheet
 tools/stage5_6_smoke.py       Gate 1 (5.6): ONE AI-Red generation, nothing sent (--real-call; GO only)
 tools/stage5_6_check.py       Gate 2 (5.6): 3 seeded --red ai matches, prints every attack (--real-calls; GO only)
 dashboard/              results viewer (not yet implemented)
@@ -131,6 +133,9 @@ data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
 data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
+data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
+data/golden/audits/     D16 label audits of committed golden matches (committed)
+docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
 tests/test_validate_log.py  validate_log.py classification tests
@@ -164,6 +169,7 @@ tests/test_openai_adapter.py  OpenAI Responses adapter vs a mock transport: key/
 tests/test_red_guard.py     the rules-of-engagement guards (D15)
 tests/test_ai_red.py        AI Red engine: prompt, validation, history, feedback, info wall
 tests/test_run_match_red.py --red ai driver loop + wiring (fake Ops + fake provider)
+tests/test_audit.py         D16: audit schema, audited view, audit-first flag, audit_match tool
 ```
 
 ## How to run the stack

@@ -31,3 +31,7 @@ node_modules/
 # --- Match output (keep the directory, ignore its contents) ---
 data/runs/*
 !data/runs/.gitkeep
+
+# --- Designer label audits (D16): dev audits stay local; golden audits are committed ---
+data/audits/*
+!data/audits/.gitkeep

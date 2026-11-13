@@ -410,7 +410,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         benign=match_stats.read_rounds(match_dir / fact4_benign.RESULTS),
         anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES),
         verdicts=match_stats.read_rounds(match_dir / "verdicts.jsonl"),
-        red_unsent=match_stats.read_rounds(match_dir / match_ops.RED_UNSENT)))
+        red_unsent=match_stats.read_rounds(match_dir / match_ops.RED_UNSENT),
+        challenge_map=json.loads(red_facts.CHALLENGE_MAP.read_text(encoding="utf-8"))))
     return EXIT[manifest["status"]], match_dir
 
 
