@@ -487,7 +487,8 @@ def test_fake_provider_is_exempt_from_price_verification(tmp_path):
 def test_committed_config_blue_and_red_settings():
     cfg = lc.load_config()
     assert cfg["max_output_tokens"] == 1024  # the global default
-    assert lc.agent_max_output_tokens(cfg, "blue") == 256
+    assert lc.agent_max_output_tokens(cfg, "blue") == 512  # Stage 5.5, all rules modes
+    assert cfg["agents"]["blue"]["rules"] == {"mode": "off", "max_rules": 10}
     assert lc.agent_max_output_tokens(cfg, "red") == 2048  # Red overrides the global
     assert lc.agent_request(cfg, "blue") == {"thinking": "disabled", "effort": "low"}
     assert lc.agent_request(cfg, "red") == {"thinking": None, "effort": "low"}

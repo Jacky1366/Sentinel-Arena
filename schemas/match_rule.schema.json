@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/match_rule.schema.json",
+  "title": "Match rule (contract 5.2, schema_version 0.1)",
+  "description": "One line of data/runs/<match_id>/rules.jsonl (Stage 5.5): one rule AI Blue invented in this match that passed the validator and the per-match cap, in creation order. The AI wrote only 'conditions'; the body filled rule_id, cwe (= the label Blue gave the line), source_request_id (from the local index, D8), created_at_log_seq (the line it was proposed on) and created_match. hot_loaded: true in rules mode 'on' (the rule labels every later matching line without an API call, D4/D9), false in mode 'shadow' (recorded and scored, never applied). Every line of one file has the same hot_loaded. Blue never reads it back within a match; Red never reads it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "hot_loaded",
+    "rule"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "hot_loaded": {
+      "type": "boolean"
+    },
+    "rule": {
+      "$ref": "https://sentinel-arena.local/schemas/rule.schema.json"
+    }
+  }
+}

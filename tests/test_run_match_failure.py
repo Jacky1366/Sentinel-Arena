@@ -23,7 +23,7 @@ from runner import match_ops  # noqa: E402
 MANIFEST = Draft202012Validator(run_match.MANIFEST_SCHEMA)
 IMAGE = {"image": "x:1", "image_id": "sha256:" + "b" * 64, "repo_digest": None}
 STEPS = ["reset", "rotate", "traffic", "freeze", "judge_fact1", "blue", "judge_rounds",
-         "judge_benign", "judge_red"]
+         "judge_benign", "judge_red", "judge_rules"]
 PREVIOUS = '{"request_id":"","note":"previous match traffic"}\n'
 
 ATTACKS = [
@@ -451,7 +451,7 @@ def test_freeze_raises_without_any_log(tmp_path):
 def test_scripted_match_manifest_v0_4_zero_cost(dirs):
     code, match_dir, out = go(FakeOps(dirs[0]), dirs)
     m = manifest_of(match_dir)
-    assert code == 0 and m["schema_version"] == "0.5"
+    assert code == 0 and m["schema_version"] == "0.6"
     assert m["blue_engine"] == "scripted" and m["blue_params"] is None
     assert m["red_engine"] == "scripted" and m["red_params"] is None
     assert m["red_source"]["path"] and m["models"] == {"red": None, "blue": None, "analyst": None}
@@ -533,7 +533,8 @@ def test_fake_ops_override_every_network_step():
     for name in NETWORK_STEPS:
         assert getattr(FakeOps, name) is not getattr(run_match.Ops, name), name
     assert set(NETWORK_STEPS) | {"git_info", "llm_setup", "judge_fact1", "blue",
-                                 "judge_rounds", "judge_benign", "judge_red"} >= {
+                                 "judge_rounds", "judge_benign", "judge_red",
+                                 "judge_rules"} >= {
         n for n in vars(run_match.Ops) if not n.startswith("_")}
 
 
@@ -542,7 +543,7 @@ def test_benign_traffic_scored_and_recorded(dirs):
     code, match_dir, out = go(FakeOps(live, benign=BENIGN), dirs)
     assert code == 0, out
     m = manifest_of(match_dir)
-    assert m["schema_version"] == "0.5" and m["status"] == "completed"
+    assert m["schema_version"] == "0.6" and m["status"] == "completed"
     t = m["traffic"]
     assert t["seed_source"] == "generated" and 0 <= t["seed"] < 2**32
     assert t["benign_set"]["path"] == "benign/benign_set.json"

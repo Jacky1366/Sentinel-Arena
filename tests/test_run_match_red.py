@@ -212,7 +212,7 @@ def test_ai_red_match_records_red_params_and_label_mismatch(dirs):
                                           red_engine="ai", out=out.append)
     assert code == 0, "\n".join(out)
     m = json.loads((match_dir / "match.json").read_text())
-    assert m["schema_version"] == "0.5" and run_match.validate_manifest(m) == []
+    assert m["schema_version"] == "0.6" and run_match.validate_manifest(m) == []
     assert m["red_engine"] == "ai" and m["red_source"] is None
     assert m["models"]["red"] == {"provider": "fake", "model": "fake-small"}
     assert m["red_params"]["model"] == "fake-small" and m["red_params"]["round_cap"] == 2

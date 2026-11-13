@@ -35,3 +35,7 @@ data/runs/*
 # --- Designer label audits (D16): dev audits stay local; golden audits are committed ---
 data/audits/*
 !data/audits/.gitkeep
+
+# --- Blue replays (D17): output of tools/replay_blue.py, never committed by default ---
+data/replays/*
+!data/replays/.gitkeep

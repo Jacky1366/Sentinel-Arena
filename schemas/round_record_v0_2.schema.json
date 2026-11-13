@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/round_record_v0_2.schema.json",
+  "title": "Judge round record (contract 6, schema_version 0.2) (FROZEN)",
+  "description": "FROZEN copy of round_record.schema.json at schema_version 0.2 (Stage 5.5 moved the live schema on). Validates existing 0.2 records; readers dispatch on schema_version. One line of data/runs/<match_id>/rounds.jsonl, one per Red record (Red is the spine), schema_version 0.2 (Stage 5.4 on). detected = (verdict != 'benign') when a verdict exists; type_correct = (verdict == label) only when detected is true. landed is null only in the not_measurable (contract 11), already_solved and snapshot_missing (contract 6.1) cases. verdict/detected/type_correct are null for the orphan and instrument_failure cases (both excluded from detection stats, D13); no_verdict keeps detected=false (a miss). verdict_source is the verdict's source (null iff verdict null). replay_blocked and benign_fp were removed in 0.2. 0.1 records are validated by round_record_v0_1.schema.json. See the field-relationship table in contract 6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "round",
+    "request_id",
+    "label",
+    "verdict",
+    "verdict_source",
+    "landed",
+    "landed_reason",
+    "newly_solved",
+    "detected",
+    "type_correct",
+    "detected_reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.2"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "round": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "label": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22"
+      ]
+    },
+    "verdict": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        "benign",
+        null
+      ]
+    },
+    "verdict_source": {
+      "enum": [
+        "signature",
+        "ai",
+        null
+      ]
+    },
+    "landed": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "landed_reason": {
+      "enum": [
+        null,
+        "not_measurable",
+        "already_solved",
+        "snapshot_missing"
+      ]
+    },
+    "newly_solved": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "detected": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "type_correct": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "detected_reason": {
+      "enum": [
+        null,
+        "no_verdict",
+        "orphan",
+        "instrument_failure"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "comment": "landed null iff landed_reason non-null",
+      "if": {
+        "properties": {
+          "landed": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "landed_reason": {
+            "enum": [
+              "not_measurable",
+              "already_solved",
+              "snapshot_missing"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "landed_reason": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "comment": "orphan / instrument_failure: detected null => reason orphan or instrument_failure, type_correct null, verdict null",
+      "if": {
+        "required": [
+          "detected"
+        ],
+        "properties": {
+          "detected": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "detected_reason": {
+            "enum": [
+              "orphan",
+              "instrument_failure"
+            ]
+          },
+          "type_correct": {
+            "type": "null"
+          },
+          "verdict": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "detected_reason": {
+            "enum": [
+              null,
+              "no_verdict"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "comment": "detected true: a verdict flagged an attack; type_correct is a bool, reason null, verdict is a CWE",
+      "if": {
+        "required": [
+          "detected"
+        ],
+        "properties": {
+          "detected": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "type_correct": {
+            "type": "boolean"
+          },
+          "detected_reason": {
+            "const": null
+          },
+          "verdict": {
+            "enum": [
+              "CWE-89",
+              "CWE-79",
+              "CWE-22"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "comment": "detected false: type_correct null; reason is null (benign verdict) or no_verdict",
+      "if": {
+        "required": [
+          "detected"
+        ],
+        "properties": {
+          "detected": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "type_correct": {
+            "type": "null"
+          },
+          "detected_reason": {
+            "enum": [
+              null,
+              "no_verdict"
+            ]
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "detected_reason"
+              ],
+              "properties": {
+                "detected_reason": {
+                  "const": null
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "verdict": {
+                  "const": "benign"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "detected_reason"
+              ],
+              "properties": {
+                "detected_reason": {
+                  "const": "no_verdict"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "verdict": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "comment": "verdict_source is null iff verdict is null",
+      "if": {
+        "properties": {
+          "verdict": {
+            "type": "null"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "verdict_source": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "verdict_source": {
+            "enum": [
+              "signature",
+              "ai"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

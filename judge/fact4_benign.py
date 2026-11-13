@@ -17,8 +17,8 @@ Outputs, every line schema-validated BEFORE anything is written:
     instrument failure    -> false_positive=null, fp_reason="instrument_failure" (D13)
     no proxy line         -> false_positive=null, fp_reason="orphan"
   (all nulls are excluded from the FP denominator; no_verdict is counted in the
-  benign no-verdict rate, instrument_failure in its own rate. schema_version 0.2,
-  with verdict_source. Not a loophole: Blue cannot tell which lines are
+  benign no-verdict rate, instrument_failure in its own rate. schema_version 0.3,
+  with verdict_source ("rule" possible from Stage 5.5). Not a loophole: Blue cannot tell which lines are
   benign, so skipping is punished on the attack side.)
 
   anomalies.jsonl (contract 6.6), never silently ignored:
@@ -87,7 +87,7 @@ def compute(run_dir: Path) -> tuple[list[dict], list[dict]]:
         rid = b["request_id"]
         benign_ids.add(rid)
         v = verdicts.get(rid) or {}
-        results.append({"schema_version": "0.2", "match_id": b["match_id"], "request_id": rid,
+        results.append({"schema_version": "0.3", "match_id": b["match_id"], "request_id": rid,
                         "benign_id": b["benign_id"], "category": b["category"],
                         **fp_fields(rid in proxy_ids, v.get("verdict"),
                                     v.get("no_verdict_reason"), v.get("source"))})

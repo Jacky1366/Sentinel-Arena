@@ -193,3 +193,81 @@ def test_anomalies_are_always_visible():
          "detail": {"benign_id": "n04", "newly_solved": ["Score Board"], "expected_solves": []}}
     text = ms.format_summary(MIXED, _manifest(), benign=BENIGN_RESULTS, anomalies=[a])
     assert "ANOMALY benign_solved_challenge  deadbeef" in text and "Score Board" in text
+
+
+# ---- Stage 5.5: rule invention ---------------------------------------------------
+
+def _src(row, source):
+    return {**row, "verdict_source": source}
+
+
+def _benign(bid, verdict, source, fp_reason=None):
+    return {"benign_id": bid, "request_id": f"b{bid}", "category": "normal",
+            "verdict": verdict, "verdict_source": source,
+            "false_positive": None if fp_reason else verdict != "benign",
+            "fp_reason": fp_reason}
+
+
+def test_by_source_splits_rule_and_ai_paths():
+    rounds = [_src(rr(1), "rule"), _src(rr(2, verdict="CWE-22", type_correct=False), "rule"),
+              _src(rr(3, **BENIGN), "ai"), _src(rr(4, **NO_VERDICT), None),
+              _src(rr(5, **ORPHAN), None)]
+    benign = [_benign("n01", "CWE-89", "rule"), _benign("n02", "benign", "ai"),
+              _benign("n03", None, None, fp_reason="instrument_failure")]
+    s = ms.by_source(rounds, benign)
+    assert s["rule"]["detection"].fmt() == "2/2 (100%)"
+    assert s["rule"]["type_accuracy"].fmt() == "1/2 (50%)"
+    assert s["rule"]["fp"].fmt() == "1/1 (100%)"
+    assert (s["rule"]["attack_lines"], s["rule"]["benign_lines"]) == (2, 1)
+    # the AI path keeps no_verdict as a miss and excludes the orphan
+    assert s["ai"]["detection"].fmt() == "0/2 (0%)"
+    assert s["ai"]["fp"].fmt() == "0/1 (0%)"
+    assert (s["ai"]["attack_lines"], s["ai"]["benign_lines"]) == (2, 2)
+
+
+def _rule(rid, cwe, seq):
+    return {"schema_version": "0.1", "match_id": "m001", "hot_loaded": True,
+            "rule": {"rule_id": rid, "cwe": cwe, "created_at_log_seq": seq,
+                     "source_request_id": "x", "conditions": [
+                         {"field": "query", "op": "contains", "pattern": "p",
+                          "case_insensitive": True}]}}
+
+
+def test_rules_summary_counts_proposals_codes_conflicts_and_saved_calls():
+    rules = [_rule("r-001", "CWE-89", 1), _rule("r-002", "CWE-79", 2)]
+    rejections = [{"rule_id": "r-003", "created_at_log_seq": 3, "label": "CWE-89",
+                   "proposal": {}, "reasons": [{"code": "schema_error", "detail": "a"},
+                                               {"code": "schema_error", "detail": "b"}]},
+                  {"rule_id": "r-004", "created_at_log_seq": 4, "label": "CWE-89",
+                   "proposal": {}, "reasons": [{"code": "rule_cap_reached", "detail": "c"}]}]
+    rounds = [rr(5), rr(6)]
+    benign = [_benign("n01", "CWE-89", "rule")]
+    verdicts = [{"log_seq": 5, "request_id": rounds[0]["request_id"], "source": "rule",
+                 "fired_rule_ids": ["r-001", "r-002"]},
+                {"log_seq": 6, "request_id": rounds[1]["request_id"], "source": "rule",
+                 "fired_rule_ids": ["r-001"]},
+                {"log_seq": 7, "request_id": "bn01", "source": "rule",
+                 "fired_rule_ids": ["r-001"]},
+                {"log_seq": 8, "request_id": "z", "source": "ai", "fired_rule_ids": []}]
+    results = [{"rule_id": "r-001", "replay_fires": True, "replay_reason": None,
+                "source_label": "CWE-89", "cwe_matches_source": True, "fixture_fires": 2,
+                "fixture_benign_ids": ["n01", "h06"]}]
+    s = ms.rules_summary(rules, rejections, verdicts, results, rounds, benign)
+    assert (s["proposed"], s["stored"], s["rejected"]) == (4, 2, 2)
+    assert s["rejection_codes"] == {"schema_error": 1, "rule_cap_reached": 1}
+    assert s["cap_hits"] == 1 and s["ai_calls_saved"] == 3 and s["conflicts"] == [5]
+    r1, r2 = s["rules"]
+    assert (r1["fired_attack_lines"], r1["fired_benign_lines"]) == (2, 1)
+    assert (r1["replay_fires"], r1["fixture_fires"]) == (True, 2)
+    assert (r2["fired_attack_lines"], r2["replay_fires"]) == (1, None)
+    text = "\n".join(ms.format_rules(s, ms.by_source(rounds, benign), "on"))
+    assert "proposed 4" in text and "r-003 REJECTED" in text and "query contains/i" in text
+
+
+def test_summary_block_appears_only_when_rules_mode_is_not_off():
+    m = {"match_id": "m001", "status": "completed", "judge_version": "0.6.0",
+         "blue_engine": "claude", "git": {"commit": "f" * 40, "dirty": False},
+         "blue_params": {"rules": {"mode": "off", "max_rules": 10}}}
+    assert "rules mode" not in ms.format_summary([rr(1)], m)
+    m["blue_params"]["rules"]["mode"] = "shadow"
+    assert "rules mode shadow: proposed 0" in ms.format_summary([rr(1)], m)

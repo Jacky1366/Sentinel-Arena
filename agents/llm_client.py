@@ -89,6 +89,7 @@ API_CALL_SCHEMA = Draft202012Validator(json.loads(
 
 THINKING = ("disabled", "adaptive")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
+RULES_MODES = ("off", "shadow", "on")  # agents.blue.rules.mode (Stage 5.5)
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL is never read
 
 
@@ -162,6 +163,17 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         rc = a.get("round_cap")
         if rc is not None and (isinstance(rc, bool) or not isinstance(rc, int) or rc < 1):
             raise ConfigError(f"agents.{agent}.round_cap must be a positive integer")
+        rules = a.get("rules")
+        if rules is not None:
+            if agent != "blue":
+                raise ConfigError(f"agents.{agent}.rules: rule invention is Blue's (Stage 5.5)")
+            if not isinstance(rules, dict) or set(rules) - {"mode", "max_rules"} \
+                    or rules.get("mode") not in RULES_MODES:
+                raise ConfigError(f"agents.blue.rules: needs mode in {RULES_MODES} "
+                                  f"(and optional max_rules)")
+            mr = rules.get("max_rules", 0)
+            if isinstance(mr, bool) or not isinstance(mr, int) or mr < 0:
+                raise ConfigError("agents.blue.rules.max_rules must be a non-negative integer")
         req = a.get("request", {})
         if not isinstance(req, dict) or set(req) - {"thinking", "effort"}:
             raise ConfigError(f"agents.{agent}.request: only 'thinking' and 'effort' are allowed")

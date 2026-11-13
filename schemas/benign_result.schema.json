@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/benign_result.schema.json",
-  "title": "Benign result, Judge fact 4a (contract 6.5, schema_version 0.2)",
-  "description": "One line of data/runs/<match_id>/benign_results.jsonl per benign request, schema_version 0.2 (Stage 5.4 on). false_positive = (verdict != 'benign') when a verdict exists; null with fp_reason no_verdict (logged, no verdict), orphan (no proxy line) or instrument_failure (the harness failed, D13). All null cases are excluded from the FP denominator. verdict_source is null iff verdict is null. 0.1 records are validated by benign_result_v0_1.schema.json.",
+  "title": "Benign result, Judge fact 4a (contract 6.5, schema_version 0.3)",
+  "description": "One line of data/runs/<match_id>/benign_results.jsonl per benign request, schema_version 0.3 (Stage 5.5 on; 0.2 from Stage 5.4). false_positive = (verdict != 'benign') when a verdict exists; null with fp_reason no_verdict (logged, no verdict), orphan (no proxy line) or instrument_failure (the harness failed, D13). All null cases are excluded from the FP denominator. verdict_source is null iff verdict is null. 0.1 records are validated by benign_result_v0_1.schema.json. Stage 5.5 (0.3): verdict_source gains 'rule' (a hot-loaded Blue rule produced the verdict, D9); nothing else changes. 0.2 records are validated by benign_result_v0_2.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -18,7 +18,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "0.2"
+      "const": "0.3"
     },
     "match_id": {
       "type": "string",
@@ -51,6 +51,7 @@
       "enum": [
         "signature",
         "ai",
+        "rule",
         null
       ]
     },
@@ -89,7 +90,8 @@
           "verdict_source": {
             "enum": [
               "signature",
-              "ai"
+              "ai",
+              "rule"
             ]
           }
         }

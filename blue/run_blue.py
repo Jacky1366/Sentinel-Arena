@@ -11,7 +11,11 @@ Two engines write the same verdict format (contract §4, schema_version 0.2):
   scripted  deterministic generic signatures (signatures.py), source "signature"
   claude    AI Blue (Stage 5.4, blue/claude_engine.py), one model call per line
             through agents/llm_client.py, source "ai"; model and request settings
-            from config/llm.json (agents.blue), --model overrides the model
+            from config/llm.json (agents.blue), --model overrides the model.
+            Stage 5.5 rule invention: --rules-mode off | shadow | on (default:
+            agents.blue.rules.mode). shadow / on write verdicts 0.3 plus
+            <run-dir>/rules.jsonl and <run-dir>/rule_rejections.jsonl; on adds rule
+            verdicts (source "rule"). Blue never reads either file back.
 
 Usage:
     .venv/bin/python blue/run_blue.py --engine scripted --match-id m001 --run-dir data/runs/<match_id>
@@ -24,7 +28,7 @@ import json
 from pathlib import Path
 
 from agents import llm_client
-from blue import claude_engine, signatures
+from blue import claude_engine, rule_invention, signatures
 
 REPO = Path(__file__).resolve().parent.parent
 LIVE = REPO / "data" / "runs" / "live"
@@ -95,17 +99,32 @@ def blue_chunk_size(cfg: dict) -> int:
 def run(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
         client: llm_client.LLMClient | None = None, model: str | None = None,
         unscored: bool = False) -> list[dict]:
-    """Verdict rows for one proxy log. For `claude`, `client` defaults to the real
-    body (llm_client.LLMClient()); tests pass a fake-provider client."""
+    """Verdict rows for one proxy log (rules mode off). For `claude`, `client`
+    defaults to the real body (llm_client.LLMClient()); tests pass a fake-provider
+    client."""
+    return run_output(engine, proxy_log, match_id, run_dir, client=client, model=model,
+                      unscored=unscored, rules_mode="off").verdicts
+
+
+def run_output(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
+               client: llm_client.LLMClient | None = None, model: str | None = None,
+               unscored: bool = False, rules_mode: str | None = None
+               ) -> claude_engine.BlueOutput:
+    """Verdicts plus, for claude in rules mode shadow / on, the rules and rejections.
+    rules_mode None = config agents.blue.rules.mode."""
     if engine == "scripted":
-        return classify_log(proxy_log, match_id, engine)
+        if rules_mode not in (None, "off"):
+            raise ValueError("rule invention is a claude-engine feature; scripted Blue "
+                             "has no rules mode")
+        return claude_engine.BlueOutput(classify_log(proxy_log, match_id, engine))
     if engine != "claude":
         raise ValueError(f"unknown Blue engine {engine!r}")
     client = client or llm_client.LLMClient()
-    return claude_engine.classify_log(proxy_log, match_id, client,
-                                      blue_model(client.cfg, model), run_dir,
-                                      chunk_size=blue_chunk_size(client.cfg),
-                                      unscored=unscored)
+    rules = claude_engine.rules_config(client.cfg, rules_mode)
+    return claude_engine.classify(proxy_log, match_id, client,
+                                  blue_model(client.cfg, model), run_dir,
+                                  chunk_size=blue_chunk_size(client.cfg), unscored=unscored,
+                                  rules_mode=rules["mode"], max_rules=rules["max_rules"])
 
 
 def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = None) -> int:
@@ -116,6 +135,9 @@ def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = No
     parser.add_argument("--unscored", action="store_true",
                         help="claude engine: allow chunk_size > 1 (exploratory runs only; "
                              "run_match.py never passes this)")
+    parser.add_argument("--rules-mode", choices=rule_invention.MODES, default=None,
+                        help="claude engine: rule invention off | shadow | on (default: "
+                             "config/llm.json agents.blue.rules.mode)")
     parser.add_argument("--match-id", default="m001")
     parser.add_argument("--run-dir", type=Path, default=LIVE,
                         help="run directory: reads <run-dir>/proxy.jsonl, writes "
@@ -128,12 +150,23 @@ def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = No
     args.proxy_log = args.proxy_log or args.run_dir / "proxy.jsonl"
     args.out = args.out or args.run_dir / "verdicts.jsonl"
 
-    verdicts = run(args.engine, args.proxy_log, args.match_id, args.run_dir, client=client,
-                   model=args.model, unscored=args.unscored)
+    output = run_output(args.engine, args.proxy_log, args.match_id, args.run_dir,
+                        client=client, model=args.model, unscored=args.unscored,
+                        rules_mode=args.rules_mode)
+    verdicts = output.verdicts
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as fh:
         for v in verdicts:
             fh.write(json.dumps(v) + "\n")
+    rules_mode = output.rules_mode
+    if rules_mode in ("shadow", "on"):
+        for name, rows in ((rule_invention.RULES, output.rules),
+                           (rule_invention.REJECTIONS, output.rejections)):
+            with (args.run_dir / name).open("w", encoding="utf-8") as fh:
+                for row in rows:
+                    fh.write(json.dumps(row) + "\n")
+        print(f"rules ({rules_mode}): {len(output.rules)} stored, "
+              f"{len(output.rejections)} rejected -> {args.run_dir / rule_invention.RULES}")
 
     counts: dict[str, int] = {}
     for v in verdicts:

@@ -17,7 +17,7 @@ sys.path.insert(0, str(REPO))
 from blue import run_blue, signatures  # noqa: E402
 
 VERDICT_SCHEMA = Draft202012Validator(
-    json.loads((REPO / "schemas" / "verdict.schema.json").read_text()))
+    json.loads((REPO / "schemas" / "verdict_v0_2.schema.json").read_text()))  # 0.2 since 5.4
 RID = "3f2b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 RID2 = "4a5b8c1e-9a4d-4e6f-b1c2-7d8e9f0a1b2c"
 

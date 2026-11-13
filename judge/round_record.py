@@ -9,7 +9,8 @@ and writes nothing, so rounds.jsonl is never partial or invalid.
   - landed / landed_reason / newly_solved come from the landed fact (fact 1).
   - verdict / verdict_source / detected / type_correct / detected_reason come from
     fact 2 (instrument_failure rows are shaped like orphans, contract 6).
-  - schema_version 0.2 (Stage 5.4): replay_blocked and benign_fp are gone.
+  - schema_version 0.3 (Stage 5.5): verdict_source may be "rule". 0.2 (Stage 5.4)
+    removed replay_blocked and benign_fp.
   - A Red record with no landed fact is snapshot_missing (no snapshot, contract 6.1): the
     round record is still emitted with landed=null, landed_reason="snapshot_missing"
     (excluded from landing stats), while detection is scored normally from fact 2,
@@ -53,7 +54,7 @@ def build_round_records(run_dir: Path) -> list[dict]:
             landed = {"landed": None, "landed_reason": "snapshot_missing", "newly_solved": []}
         detect = fact2[rid]
         round_record = {
-            "schema_version": "0.2",
+            "schema_version": "0.3",
             "match_id": record["match_id"],
             "round": record["round"],
             "request_id": rid,

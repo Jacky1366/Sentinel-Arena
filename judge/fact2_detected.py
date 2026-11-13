@@ -5,8 +5,10 @@ PURE CODE. Reads artifacts only; no network. Inputs:
   - data/runs/<run>/red_attacks.jsonl   (ground-truth label per request_id; the spine)
   - data/runs/<run>/proxy.jsonl         (which request_ids were actually logged)
   - data/runs/<run>/verdicts.jsonl      (Blue's classification per request_id;
-                                         0.1 and 0.2 rows, dispatched on version)
+                                         0.1, 0.2 and 0.3 rows, dispatched on version)
   - data/runs/<run>/api_calls.jsonl     (only to cross-check instrument_failure)
+  - data/runs/<run>/rules.jsonl, rule_rejections.jsonl
+                                        (only to cross-check rule verdicts, Stage 5.5)
 
 For each Red record (contract 6, field-relationship table):
 
@@ -28,6 +30,11 @@ Rules:
   - Every instrument_failure row is cross-checked against api_calls.jsonl, which
     only the body writes (contract §4): a mismatch in EITHER direction -> raise.
     Blue cannot exclude a line from the stats by declaring it a harness failure.
+    A rule verdict (source "rule") made no call, so it is exempt from the
+    "a refused call covers this line" direction: rules keep answering after a
+    refusal (Stage 5.5). That exemption is safe only because every rule verdict
+    is itself cross-checked (judge/rule_verdicts.py): the hot-loaded rules must
+    really fire on the line, and nothing else may claim source "rule".
   - A 0.1 verdict row counts as source "signature" (scripted Blue was the only
     engine before Stage 5.4).
 """
@@ -39,11 +46,13 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
+from judge import rule_verdicts
+
 REPO = Path(__file__).resolve().parent.parent
 VERDICT_SCHEMAS = {
     v: Draft202012Validator(json.loads((REPO / "schemas" / f"{name}.schema.json")
                                        .read_text(encoding="utf-8")))
-    for v, name in (("0.1", "verdict_v0_1"), ("0.2", "verdict"))}
+    for v, name in (("0.1", "verdict_v0_1"), ("0.2", "verdict_v0_2"), ("0.3", "verdict"))}
 
 UUID4 = __import__("re").compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -94,9 +103,11 @@ def normalize_verdict(row: dict) -> dict:
     if row["schema_version"] == "0.1":
         return {"request_id": row["request_id"], "log_seq": row["log_seq"],
                 "match_id": row["match_id"], "verdict": row["verdict"],
-                "source": "signature", "no_verdict_reason": None}
-    return {k: row[k] for k in ("request_id", "log_seq", "match_id", "verdict", "source",
-                                "no_verdict_reason")}
+                "source": "signature", "no_verdict_reason": None, "fired_rule_ids": []}
+    out = {k: row[k] for k in ("request_id", "log_seq", "match_id", "verdict", "source",
+                               "no_verdict_reason")}
+    out["fired_rule_ids"] = list(row.get("fired_rule_ids", []))  # 0.3 only
+    return out
 
 
 def verdicts_by_request_id(verdicts: list[dict]) -> dict[str, dict]:
@@ -138,7 +149,7 @@ def check_instrument_failures(rows: list[dict], calls: list[dict]) -> None:
     is_failure = instrument_failure_seqs(calls)
     for r in rows:
         claimed = r["no_verdict_reason"] == "instrument_failure"
-        actual = is_failure(r["log_seq"])
+        actual = is_failure(r["log_seq"]) and r["source"] != "rule"  # rules make no call
         if claimed and not actual:
             raise ValueError(f"verdict log_seq {r['log_seq']} claims instrument_failure, but "
                              f"api_calls.jsonl records no failed or refused Blue call for it")
@@ -150,10 +161,12 @@ def check_instrument_failures(rows: list[dict], calls: list[dict]) -> None:
 
 def load_verdicts(run_dir: Path) -> list[dict]:
     """verdicts.jsonl as normalized rows: validated by version, no duplicate
-    request_ids, instrument failures cross-checked against api_calls.jsonl."""
+    request_ids, instrument failures cross-checked against api_calls.jsonl, rule
+    verdicts and rule artifacts cross-checked against the hot-load sequence."""
     rows = [normalize_verdict(v) for v in _read_jsonl(run_dir / "verdicts.jsonl")]
     verdicts_by_request_id(rows)  # raises on duplicates
     check_instrument_failures(rows, _read_jsonl(run_dir / "api_calls.jsonl"))
+    rule_verdicts.check(run_dir, rows)
     return rows
 
 

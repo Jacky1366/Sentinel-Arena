@@ -44,7 +44,7 @@ def test_scores_into_a_new_dir_and_never_touches_the_match(tmp_path):
         schema("rule_result").validate(json.loads(l))
     for l in (out / "anomalies.jsonl").read_text().splitlines():
         schema("anomaly").validate(json.loads(l))
-    assert m["normalization_version"] == "2" and m["judge_version"] == "0.5.0"
+    assert m["normalization_version"] == "2" and m["judge_version"] == "0.6.0"
     assert m["re2_version"] == "1.1.20251105"
     assert m["fixture"] == {"path": "benign/fixture_v1.jsonl", "version": "1",
                             "sha256": hashlib.sha256((REPO / "benign" / "fixture_v1.jsonl")
