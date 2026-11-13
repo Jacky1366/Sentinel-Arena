@@ -358,6 +358,11 @@ designer's GO.
   schemas frozen, readers dispatch on version), `api_calls.jsonl` +`stop_reason`;
   `JUDGE_VERSION` 0.4.0. The Judge re-scores both golden folders' 0.1 verdicts to
   the same round fields (tested).
+- **Gate 1 (Nov 12): passed.** One real call from a clean tree (`d9517fd`) on
+  golden `n01`: 885 input / 60 output tokens, `end_turn`, $0.000118, verdict
+  `benign`. The designer matched the tokens against the Console. Anthropic usage
+  mapping **verified for uncached, non-thinking calls**; the cached-token and
+  thinking-token parts stay flagged.
 - **Verified (Nov 12, fake provider / scripted only):** 905 tests pass.
   `tools/stage5_2_check.py` PASSes on a fresh stack in the new location (matches
   `20261113T001015Z-ed45` / `…001133Z-110c`, uncommitted tree on `6fbc585`), and both
