@@ -1,0 +1,10 @@
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":1,"verdict":"valid","reason":"SQL tautology in a query parameter; endpoint does not exist but the technique is CWE-89","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":2,"verdict":"valid","reason":"SQL tautology in product search; Error Handling solve is a side effect of the SQL error","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":3,"verdict":"valid","reason":"parenthesis-balanced SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":4,"verdict":"valid","reason":"UNION-based SQL injection","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":5,"verdict":"valid","reason":"SQL tautology with an alternate comment terminator","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":6,"verdict":"valid","reason":"encoded parent-directory segment to escape the /ftp directory","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":7,"verdict":"valid","reason":"SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":8,"verdict":"valid","reason":"quoted SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":9,"verdict":"valid","reason":"parenthesis-balanced SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052633Z-77ac","round":10,"verdict":"valid","reason":"UNION-based SQL injection","auditor":"designer","date":"2026-11-13"}

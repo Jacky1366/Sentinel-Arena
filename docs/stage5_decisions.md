@@ -127,6 +127,19 @@ stored (`tools/audit_match.py apply`, `--json` to stdout). No version bumps: Jud
 `rounds.jsonl`, `match.json` and `JUDGE_VERSION` are unchanged. *Recorded 2026-11-13
 (Stage 5.6).*
 
+*D16 criterion refinement, 2026-11-13 (first audit, Stage 5.6 Gate 2):* **CWE-22 valid =
+inserting traversal sequences or manipulating file names to influence which file the
+server resolves, including probes of whether such sequences are neutralized.** Stated
+openly: this was refined *during* the first audit, after seeing match
+`20261113T053039Z-4645` round 10 (a traversal sequence that probes path neutralization and
+resolves inside `/ftp`). Under the criterion as first written, that round was in doubt; the
+designer marked it valid as a borderline case under the refined wording. A criterion
+changed mid-audit by the auditor is a known weakness of this audit; later audits apply the
+refined wording from the start. The same criteria appear, dated, in the header of every
+generated audit sheet (`tools/audit_match.py`, `LABEL_CRITERIA`). Match 3 round 9 (a
+direct request for `/ftp/acquisitions.md`, no traversal or file-name manipulation) is
+invalid under either wording.
+
 ## Implementation notes (Stage 5.1)
 
 - One exit for every AI call: `agents/llm_client.py`. Every attempt and every

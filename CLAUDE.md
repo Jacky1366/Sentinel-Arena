@@ -133,6 +133,7 @@ data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
 data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
+data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gate 2; held-out candidate set)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
@@ -216,8 +217,8 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stage 5.6 (AI Red, OpenAI) is implemented and tested on the fake provider; its gates
-  (real calls) wait for the designer's GO. Stage 5.4 (AI Blue) is done (Gates passed Nov 12).
+- Stage 5.6 (AI Red, OpenAI): Gates 1–2 passed and the first D16 label audit is done
+  (Nov 13); branch `stage5.6-ai-red`, not merged. Stage 5.4 (AI Blue) is done (Gates passed Nov 12).
   Before that: Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
   fact 1; Blue v0 + Judge fact 2 + round record; `run_match.py` orchestrator +
   `match.json`; the AI body `agents/llm_client.py` + cost tracking, no real calls

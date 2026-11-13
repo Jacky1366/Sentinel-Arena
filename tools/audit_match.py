@@ -43,6 +43,20 @@ SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "match_audit.schema.json").read_text(encoding="utf-8")))
 
 
+# Label criteria the designer audits against (D16). Dated; a refinement is recorded
+# openly with what prompted it, never applied silently. Rendered in the sheet header.
+LABEL_CRITERIA = [
+    {"label": "CWE-22", "date": "2026-11-13",
+     "criterion": "CWE-22 valid = inserting traversal sequences or manipulating file names "
+                  "to influence which file the server resolves, including probes of whether "
+                  "such sequences are neutralized.",
+     "note": "Refined during the first audit (Stage 5.6 Gate 2) because of match "
+             "20261113T053039Z-4645 round 10, a traversal probe that resolves inside /ftp; "
+             "the refinement was made while auditing, after seeing that round, and that "
+             "round is marked valid as a borderline case."},
+]
+
+
 class AuditError(ValueError):
     pass
 
@@ -182,7 +196,11 @@ def sheet(match_dirs: list[Path], audits: Path | None = None, golden: Path | Non
             "file, then regenerate. An `invalid` label is excluded from the audited "
             "statistics, never corrected. `audit first` marks a round that solved a challenge "
             "outside `config/challenge_map.json` (advisory; it excludes nothing). `landed`, "
-            "`newly_solved` and `Blue verdict` are the Judge's facts.", "", "Matches:"]
+            "`newly_solved` and `Blue verdict` are the Judge's facts.", "",
+            "Label criteria (D16, `docs/stage5_decisions.md`):"]
+    head += [f"- **{c['label']}** ({c['date']}): {c['criterion']} {c['note']}"
+             for c in LABEL_CRITERIA]
+    head += ["", "Matches:"]
     rows = []
     for n, d in enumerate(match_dirs, start=1):
         m = json.loads((d / "match.json").read_text(encoding="utf-8"))

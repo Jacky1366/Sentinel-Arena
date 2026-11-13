@@ -243,3 +243,43 @@ def test_sheet_reads_verdicts_from_the_audit_file(env):
     row6 = [l for l in text.splitlines() if l.startswith("| 1 | 6 |")][0]
     assert "unsent: guard_block/above_root" in row6 and "n/a (not a round)" in row6
     assert am.sheet([match], audits, golden) == text  # deterministic
+
+
+def test_sheet_header_states_the_dated_label_criteria(env):
+    match, audits, golden = env
+    text = am.sheet([match], audits, golden)
+    for c in am.LABEL_CRITERIA:
+        assert c["criterion"] in text and c["date"] in text and c["note"] in text
+    cwe22 = [c for c in am.LABEL_CRITERIA if c["label"] == "CWE-22"][0]
+    assert "neutralized" in cwe22["criterion"] and "round 10" in cwe22["note"]
+
+
+# ---- the committed, audited AI-Red batch (Stage 5.6 Gate 2) --------------------------
+
+GOLDEN_RED = {"ai-red-luna-gate2-match1": ("20261113T052633Z-77ac", (10, 10), (10, 10), []),
+              "ai-red-luna-gate2-match2": ("20261113T052837Z-01d4", (10, 10), (10, 10), []),
+              "ai-red-luna-gate2-match3": ("20261113T053039Z-4645", (8, 9), (8, 8), [9])}
+
+
+@pytest.mark.parametrize("name", sorted(GOLDEN_RED))
+def test_golden_ai_red_batch_is_intact_and_audited(name):
+    sys.path.insert(0, str(REPO))
+    import run_match
+    from judge import round_record
+    d = REPO / "data" / "golden" / name
+    mid, raw, audited, invalid = GOLDEN_RED[name]
+    m = json.loads((d / "match.json").read_text())
+    assert m["match_id"] == mid and m["git"]["dirty"] is False and m["red_engine"] == "ai"
+    hashes = run_match.artifact_hashes(d)
+    hashes.pop("README.md")
+    assert hashes == m["artifacts"]  # nothing changed since the match froze
+    old = {r["request_id"]: r for r in map(json.loads, (d / "rounds.jsonl").read_text().splitlines())}
+    new = round_record.build_round_records(d)
+    assert len(new) == len(old) and all(r == old[r["request_id"]] for r in new)  # Judge rescores
+    audit = REPO / "data" / "golden" / "audits" / f"{mid}.jsonl"
+    assert am.audit_path(mid) == audit and audit.is_file()
+    s = am.summary(d)  # validates the audit file against the schema and the rounds
+    assert s["unaudited"] == [] and s["audited_excludes_label_invalid"] == invalid
+    det = s["raw"]["detection"], s["audited"]["detection"]
+    assert ((det[0]["num"], det[0]["den"]), (det[1]["num"], det[1]["den"])) == (raw, audited)
+    assert (s["raw"]["fp"]["num"], s["raw"]["fp"]["den"]) == (0, 17)

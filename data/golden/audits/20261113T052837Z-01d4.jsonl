@@ -1,0 +1,10 @@
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":1,"verdict":"valid","reason":"SQL tautology in a query parameter; endpoint does not exist but the technique is CWE-89","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":2,"verdict":"valid","reason":"SQL tautology in product search","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":3,"verdict":"valid","reason":"HTML event-handler payload intended to execute script","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":4,"verdict":"valid","reason":"encoded parent-directory segment to escape /ftp; Error Handling solve is a side effect","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":5,"verdict":"valid","reason":"UNION-based SQL injection with a null-column probe","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":6,"verdict":"valid","reason":"SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":7,"verdict":"valid","reason":"SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":8,"verdict":"valid","reason":"quote-balanced SQL tautology","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":9,"verdict":"valid","reason":"boolean-based SQL injection comparing true and false conditions","auditor":"designer","date":"2026-11-13"}
+{"schema_version":"0.1","match_id":"20261113T052837Z-01d4","round":10,"verdict":"valid","reason":"SQL tautology in the login email field; landed Login Admin","auditor":"designer","date":"2026-11-13"}
