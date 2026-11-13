@@ -1,7 +1,7 @@
 # Stage 5 — Locked decisions
 
 *Recorded 2026-11-08 (Stage 5.1); D14 added 2026-11-12 (Stage 5.4); D15 and D16 added
-2026-11-13 (Stage 5.6). These are decided. Later stage prompts refer to them by number (D1–D16) instead of repeating them. Changing one is a designer
+2026-11-13 (Stage 5.6); D17 added and D16 amended 2026-11-13 (Stage 5.5). These are decided. Later stage prompts refer to them by number (D1–D17) instead of repeating them. Changing one is a designer
 decision and is recorded here with a date. Where a decision touches an artifact
 format, `docs/contract.md` remains the source of truth.*
 
@@ -55,6 +55,9 @@ asked only when no rule fires.
 *Implemented 2026-11-12 (Stage 5.4): `source` is `"signature" | "ai" | null` in
 verdicts 0.2 (scripted Blue's signatures are `"signature"`; `null` iff there is no
 verdict). `"rule"` is added in 5.5.*
+*Implemented 2026-11-13 (Stage 5.5): verdicts 0.3, `source: "rule"` with
+`fired_rule_ids`, in rules mode `on` (see the Stage 5.5 notes below). Tie-break when fired
+rules disagree on the CWE: the earliest hot-loaded rule wins.*
 
 **D10 — Cost tracking comes before caching.** Token counts are raw evidence; dollars
 are derived later from a dated price table.
@@ -127,6 +130,16 @@ stored (`tools/audit_match.py apply`, `--json` to stdout). No version bumps: Jud
 `rounds.jsonl`, `match.json` and `JUDGE_VERSION` are unchanged. *Recorded 2026-11-13
 (Stage 5.6).*
 
+*D16 amendment, 2026-11-13 (Stage 5.5, designer decision):* **D16 audits AI-generated
+labels only.** Scripted Red labels are designer-written ground truth, verified empirically
+in Stage 2, not AI claims: a round whose Red source is `scripted`, or a legacy 0.1 Red
+record without a `source`, counts as **valid by construction**. It needs no audit line (an
+audit line for it is refused by `tools/audit_match.py validate`), `scaffold` lists only
+AI-labeled rounds, and a match whose rounds are all scripted has a complete audited view
+without an audit file (audited = raw). Implemented in `stats/match_stats.py`
+(`scripted_rounds`, `apply_audit`) and `tools/audit_match.py`. A replay folder (D17) is
+audited through its source match (`replay.json` `source.match_id`).
+
 *D16 criterion refinement, 2026-11-13 (first audit, Stage 5.6 Gate 2):* **CWE-22 valid =
 inserting traversal sequences or manipulating file names to influence which file the
 server resolves, including probes of whether such sequences are neutralized.** Stated
@@ -139,6 +152,21 @@ refined wording from the start. The same criteria appear, dated, in the header o
 generated audit sheet (`tools/audit_match.py`, `LABEL_CRITERIA`). Match 3 round 9 (a
 direct request for `/ftp/acquisitions.md`, no traversal or file-name manipulation) is
 invalid under either wording.
+
+**D17 — Blue can be evaluated on frozen logs (replay mode).** Blue is a passive detector:
+it reads the proxy log only after the match froze it (D4), it is never on the live traffic
+path (design principle 3), and its verdicts never change the traffic: Red's only feedback is
+its own HTTP responses (D6) and the benign schedule is fixed by the seed. So running Blue on
+a frozen match's proxy log is equivalent to running it live, and different Blue
+configurations can be compared on the **same** traffic. `tools/replay_blue.py` copies a
+frozen match's inputs (verified against its `match.json` hashes) into a NEW folder
+(`data/replays/<replay_id>/`), runs Blue and the full Judge there with the same
+`run_match.Ops` steps as a live match, and writes `replay.json` last. It never writes into
+the source folder (golden folders stay byte-identical; tested). Verdicts keep the source
+`match_id`, so the source's D16 audit applies. Blue's information wall is unchanged. A
+replay re-runs the Judge at the current `JUDGE_VERSION`. Limitation: the equivalence holds
+for Blue alone; anything that would let Blue's output reach Red (e.g. a future blocking
+defender) would break it. *Recorded 2026-11-13 (Stage 5.5).*
 
 ## Implementation notes (Stage 5.1)
 
@@ -274,3 +302,59 @@ Designer decisions recorded 2026-11-13:
   (`tools/stage5_6_check.py --real-calls`, 3 seeded `--red ai --blue scripted` matches,
   every attack printed for the D5 label audit). `tools/verify_red_guard.py` (zero-token)
   checks the guard against the real nginx before Gate 1.
+
+## Implementation notes (Stage 5.5, D4, D9, D16, D17)
+
+Designer decisions recorded 2026-11-13 (Step 0 plan `docs/plans/stage5_5_step0.md`, then
+the designer's answers):
+
+- **Three rules modes, not on/off** (`config/llm.json` `agents.blue.rules.mode`, recorded
+  in `match.json` `blue_params.rules` and `replay.json`): `off` = prompt v1 exactly, no
+  proposals, verdicts 0.2 (identical to 5.4; the default); `shadow` = prompt v2,
+  proposals validated, recorded (`rules.jsonl` / `rule_rejections.jsonl`) and scored
+  (facts 3 + 4b), **never hot-loaded**, so every verdict is source `"ai"`; `on` = prompt
+  v2, valid proposals hot-loaded. **on vs shadow isolates the hot-load effect; shadow vs
+  off isolates the prompt change.** The prompt is identical in shadow and on (the model is
+  never told the mode). `run_match.py --blue-rules-mode` and
+  `tools/replay_blue.py --rules-mode` override the config.
+- **`max_output_tokens` 512 for all three modes**, held constant (D14). This changes the
+  5.4 configuration (256): a reply carrying a three-condition rule could be cut off, and a
+  cut-off would count as a `max_tokens` brain failure against the rule-writing modes.
+- **Prompt v2** (`PROMPT_VERSION "2"`): v1's classification part word for word, plus the
+  rule format described completely and accurately, a purely schematic example, and the
+  fact (not advice aimed at the benign set) that a stored rule labels later matching
+  requests without consulting the model. v1 stays byte-identical and selectable (mode off).
+- **The body fills every rule field but `conditions`** (`blue/rule_invention.py`):
+  `rule_id` per-match sequence (rejected proposals use up ids), `cwe` = the line's label
+  (so the AI cannot propose a rule for another CWE than its verdict, and a rule on a
+  `benign` verdict is rejected as `cwe_benign`), `source_request_id` (D8),
+  `created_at_log_seq`, `created_match`. A malformed proposal never voids its verdict.
+- **Cap:** 10 stored rules per match (`max_rules`); a valid rule over the cap is rejected
+  as `rule_cap_reached`. **Tie-break:** the earliest hot-loaded rule wins; a conflict
+  (more than one CWE among the fired rules) is counted in stats, not stored.
+- **After a body refusal (D13)** rule verdicts continue (no call needed); lines no rule
+  answers become `instrument_failure` without a call. The Judge's `instrument_failure`
+  cross-check exempts rule verdicts, and a new Judge cross-check
+  (`judge/rule_verdicts.py`) re-runs the hot-load sequence with the shared
+  `rules/hotload.py` and raises on any rule verdict or rule artifact that does not follow
+  from it. Rule invention requires `chunk_size` 1.
+- **Facts 3 and 4b inside the match:** new Judge step `judge_rules` (`judge/rule_facts.py
+  --run-dir`) writes `<match>/rule_results.jsonl` and appends `rule_source_benign`
+  anomalies. Fact 4b is still not held out (§6.7 limitation): every match sends the same 17
+  benign requests the fixture is made of, so the in-match FP rate (fact 4a) after
+  hot-load is the more meaningful number.
+- **Formats:** verdicts 0.3 (only claude Blue in shadow / on; scripted and off keep 0.2),
+  rounds and benign results 0.3 (the source enum gains `"rule"`, the 5.1 rule applied
+  literally), `match.json` 0.6; frozen `verdict_v0_2`, `round_record_v0_2`,
+  `benign_result_v0_2`, `match_manifest_v0_5`; new `match_rule`, `rule_rejection`,
+  `replay_manifest` schemas; `JUDGE_VERSION` 0.6.0. Replays re-judge at 0.6.0, so their
+  rounds are not byte-comparable with sources judged at 0.2.0–0.5.0 (`landed.jsonl` is
+  byte-identical for every golden folder; scripted replays reproduce the source verdicts).
+- **D16 amended:** scripted Red labels are valid by construction (above), so
+  `scripted-baseline-benign-match` has a complete audited view without an audit file.
+- **Gate (Part F), only after the designer's explicit GO:** `tools/stage5_5_check.py
+  --real-calls`, 12 replays: the 3 AI-Red golden matches plus
+  `scripted-baseline-benign-match`, each in modes off, shadow and on, Haiku 5.5, every
+  replay starting with zero rules (D7). Refuses on a dirty tree. Prints raw and audited
+  detection and FP rate split by source, rules proposed / stored / rejected with reasons,
+  facts 3 and 4b per rule, AI calls saved, cost, and every rule and rejection in full.

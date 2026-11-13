@@ -39,7 +39,8 @@ README.md               overview, architecture diagram, how to run tests and the
 docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :8081)
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
-docs/stage5_decisions.md  locked Stage 5 decisions D1–D16 + sub-stage map
+docs/stage5_decisions.md  locked Stage 5 decisions D1–D17 + sub-stage map
+docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
 .claude/settings.json   Claude Code deny rules: never read .env / .env.* (docs/ops.md)
@@ -50,16 +51,22 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   match_audit.schema.json         D16 designer label audit, one line per Red round (never read by Red/Blue)
   proxy_log.schema.json           nginx log line (Blue's only input)
   challenge_snapshot.schema.json  before/after solved state (measurement)
-  verdict.schema.json             Blue verdict, schema_version 0.2 (verdict or no_verdict_reason)
+  verdict.schema.json             Blue verdict, schema_version 0.3 (source "rule" + fired_rule_ids; rules shadow/on)
+  verdict_v0_2.schema.json        frozen 0.2 verdict schema (scripted Blue and rules mode off still write 0.2)
   verdict_v0_1.schema.json        frozen 0.1 verdict schema (golden folders; readers dispatch on version)
   rule.schema.json                single Blue rule (Stage 5.3 format: cwe + 1-3 AND-ed conditions)
   rules_file.schema.json          rules.json wrapper (cross-match memory)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
   rule_score.schema.json          rule scoring manifest
+  match_rule.schema.json          one rules.jsonl line (a rule Blue invented in a match, 5.5)
+  rule_rejection.schema.json      one rule_rejections.jsonl line (a rejected proposal + reasons)
+  replay_manifest.schema.json     replay.json (tools/replay_blue.py, D17)
   benign_fixture.schema.json      one fact-4b fixture line
-  round_record.schema.json        Judge output, schema_version 0.2 (instrument_failure, verdict_source)
+  round_record.schema.json        Judge output, schema_version 0.3 (verdict_source may be "rule")
+  round_record_v0_2.schema.json   frozen 0.2 round-record schema
   round_record_v0_1.schema.json   frozen 0.1 round-record schema
-  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.5 (red_engine, red_params)
+  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.6 (blue_params.rules, judge_rules)
+  match_manifest_v0_5.schema.json frozen 0.5 manifest schema
   match_manifest_v0_1.schema.json frozen 0.1 manifest schema (validators dispatch on version)
   match_manifest_v0_2.schema.json frozen 0.2 manifest schema
   match_manifest_v0_3.schema.json frozen 0.3 manifest schema
@@ -68,7 +75,8 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   prices.schema.json              config/prices.json
   benign_set.schema.json          benign/benign_set.json
   benign_request.schema.json      benign ground truth (Blue never reads)
-  benign_result.schema.json       Judge fact 4a output, schema_version 0.2
+  benign_result.schema.json       Judge fact 4a output, schema_version 0.3
+  benign_result_v0_2.schema.json  frozen 0.2 benign-result schema
   benign_result_v0_1.schema.json  frozen 0.1 benign-result schema
   anomaly.schema.json             anomalies.jsonl (harness self-checks)
   landed_fact.schema.json         Judge fact-1 intermediate (Stage 2)
@@ -76,11 +84,12 @@ config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
   prices.json           USD per million tokens per model (designer-maintained, dated)
-  llm.json              models per agent, timeouts/retries, required per-agent + match caps
+  llm.json              models per agent, timeouts/retries, required per-agent + match caps; agents.blue.rules (mode off|shadow|on, max_rules)
 rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; governed by JUDGE_VERSION)
   normalize.py          THE request normalization (v2): raw + every decode step + '+'-decoding
   validator.py          rule validator: machine-readable reason per rejection; RE2 compile
   engine.py             pure rule engine: (validated rules, request) -> firing rule_ids
+  hotload.py            hot-loaded rule set: only earlier-line rules fire; earliest wins tie-break (Blue + Judge)
 agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl
 agents/prompting.py     stable-prefix-first prompt builder + safe JSON parsing
 proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
@@ -96,18 +105,20 @@ red/scripted_red.py     write labeled record, then fire one attack (one step at 
 red/ai_red.py           AI Red (5.6): fixed prompt (RED_PROMPT_VERSION), one proposal per slot, reply validation (OpenAI)
 red/red_guard.py        rules of engagement (D15): scope/method/encoding/above-root/label/size guards, run by the body
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
-stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary)
+stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
 stats/cost.py           pure cost over api_calls.jsonl + price table
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
-blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude)
-blue/claude_engine.py   AI Blue (5.4): fixed prompt (PROMPT_VERSION), one stateless call per line, reply validation
+blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude, --rules-mode)
+blue/claude_engine.py   AI Blue (5.4): fixed prompts v1 (off) / v2 (shadow, on), one stateless call per line, reply validation, rule-first flow (5.5)
+blue/rule_invention.py  the body's half of rule invention: fills ids/cwe/source, validates, caps -> rules / rejections
 judge/fact1_landed.py   pure landed computation over artifacts (no network)
 judge/fact2_detected.py pure detected/type_correct computation; 0.1/0.2 verdicts; instrument_failure cross-check vs api_calls.jsonl
 judge/round_record.py   join fact 1 + fact 2 -> rounds.jsonl (validated)
 judge/fact4_benign.py   fact 4a: benign false positives -> benign_results.jsonl + anomalies.jsonl
 judge/red_facts.py      label_mismatch tripwire (D5): AI-Red attack solving a cross-CWE challenge
 judge/anomalies.py      shared anomaly validator/writer (fact 4a and red_facts)
-judge/rule_facts.py     facts 3 (offline replay) + 4b (benign fixture) per rule (uses rules/, never blue/)
+judge/rule_facts.py     facts 3 (offline replay) + 4b (benign fixture) per rule (uses rules/, never blue/); judge_rules step (5.5)
+judge/rule_verdicts.py  Judge cross-check: re-runs the hot-load sequence, raises on any inconsistent rule verdict/artifact
 tools/validate_log.py   classify proxy log lines: valid / stray / invalid
 tools/smoke_test.sh     Stage 1 end-to-end check of the running stack
 tools/stage2_check.py   Stage 2 end-to-end check (runner + Judge vs expected)
@@ -124,12 +135,15 @@ tools/stage5_3_rules.json     hand-written test rules; tools/stage5_3_expected.j
 tools/stage5_4_smoke.py       Gate 1: ONE real Blue call on one golden line (--real-call; designer GO only)
 tools/stage5_4_check.py       Gate 2: 3 seeded --blue claude matches, format + coverage (--real-calls; GO only)
 tools/verify_red_guard.py     zero-token probe: the above_root guard matches real nginx (contract 9)
-tools/audit_match.py          D16 label audit: scaffold / validate / apply (raw vs audited, --json) / sheet
+tools/audit_match.py          D16 label audit: scaffold / validate / apply (raw vs audited, --json) / sheet; AI labels only; replay folders
 tools/stage5_6_smoke.py       Gate 1 (5.6): ONE AI-Red generation, nothing sent (--real-call; GO only)
 tools/stage5_6_check.py       Gate 2 (5.6): 3 seeded --red ai matches, prints every attack (--real-calls; GO only)
+tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source)
+tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/shadow/on, prints every rule (--real-calls; GO only)
 dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
+data/replays/<replay_id>/  Blue replays incl. replay.json (git-ignored, D17)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
 data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
@@ -170,7 +184,12 @@ tests/test_openai_adapter.py  OpenAI Responses adapter vs a mock transport: key/
 tests/test_red_guard.py     the rules-of-engagement guards (D15)
 tests/test_ai_red.py        AI Red engine: prompt, validation, history, feedback, info wall
 tests/test_run_match_red.py --red ai driver loop + wiring (fake Ops + fake provider)
-tests/test_audit.py         D16: audit schema, audited view, audit-first flag, audit_match tool
+tests/test_audit.py         D16: audit schema, audited view, audit-first flag, audit_match tool, scripted = valid
+tests/test_rule_hotload.py  hot-load timing, tie-break, conflict flag (pure)
+tests/test_blue_rules.py    rule invention: prompt v2, modes off/shadow/on, proposals, cap, refusals (fake provider)
+tests/test_rule_verdicts.py Judge rule-verdict cross-check, incl. tampered artifacts
+tests/test_run_match_rules.py  --blue-rules-mode wiring, judge_rules, match.json 0.6 (fake Ops + provider)
+tests/test_replay_blue.py   replay = live run, never writes the source, refusals, audits, gate tool offline
 ```
 
 ## How to run the stack
@@ -183,6 +202,7 @@ tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
 .venv/bin/python run_match.py            # one complete match -> data/runs/<match_id>/
 .venv/bin/python run_match.py --blue claude  # AI Blue: REAL, PAID calls (needs ARENA_ANTHROPIC_API_KEY)
 .venv/bin/python run_match.py --red ai       # AI Red: REAL, PAID calls (needs ARENA_OPENAI_API_KEY)
+.venv/bin/python tools/replay_blue.py --match <frozen dir> --engine scripted  # replay Blue (D17)
 .venv/bin/python tools/stage4_check.py   # Stage 4: run_match + frozen-dir checks
 .venv/bin/python tools/stage5_2_check.py # Stage 5.2: 2 seeded matches, benign + reproducibility
 .venv/bin/python tools/verify_benign_set.py  # re-verify the benign set (after any set change)
@@ -217,8 +237,11 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stage 5.6 (AI Red, OpenAI): Gates 1–2 passed and the first D16 label audit is done
-  (Nov 13); branch `stage5.6-ai-red`, not merged. Stage 5.4 (AI Blue) is done (Gates passed Nov 12).
+- Stage 5.5 (Blue rule invention, modes off / shadow / on; hot-load; replay mode D17):
+  built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`; the
+  gate (`tools/stage5_5_check.py --real-calls`, 12 replays) waits for the designer's GO.
+  Stage 5.6 (AI Red, OpenAI): done, Gates 1–2 + first D16 label audit (Nov 13), merged.
+  Stage 5.4 (AI Blue) is done (Gates passed Nov 12).
   Before that: Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge
   fact 1; Blue v0 + Judge fact 2 + round record; `run_match.py` orchestrator +
   `match.json`; the AI body `agents/llm_client.py` + cost tracking, no real calls
