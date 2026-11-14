@@ -12,6 +12,14 @@ Red round, written by the designer AFTER the match, OUTSIDE the immutable match 
 An `invalid` label is EXCLUDED from the audited statistics, never corrected (relabeling
 would be a human rewriting ground truth). The Judge's output is never changed.
 
+Only AI-generated labels are audited (D16, Stage 5.5): a round whose Red source is
+scripted (or a legacy 0.1 Red record without a source) carries a designer-written label
+verified in Stage 2, so it is valid by construction and has no audit line. A match with
+only scripted rounds needs no audit file: its audited numbers equal the raw ones.
+
+A replay folder (tools/replay_blue.py, D17) is audited through its SOURCE match: the
+match id comes from replay.json source.match_id, so the source's audit file applies.
+
   scaffold  one `unaudited` line per round in rounds.jsonl; refuses to overwrite.
   validate  schema per line, match_id, no duplicate rounds, exactly the match's rounds.
   apply     prints raw and audited numbers side by side, plus the audit-first list
@@ -74,7 +82,18 @@ def _jl(p: Path) -> list[dict]:
 
 
 def match_id_of(match_dir: Path) -> str:
-    return json.loads((match_dir / "match.json").read_text(encoding="utf-8"))["match_id"]
+    """The match id of a match folder, or of a replay folder's source match (D17)."""
+    if (match_dir / "match.json").is_file():
+        return json.loads((match_dir / "match.json").read_text(encoding="utf-8"))["match_id"]
+    if (match_dir / "replay.json").is_file():
+        return json.loads((match_dir / "replay.json").read_text(
+            encoding="utf-8"))["source"]["match_id"]
+    raise AuditError(f"{match_dir} is neither a match (match.json) nor a replay (replay.json)")
+
+
+def scripted_rounds(match_dir: Path) -> set[int]:
+    """Rounds valid by construction (scripted Red labels, D16)."""
+    return ms.scripted_rounds(_jl(match_dir / "red_attacks.jsonl"))
 
 
 def audit_path(match_id: str, audits: Path | None = None, golden: Path | None = None) -> Path:
@@ -91,7 +110,10 @@ def load_audit(match_dir: Path, audits: Path | None = None, golden: Path | None 
     return p, _jl(p)
 
 
-def validate_rows(rows: list[dict], match_id: str, rounds: list[dict]) -> list[str]:
+def validate_rows(rows: list[dict], match_id: str, rounds: list[dict],
+                  scripted: set[int] | frozenset = frozenset()) -> list[str]:
+    """One line per AI-labeled round, exactly. Scripted rounds (valid by construction)
+    must not appear."""
     errors = []
     for i, row in enumerate(rows, start=1):
         errors += [f"line {i}: {e.message}" for e in SCHEMA.iter_errors(row)]
@@ -101,9 +123,14 @@ def validate_rows(rows: list[dict], match_id: str, rounds: list[dict]) -> list[s
     dupes = sorted({x for x in seen if seen.count(x) > 1})
     if dupes:
         errors.append(f"duplicate rounds {dupes}")
-    want = {r["round"] for r in rounds}
-    if set(seen) - want:
-        errors.append(f"rounds not in the match: {sorted(set(seen) - want)}")
+    on_scripted = sorted(set(seen) & set(scripted))
+    if on_scripted:
+        errors.append(f"rounds {on_scripted} carry scripted labels: valid by construction, "
+                      f"never audited (D16)")
+    want = {r["round"] for r in rounds} - set(scripted)
+    extra = set(seen) - want - set(scripted)
+    if extra:
+        errors.append(f"rounds not in the match: {sorted(extra)}")
     if want - set(seen):
         errors.append(f"rounds missing from the audit: {sorted(want - set(seen))}")
     return errors
@@ -119,10 +146,14 @@ def scaffold(match_dir: Path, golden: bool = False, audits: Path | None = None,
     rounds = _jl(match_dir / "rounds.jsonl")
     if not rounds:
         raise AuditError(f"no rounds.jsonl in {match_dir} (the Judge must have run)")
+    scripted = scripted_rounds(match_dir)
     rows = [{"schema_version": "0.1", "match_id": mid, "round": r["round"],
              "verdict": "unaudited", "reason": "", "auditor": None, "date": None}
-            for r in sorted(rounds, key=lambda r: r["round"])]
-    errors = validate_rows(rows, mid, rounds)
+            for r in sorted(rounds, key=lambda r: r["round"]) if r["round"] not in scripted]
+    if not rows:
+        raise AuditError(f"{match_dir}: every round carries a scripted label, valid by "
+                         f"construction (D16); there is nothing to audit")
+    errors = validate_rows(rows, mid, rounds, scripted)
     if errors:
         raise AuditError(f"scaffold would be invalid: {errors}")  # a bug, never data
     out = (golden_dir if golden else audits) / f"{mid}.jsonl"
@@ -142,22 +173,32 @@ def summary(match_dir: Path, audits: Path | None = None, golden: Path | None = N
     challenge_map = json.loads(CHALLENGE_MAP.read_text(encoding="utf-8"))
     path, rows = load_audit(match_dir, audits, golden)
     mid = match_id_of(match_dir)
+    scripted = scripted_rounds(match_dir)
     if rows:
-        errors = validate_rows(rows, mid, rounds)
+        errors = validate_rows(rows, mid, rounds, scripted)
         if errors:
             raise AuditError(f"{path}: {errors}")
-    view = ms.apply_audit(rounds, rows)
+    view = ms.apply_audit(rounds, rows, scripted)
 
     def block(rs: list[dict]) -> dict:
         s, b = ms.compute(rs), ms.compute_benign(rs, benign)
+        split = ms.by_source(rs, benign)
         return {"landing": _rate(s["landing"]), "detection": _rate(s["detection"]),
                 "type_accuracy": _rate(s["type_accuracy"]), "fp": _rate(b["fp"]),
-                "precision": _rate(b["precision"])}
+                "precision": _rate(b["precision"]),
+                "by_source": {p: {**({"detection": _rate(x["detection"])}
+                                     if "detection" in x else {}),
+                                  "fp": _rate(x["fp"]),
+                                  "type_accuracy": _rate(x["type_accuracy"]),
+                                  "attack_lines": x["attack_lines"],
+                                  "benign_lines": x["benign_lines"]}
+                              for p, x in split.items()}}
     return {"match_id": mid, "audit_file": _rel(path) if rows else None,
             "raw": block(rounds),
             "audited": None if view["rounds"] is None else block(view["rounds"]),
             "audited_excludes_label_invalid": view["invalid"],
             "valid": view["valid"], "unaudited": view["unaudited"],
+            "valid_by_construction": view["valid_by_construction"],
             "audit_first": {str(k): v for k, v in ms.audit_first(rounds, challenge_map).items()}}
 
 
@@ -176,6 +217,8 @@ def print_summary(s: dict) -> None:
         print(f"  audited: incomplete ({len(s['unaudited'])} unaudited: {s['unaudited']})")
     print(f"  audited excludes label_invalid {s['audited_excludes_label_invalid']}  "
           f"(excluded, never relabeled)")
+    if s["valid_by_construction"]:
+        print(f"  valid by construction (scripted labels, D16) {s['valid_by_construction']}")
     print("  audit first    " + (", ".join(f"round {k} {v}" for k, v in s["audit_first"].items())
                                  or "none") + "  (advisory; excludes nothing)")
 
@@ -211,6 +254,7 @@ def sheet(match_dirs: list[Path], audits: Path | None = None, golden: Path | Non
                     f"{m['blue_engine']}, seed {m['traffic']['seed']}; audit "
                     f"`{_rel(path)}`" + ("" if audit else " (missing)"))
         verdicts = {a["round"]: a for a in audit}
+        scripted = scripted_rounds(d)
         proxy = {x["request_id"]: x for x in _jl(d / "proxy.jsonl") if x.get("request_id")}
         rounds = {x["request_id"]: x for x in _jl(d / "rounds.jsonl")}
         flagged = ms.audit_first(list(rounds.values()), challenge_map)
@@ -229,7 +273,9 @@ def sheet(match_dirs: list[Path], audits: Path | None = None, golden: Path | Non
                 _esc(f"{r.get('landed')}" + (f" ({r['landed_reason']})" if r.get("landed_reason") else "")),
                 _esc(", ".join(r.get("newly_solved") or []) or "—"), _esc(r.get("verdict", "—")),
                 "yes" if a["round"] in flagged else "",
-                v["verdict"] if decided else "", _esc(v.get("reason", "")) if decided else ""]))
+                "valid (scripted)" if a["round"] in scripted else v["verdict"] if decided else "",
+                "designer-written label, valid by construction (D16)" if a["round"] in scripted
+                else _esc(v.get("reason", "")) if decided else ""]))
         for u in _jl(d / "red_unsent.jsonl"):
             p = u.get("proposed") or {}
             items.append((u["round"], [
@@ -272,7 +318,8 @@ def main(argv: list[str] | None = None) -> int:
             if not rows:
                 raise AuditError(f"no audit file at {path}")
             errors = validate_rows(rows, match_id_of(args.match_dir),
-                                   _jl(args.match_dir / "rounds.jsonl"))
+                                   _jl(args.match_dir / "rounds.jsonl"),
+                                   scripted_rounds(args.match_dir))
             if errors:
                 for e in errors:
                     print(f"INVALID {_rel(path)}: {e}")

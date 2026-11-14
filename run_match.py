@@ -3,6 +3,7 @@
     .venv/bin/python run_match.py              # requires: docker compose up -d --wait
     .venv/bin/python run_match.py --seed 5202  # reproduce a match's schedule
     .venv/bin/python run_match.py --blue claude   # AI Blue (Stage 5.4; real, paid calls)
+    .venv/bin/python run_match.py --blue claude --blue-rules-mode on   # + rule invention (5.5)
 
 The orchestrator is the ONLY thing that sequences components. Components never
 call each other; each step reads and writes file artifacts (docs/contract.md).
@@ -19,11 +20,13 @@ call each other; each step reads and writes file artifacts (docs/contract.md).
                  by the seeded schedule (both keep their own order), each with
                  before/after snapshots -> data/runs/<match_id>/
   7. freeze      move live/proxy.jsonl into the match dir, nginx reopens
-  8. judge_fact1 -> blue -> judge_rounds -> judge_benign (fact 4a + anomalies),
-                 on the FROZEN directory
+  8. judge_fact1 -> blue -> judge_rounds -> judge_benign (fact 4a + anomalies)
+                 -> judge_red (label_mismatch) -> judge_rules (facts 3 + 4b for the
+                 rules Blue stored; nothing without rules.jsonl), on the FROZEN
+                 directory
   9. match.json  written LAST (status, provenance, traffic seed + schedule,
-                 models, blue_params, budget, cost, sha256 of every artifact),
-                 schema_version 0.4
+                 models, blue_params incl. the rules mode, budget, cost, sha256 of
+                 every artifact), schema_version 0.6
  10. summary     a pure read of the Judge outputs + match.json: detection is
                  always printed next to the FP rate
 
@@ -62,7 +65,8 @@ sys.path.insert(0, str(REPO))
 from blue import claude_engine, run_blue  # noqa: E402
 from agents import llm_client  # noqa: E402
 from benign import send_benign  # noqa: E402
-from judge import JUDGE_VERSION, fact1_landed, fact4_benign, red_facts, round_record  # noqa: E402
+from judge import (JUDGE_VERSION, fact1_landed, fact4_benign, red_facts,  # noqa: E402
+                   round_record, rule_facts)
 from red import ai_red, scripted_red  # noqa: E402
 from runner import match_ops  # noqa: E402
 from runner.schedule import Schedule, new_seed  # noqa: E402
@@ -74,10 +78,10 @@ def _schema(name: str) -> dict:
     return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
-MANIFEST_VERSION = "0.5"
+MANIFEST_VERSION = "0.6"
 MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest_v0_2"),
                     "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest_v0_4"),
-                    "0.5": _schema("match_manifest")}
+                    "0.5": _schema("match_manifest_v0_5"), "0.6": _schema("match_manifest")}
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -179,10 +183,12 @@ class Ops:
         return llm_client.LLMClient(config=config, prices=prices)
 
     def blue(self, match_dir: Path, match_id: str, engine: str, client=None,
-             model: str | None = None) -> None:
+             model: str | None = None, rules_mode: str | None = None) -> None:
         argv = ["--engine", engine, "--match-id", match_id, "--run-dir", str(match_dir)]
         if model is not None:
             argv += ["--model", model]
+        if rules_mode is not None:
+            argv += ["--rules-mode", rules_mode]
         run_blue.main(argv, client=client)
 
     def judge_rounds(self, match_dir: Path) -> None:
@@ -193,6 +199,9 @@ class Ops:
 
     def judge_red(self, match_dir: Path) -> None:
         red_facts.main(["--run-dir", str(match_dir)])
+
+    def judge_rules(self, match_dir: Path) -> None:
+        rule_facts.main(["--run-dir", str(match_dir)])
 
 
 def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
@@ -226,6 +235,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               red_engine: str = "scripted", red_model: str | None = None,
+              blue_rules_mode: str | None = None,
               out=print) -> tuple[int, Path | None]:
     """Run one match. Returns (exit_code, match_dir or None if never started)."""
     ops = ops or Ops()
@@ -266,11 +276,16 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             if chunk != 1:
                 raise ValueError(f"agents.blue.chunk_size is {chunk}: a scored match is one "
                                  f"line per call (D4); chunk_size > 1 is for unscored runs")
-            blue_params = claude_engine.blue_params(llm_config, model, chunk)
+            blue_params = claude_engine.blue_params(llm_config, model, chunk,
+                                                    blue_rules_mode)  # ValueError: bad mode
+            rules_mode = blue_params["rules"]["mode"]
             models = {**red_models, "blue": {"provider": blue_params["provider"],
                                              "model": model}, "analyst": None}
         else:
-            model, blue_params = None, None
+            if blue_rules_mode not in (None, "off"):
+                raise ValueError("--blue-rules-mode needs --blue claude (rule invention is "
+                                 "an AI Blue feature)")
+            model, blue_params, rules_mode = None, None, None
             models = {**red_models, "blue": None, "analyst": None}
         traffic = {"seed": seed, "seed_source": seed_source,
                    "benign_set": {"path": _display_path(benign_set),
@@ -335,7 +350,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         ops.judge_fact1(match_dir)
         step = "blue"
         if engine == "claude":
-            ops.blue(match_dir, match_id, engine, ops.blue_client(llm_config, prices), model)
+            ops.blue(match_dir, match_id, engine, ops.blue_client(llm_config, prices), model,
+                     rules_mode)
         else:
             ops.blue(match_dir, match_id, engine)
         step = "judge_rounds"
@@ -344,6 +360,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         ops.judge_benign(match_dir)
         step = "judge_red"
         ops.judge_red(match_dir)
+        step = "judge_rules"
+        ops.judge_rules(match_dir)
         step = "done"
     except (Exception, KeyboardInterrupt) as exc:  # noqa: BLE001 - finalize on ANY failure
         failed_step = step
@@ -411,7 +429,10 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         anomalies=match_stats.read_rounds(match_dir / fact4_benign.ANOMALIES),
         verdicts=match_stats.read_rounds(match_dir / "verdicts.jsonl"),
         red_unsent=match_stats.read_rounds(match_dir / match_ops.RED_UNSENT),
-        challenge_map=json.loads(red_facts.CHALLENGE_MAP.read_text(encoding="utf-8"))))
+        challenge_map=json.loads(red_facts.CHALLENGE_MAP.read_text(encoding="utf-8")),
+        rules=(match_stats.read_rounds(match_dir / "rules.jsonl"),
+               match_stats.read_rounds(match_dir / "rule_rejections.jsonl"),
+               match_stats.read_rounds(match_dir / rule_facts.RESULTS))))
     return EXIT[manifest["status"]], match_dir
 
 
@@ -427,6 +448,11 @@ def main(argv: list[str] | None = None) -> int:
                              "paid API calls through agents/llm_client.py)")
     parser.add_argument("--blue-model", default=None,
                         help="claude: model id (default: config/llm.json agents.blue.model)")
+    parser.add_argument("--blue-rules-mode", choices=("off", "shadow", "on"), default=None,
+                        help="claude: rule invention mode (default: config/llm.json "
+                             "agents.blue.rules.mode). off = prompt v1 (Stage 5.4); shadow = "
+                             "prompt v2, rules recorded and scored, never applied; on = "
+                             "prompt v2, rules hot-loaded")
     parser.add_argument("--red", choices=("scripted", "ai"), default="scripted",
                         help="Red engine: scripted payload set, or ai (OpenAI; real, paid "
                              "API calls through agents/llm_client.py)")
@@ -437,7 +463,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
                         settle=args.settle, engine=args.blue, blue_model=args.blue_model,
-                        red_engine=args.red, red_model=args.red_model)
+                        red_engine=args.red, red_model=args.red_model,
+                        blue_rules_mode=args.blue_rules_mode)
     return code
 
 

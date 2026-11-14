@@ -144,7 +144,7 @@ def match(d: Path, verdicts, calls):
           landed=[], verdicts=verdicts, api_calls=calls)
 
 
-def test_round_records_and_benign_results_0_2(tmp_path):
+def test_round_records_and_benign_results_0_3(tmp_path):
     match(tmp_path,
           [v2(R[0], 1, "CWE-89"), v2(B[0], 2, "CWE-79"),
            v2(R[1], 3, reason="no_verdict", detail="model_refusal"),
@@ -155,7 +155,7 @@ def test_round_records_and_benign_results_0_2(tmp_path):
     rounds = {r["request_id"]: r for r in round_record.build_round_records(tmp_path)}
     for r in rounds.values():
         SCHEMA["round_record"].validate(r)
-        assert r["schema_version"] == "0.2" and "replay_blocked" not in r
+        assert r["schema_version"] == "0.3" and "replay_blocked" not in r  # 0.3 from 5.5
     assert (rounds[R[0]]["detected"], rounds[R[0]]["verdict_source"]) == (True, "ai")
     assert (rounds[R[1]]["detected"], rounds[R[1]]["detected_reason"]) == (False, "no_verdict")
     assert (rounds[R[2]]["detected"], rounds[R[2]]["detected_reason"]) == \

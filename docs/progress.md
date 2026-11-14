@@ -17,14 +17,15 @@ file artifacts defined in a data contract.
 | 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
 | 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
 | 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7; verified + merged Nov 8) |
-| — | Progress Report | Nov 12 | In progress |
+| — | Progress Report | Nov 12 | Done (submitted Nov 12) |
 | 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
 | 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
-| 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch, D16 label audit | Nov 13–19 (Stage 5) | Gates 1–2 passed + first label audit (Nov 13); done before 5.5; branch not merged |
+| 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch, D16 label audit | Nov 13–19 (Stage 5) | Done (Nov 13; Gates 1–2 passed + first label audit; merged) |
+| 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); branch `stage5.5-rules-invention` |
 
-Currently ~4 days ahead of plan. Next milestone: Progress Report (Nov 12).
+Currently ~4 days ahead of plan. Next milestone: Assignment 3 (Nov 26).
 
 ## Completed
 
@@ -329,11 +330,88 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
 
+### Stage 5.5 — Blue rule invention + hot-load + replay mode (D17)
+Built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`. Gate
+(Part F) run Nov 13 after the designer's GO: 12/12 replays completed, golden folders
+unchanged, total $0.0569 (run `data/replays/gate-5.5-20261114T052856Z-b29c/`, commit
+072e9d7). Plan:
+`docs/plans/stage5_5_step0.md`; decisions: `docs/stage5_decisions.md` (D17, D16
+amendment, Stage 5.5 notes).
+
+- **Three rules modes** (`agents.blue.rules.mode`): `off` = prompt v1, identical to 5.4
+  (default); `shadow` = prompt v2, proposals validated, recorded and scored but never
+  applied; `on` = prompt v2, proposals hot-loaded. on vs shadow isolates the hot-load
+  effect, shadow vs off the prompt change. Blue's output cap is 512 tokens in all three.
+- **Per-line flow (D9):** rules created on earlier lines run first (`rules/hotload.py`,
+  shared by Blue and the Judge); a firing rule answers the line with no API call; the
+  earliest rule wins a CWE tie-break. Otherwise one AI call; its optional proposal is
+  completed by the body (`blue/rule_invention.py`: id, CWE = the line's label, source
+  request, log_seq), validated, capped at 10, then stored or rejected with reasons.
+- **Judge 0.6.0:** re-runs the hot-load sequence and raises on any rule verdict or rule
+  artifact that does not follow from it; rule verdicts are exempt from the
+  `instrument_failure` cross-check (they make no call, so they continue after a body
+  refusal); new step `judge_rules` writes facts 3 + 4b into the match.
+- **Formats:** verdicts 0.3 (`source "rule"`, `fired_rule_ids`; shadow / on only),
+  rounds and benign results 0.3, `match.json` 0.6 (`blue_params.rules`, `judge_rules`);
+  new `rules.jsonl`, `rule_rejections.jsonl`, `replay.json`.
+- **Replay mode (D17):** `tools/replay_blue.py` runs Blue + the full Judge on a copy of a
+  frozen match's inputs in a new folder (`data/replays/`, git-ignored), verified against
+  the source hashes, never writing into the source. Scripted replays of all six golden
+  folders reproduce the source verdicts and `landed.jsonl` byte for byte (format aside);
+  a fake live match and its replay give byte-identical Judge outputs.
+- **D16 amended:** scripted Red labels are valid by construction; only AI labels are
+  audited. `scripted-baseline-benign-match` now has a complete audited view.
+- **Stats:** split by verdict source (rule vs AI): line counts, type accuracy, FP rate;
+  no rule-path detection rate (100% by construction); modes compared on whole-match
+  numbers only. Rules
+  proposed / stored / rejected with codes, cap hits, tie-break conflicts, AI calls saved;
+  per rule the lines it fired on plus facts 3 and 4b.
+- **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass
+  against the live stack (Nov 13).
+- **Gate results (Nov 13, Haiku 5.5, 12 replays, $0.0569).** Evidence committed in
+  `data/golden/replays/gate-5.5/` (README; `tests/test_gate_5_5_evidence.py` checks the
+  hashes and that the Judge re-scores every folder identically).
+
+  | Source | Detection raw / audited | Type acc. | FP (hard neg.) | No-verdict | AI calls off / shadow / on | Saved (on) | Cost off / shadow / on |
+  |---|---|---|---|---|---|---|---|
+  | ai-red match1 | 10/10 / 10/10 | 10/10 | 0/17 (0/6) | 0 | 27 / 27 / 21 | 6 | $0.0032 / $0.0063 / $0.0047 |
+  | ai-red match2 | 10/10 / 10/10 | 10/10 | 0/17 (0/6) | 0 | 27 / 27 / 23 | 4 | $0.0032 / $0.0063 / $0.0053 |
+  | ai-red match3 | 8/9 / 8/8 | 8/8 | 0/17 (0/6) | 0 | 26 / 26 / 24 | 2 | $0.0031 / $0.0060 / $0.0055 |
+  | scripted-baseline-benign | 7/7 / 7/7 | 7/7 | 0/17 (0/6) | 0 | 24 / 24 / 22 | 2 | $0.0029 / $0.0055 / $0.0050 |
+
+  Detection, type accuracy, FP and no-verdict are the same in off, shadow and on, so
+  they are given once. Rules: shadow stored 10 / 10 / 8 / 7, on stored 4 / 6 / 6 / 5
+  (56 in total). 0 rejected, 0 cap hits, 0 tie-break conflicts, 0 `max_tokens`
+  stops, 0 refusals. All 56 rules: fact 3 true, CWE matches the source, 0 fact-4b
+  fixture hits. In on mode, rules answered 14 lines, all attacks, all type-correct,
+  and fired on no benign line. 12 of the 21 on-mode rules never fired. The match3
+  miss is round 9 in every mode (labeled CWE-22, answered benign; label-invalid in the
+  D16 audit). Totals: AI calls off 104, on 90; cost off $0.0124, shadow $0.0240
+  (1.9×), on $0.0205 (1.65×).
+
+  Interpretation:
+  - **Ceiling effect again.** Whole-match detection, type accuracy and FP are
+    identical in off, shadow and on for all four sources. These matches cannot
+    separate the modes; harder traffic is needed.
+  - **Cost paradox.** On saved 14 AI calls (104 → 90) yet cost about 1.7× off,
+    because prompt v2 roughly doubles input tokens per call. Break-even needs rules
+    to answer roughly half of all lines. That is impossible within one match: a rule
+    exists only after its attack has been seen, and rules never answer benign lines
+    (they only label attacks). The cost benefit of rules can only appear with
+    cross-match rule memory (Stage 6) or with caching of the stable prompt (5.7).
+  - **Rule quality is weak evidence.** 56 rules, all valid, all fact 3 true, 0
+    fact-4b hits, no benign line misclassified. But the benign set has no hard
+    negatives that stress these patterns. For example, a path rule on `..` cannot be
+    tested for over-breadth (limitation #6: no CWE-22 hard negative).
+  - **Rule duplication.** Several rules within one match share identical patterns
+    (e.g. match2 shadow r-001/r-002 and r-006/r-007; baseline shadow r-004/r-005).
+    That is harmless inside one match. Stage 6 retention must deduplicate.
+
 ### Stage 5.6 — AI Red (OpenAI gpt-6-luna) + D15 + label_mismatch
 Done before 5.5 (5.5's rule invention needs varied attacks). Built and tested on the
 fake provider first; then Gate 1 and Gate 2 made real, paid calls, each after the
 designer's separate GO from a clean committed tree (Nov 13). Branch `stage5.6-ai-red`,
-not merged.
+merged into main (PR #2).
 
 - **SDK `openai==3.41.0`, Responses API.** The adapter passes key and base URL
   explicitly and scrubs every `OPENAI_*` variable while building the client, so no env
@@ -426,7 +504,7 @@ from a clean, committed tree. Implements D13 and D14.
   block type, and records `stop_reason` and the raw usage.
 - **Prices**: Haiku 5.5 and Sonnet 5.5 designer-verified (Nov 12); a real
   provider's unverified price is refused (`price_unverified`).
-- **Blue configuration** (D12): 256 output tokens, thinking disabled, effort low,
+- **Blue configuration** (D12): 256 output tokens (512 from Stage 5.5), thinking disabled, effort low,
   structured outputs with the label enum; temperature cannot be set (recorded as
   `null` with a note). All of it is in `match.json` `blue_params`.
 - **Engine** (`blue/claude_engine.py`, D14): one stateless call per line in
@@ -582,15 +660,17 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
   runs, and the AI demo golden run will also live there.
 
 ## Next
-- **Progress Report** (Nov 12).
+- ~~Progress Report~~ (submitted Nov 12).
+- **Assignment 3** (Nov 26).
 - **Stage 5 — AI brains** (Nov 13–19), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).
   - ~~5.3 Rule engine + facts 3 (offline replay) / 4b (rule-level false positives)~~ (done Nov 9).
   - ~~5.4 AI Blue (`--blue claude`), instrument_failure (D13), D14~~ (done Nov 12; Gates 1–2 passed).
-  - **5.5** Blue rule invention + hot-load.
+  - **5.5** Blue rule invention + hot-load + replay mode: built and tested (Nov 13);
+    gate run Nov 13 (12/12 replays, $0.057), accepted by the designer: **done**.
   - ~~5.6 AI Red (OpenAI gpt-6-luna), D15 scope guard, label_mismatch~~ (built Nov 13,
-    before 5.5; Gates 1–2 passed + D16 label audit Nov 13; branch not merged).
+    before 5.5; Gates 1–2 passed + D16 label audit Nov 13; merged).
   - **5.7** Integration + provider-side caching.
   - Also in Stage 5: variant / held-out attacks for any AI-vs-baseline comparison;
     revisit the CWE-22 challenge map (round-5 finding).

@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/match_manifest.schema.json",
-  "title": "Match manifest (schema_version 0.5; contract 6.2)",
-  "description": "data/runs/<match_id>/match.json, schema_version 0.5 (Stage 5.6 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. red_engine says who chose the attacks; red_source (the payload file) is non-null iff scripted, red_params and models.red iff ai. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3 / v0_4.schema.json.",
+  "title": "Match manifest (schema_version 0.6; contract 6.2)",
+  "description": "data/runs/<match_id>/match.json, schema_version 0.6 (Stage 5.5 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. red_engine says who chose the attacks; red_source (the payload file) is non-null iff scripted, red_params and models.red iff ai. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3 / v0_4.schema.json. 0.6 (Stage 5.5): blue_params gains the required rules block {mode: off|shadow|on, max_rules} (rule invention, D9), and failed_step gains judge_rules (Judge facts 3 + 4b inside the match). 0.5 manifests are validated by match_manifest_v0_5.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -213,7 +213,7 @@
   },
   "properties": {
     "schema_version": {
-      "const": "0.5"
+      "const": "0.6"
     },
     "match_id": {
       "type": "string",
@@ -243,7 +243,8 @@
         "blue",
         "judge_rounds",
         "judge_benign",
-        "judge_red"
+        "judge_red",
+        "judge_rules"
       ]
     },
     "error": {
@@ -603,7 +604,8 @@
             "prompt_version",
             "system_prompt_sha256",
             "sdk",
-            "request"
+            "request",
+            "rules"
           ],
           "properties": {
             "provider": {
@@ -704,6 +706,27 @@
                     "string",
                     "null"
                   ]
+                }
+              }
+            },
+            "rules": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mode",
+                "max_rules"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "off",
+                    "shadow",
+                    "on"
+                  ]
+                },
+                "max_rules": {
+                  "type": "integer",
+                  "minimum": 0
                 }
               }
             }

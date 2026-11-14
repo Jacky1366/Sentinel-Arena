@@ -275,7 +275,9 @@ def test_golden_ai_red_batch_is_intact_and_audited(name):
     assert hashes == m["artifacts"]  # nothing changed since the match froze
     old = {r["request_id"]: r for r in map(json.loads, (d / "rounds.jsonl").read_text().splitlines())}
     new = round_record.build_round_records(d)
-    assert len(new) == len(old) and all(r == old[r["request_id"]] for r in new)  # Judge rescores
+    # The Judge rescores to the committed rounds (it writes 0.3 since Judge 0.6.0, Stage 5.5).
+    assert len(new) == len(old) and all(
+        r == {**old[r["request_id"]], "schema_version": "0.3"} for r in new)
     audit = REPO / "data" / "golden" / "audits" / f"{mid}.jsonl"
     assert am.audit_path(mid) == audit and audit.is_file()
     s = am.summary(d)  # validates the audit file against the schema and the rounds
@@ -283,3 +285,83 @@ def test_golden_ai_red_batch_is_intact_and_audited(name):
     det = s["raw"]["detection"], s["audited"]["detection"]
     assert ((det[0]["num"], det[0]["den"]), (det[1]["num"], det[1]["den"])) == (raw, audited)
     assert (s["raw"]["fp"]["num"], s["raw"]["fp"]["den"]) == (0, 17)
+
+
+# ---- Stage 5.5: only AI-generated labels are audited (D16) ----------------------
+
+def red(d: Path, sources: dict[int, str | None]) -> None:
+    """red_attacks.jsonl with the given Red source per round (None: a legacy 0.1
+    record without a source)."""
+    rows = []
+    for rnd, src in sources.items():
+        r = {"round": rnd, "request_id": RID[rnd], "label": "CWE-89", "method": "GET",
+             "endpoint": "/x", "payload": "/x"}
+        if src is not None:
+            r["source"] = src
+        rows.append(r)
+    (d / "red_attacks.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+
+def test_scripted_and_legacy_rounds_are_valid_by_construction():
+    reds = [{"round": 1, "source": "scripted"}, {"round": 2}, {"round": 3, "source": "ai"}]
+    assert ms.scripted_rounds(reds) == {1, 2}
+    rounds = [rr(1), rr(2), rr(3)]
+    view = ms.apply_audit(rounds, [], scripted={1, 2})
+    assert view["rounds"] is None and view["unaudited"] == [3]  # the AI round still counts
+    view = ms.apply_audit(rounds, [decided(3, "invalid")], scripted={1, 2})
+    assert [r["round"] for r in view["rounds"]] == [1, 2]
+    assert view["valid_by_construction"] == [1, 2] and view["valid"] == [1, 2]
+
+
+def test_an_all_scripted_match_needs_no_audit_and_its_audited_view_is_complete(tmp_path):
+    d = write_match(tmp_path / "m", rounds=[rr(1), rr(2), rr(3, detected=False)])
+    red(d, {1: "scripted", 2: "scripted", 3: None})
+    s = am.summary(d, audits=tmp_path / "a", golden=tmp_path / "g")
+    assert s["audit_file"] is None and s["audited"] == s["raw"]
+    assert s["valid_by_construction"] == [1, 2, 3]
+    with pytest.raises(am.AuditError, match="nothing to audit"):
+        am.scaffold(d, audits=tmp_path / "a", golden_dir=tmp_path / "g")
+
+
+def test_audit_lines_on_scripted_rounds_are_refused(tmp_path):
+    d = write_match(tmp_path / "m", rounds=[rr(1), rr(2)])
+    red(d, {1: "scripted", 2: "ai"})
+    errors = am.validate_rows([decided(1, "valid"), decided(2, "valid")], M,
+                              [rr(1), rr(2)], am.scripted_rounds(d))
+    assert errors == ["rounds [1] carry scripted labels: valid by construction, never "
+                      "audited (D16)"]
+    assert am.validate_rows([decided(2, "valid")], M, [rr(1), rr(2)],
+                            am.scripted_rounds(d)) == []
+
+
+def test_scaffold_lists_only_ai_rounds(tmp_path):
+    d = write_match(tmp_path / "m", rounds=[rr(1), rr(2), rr(3)])
+    red(d, {1: "scripted", 2: "ai", 3: "ai"})
+    out = am.scaffold(d, audits=tmp_path / "a", golden_dir=tmp_path / "g")
+    assert [json.loads(l)["round"] for l in out.read_text().splitlines()] == [2, 3]
+
+
+def test_committed_scripted_golden_match_has_a_complete_audited_view():
+    d = REPO / "data" / "golden" / "scripted-baseline-benign-match"
+    s = am.summary(d)
+    assert s["audit_file"] is None and s["audited"] == s["raw"]
+    assert s["valid_by_construction"] == [1, 2, 3, 4, 5, 6, 7]
+
+
+def test_audit_summary_splits_by_verdict_source(tmp_path):
+    rounds = [rr(1), {**rr(2), "verdict_source": "rule"}]
+    d = write_match(tmp_path / "m", rounds=rounds)
+    s = am.summary(d, audits=tmp_path / "a", golden=tmp_path / "g")
+    split = s["raw"]["by_source"]
+    assert "detection" not in split["rule"] and split["rule"]["attack_lines"] == 1
+    assert split["ai"]["detection"]["den"] == 1
+    assert split["ai"]["attack_lines"] == 1
+
+
+def test_a_replay_folder_is_audited_through_its_source_match(tmp_path):
+    d = tmp_path / "replay"
+    d.mkdir()
+    (d / "replay.json").write_text(json.dumps({"source": {"match_id": M}}))
+    assert am.match_id_of(d) == M
+    with pytest.raises(am.AuditError, match="neither a match"):
+        am.match_id_of(tmp_path)

@@ -15,7 +15,9 @@ from llm_fakes import REPO, FakeAdapter, config, lc, lines, make_client, run_dir
 from blue import claude_engine as ce  # noqa: E402
 from blue import run_blue  # noqa: E402
 
-VERDICT = Draft202012Validator(json.loads((REPO / "schemas" / "verdict.schema.json").read_text()))
+# Rules mode off (and scripted Blue) still write 0.2 rows, exactly as in Stage 5.4.
+VERDICT = Draft202012Validator(json.loads((REPO / "schemas" / "verdict_v0_2.schema.json")
+                                          .read_text()))
 GOLDEN = [REPO / "data" / "golden" / "scripted-baseline-match",
           REPO / "data" / "golden" / "scripted-baseline-benign-match"]
 M = "20261109T153012Z-a1b2"
@@ -325,11 +327,13 @@ def test_blue_params_record_the_configuration():
     p = ce.blue_params(cfg, "claude-haiku-5-5", 1)
     assert p["provider"] == "anthropic" and p["sdk"] == {"package": "anthropic",
                                                          "version": "2.3.0"}
-    assert p["request"] == {"max_output_tokens": 256, "thinking": "disabled",
+    # 512 from Stage 5.5 (designer): held constant across rules modes off / shadow / on.
+    assert p["request"] == {"max_output_tokens": 512, "thinking": "disabled",
                             "effort": "low", "output_format": "json_schema",
                             "temperature": None, "temperature_note": ce.TEMPERATURE_NOTE}
     assert p["prompt_version"] == ce.PROMPT_VERSION == "1"
     assert p["system_prompt_sha256"] == ce.SYSTEM_PROMPT_SHA256
+    assert p["rules"] == {"mode": "off", "max_rules": 10}  # the committed default
 
 
 def test_scripted_verdicts_identical_to_the_golden_31():

@@ -13,13 +13,17 @@
     "blue": {
       "provider": "anthropic",
       "model": "claude-haiku-5-5",
-      "note": "AI Blue (Stage 5.4, Anthropic). Cheapest current-generation model for development (D12). max_output_tokens, request and the structured output format are part of the Blue configuration: hold them constant within any comparison (recorded in match.json blue_params). chunk_size > 1 is refused for scored matches (D4).",
-      "max_output_tokens": 256,
+      "note": "AI Blue (Stage 5.4, Anthropic). Cheapest current-generation model for development (D12). max_output_tokens, request, the structured output format and the rules block are part of the Blue configuration: hold them constant within any comparison (recorded in match.json blue_params). chunk_size > 1 is refused for scored matches (D4). rules (Stage 5.5): mode off = prompt v1, no rules (identical to 5.4); shadow = prompt v2, proposals validated, recorded and scored, never hot-loaded; on = prompt v2, proposals hot-loaded (D9). max_rules caps stored rules per match. max_output_tokens 512 for all three modes (designer, Stage 5.5: 256 could cut off a reply carrying a three-condition rule).",
+      "max_output_tokens": 512,
       "request": {
         "thinking": "disabled",
         "effort": "low"
       },
-      "chunk_size": 1
+      "chunk_size": 1,
+      "rules": {
+        "mode": "off",
+        "max_rules": 10
+      }
     },
     "analyst": {
       "provider": null,

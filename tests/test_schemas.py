@@ -25,27 +25,34 @@ SCHEMA_NAMES = [
     "proxy_log",
     "challenge_snapshot",
     "verdict",
+    "verdict_v0_2",
     "verdict_v0_1",
     "rule",
     "rules_file",
     "round_record",
+    "round_record_v0_2",
     "round_record_v0_1",
     "landed_fact",
     "match_manifest_v0_1",
     "match_manifest_v0_2",
     "match_manifest_v0_3",
     "match_manifest_v0_4",
+    "match_manifest_v0_5",
     "match_manifest",
     "api_call",
     "prices",
     "benign_set",
     "benign_request",
     "benign_result",
+    "benign_result_v0_2",
     "benign_result_v0_1",
     "anomaly",
     "rule_result",
     "rule_score",
     "benign_fixture",
+    "match_rule",
+    "rule_rejection",
+    "replay_manifest",
 ]
 
 
@@ -214,17 +221,27 @@ VALID["benign_result_v0_1"] = {
     "schema_version": "0.1", "match_id": BID_MATCH, "request_id": RID, "benign_id": "h06",
     "category": "hard_negative", "verdict": "CWE-89", "false_positive": True,
     "fp_reason": None}
-# Stage 5.4: current versions (verdicts / rounds / benign results 0.2, match.json 0.4).
-VALID["verdict"] = {
+# Stage 5.4 (verdicts / rounds / benign results 0.2), frozen in Stage 5.5.
+VALID["verdict_v0_2"] = {
     "schema_version": "0.2", "match_id": "m001", "log_seq": 7, "request_id": RID,
     "verdict": "CWE-89", "source": "ai", "no_verdict_reason": None, "failure_detail": None,
     "rationale": "tautology in email field", "reason": "ai verdict"}
-VALID["round_record"] = {
+VALID["round_record_v0_2"] = {
     **{k: v for k, v in VALID["round_record_v0_1"].items()
        if k not in ("replay_blocked", "benign_fp")},
     "schema_version": "0.2", "verdict_source": "ai"}
-VALID["benign_result"] = {**VALID["benign_result_v0_1"], "schema_version": "0.2",
-                          "verdict_source": "ai"}
+VALID["benign_result_v0_2"] = {**VALID["benign_result_v0_1"], "schema_version": "0.2",
+                               "verdict_source": "ai"}
+# Stage 5.5: current versions (verdicts / rounds / benign results 0.3, match.json 0.6).
+VALID["verdict"] = {**VALID["verdict_v0_2"], "schema_version": "0.3", "fired_rule_ids": []}
+RULE_VERDICT = {"schema_version": "0.3", "match_id": "m001", "log_seq": 8, "request_id": RID,
+                "verdict": "CWE-89", "source": "rule", "no_verdict_reason": None,
+                "failure_detail": None, "fired_rule_ids": ["r-001", "r-003"],
+                "reason": "rule r-001 fired (+1 more fired)"}
+VALID["round_record"] = {**VALID["round_record_v0_2"], "schema_version": "0.3",
+                         "verdict_source": "rule"}
+VALID["benign_result"] = {**VALID["benign_result_v0_2"], "schema_version": "0.3",
+                          "verdict_source": "rule"}
 VALID["match_manifest_v0_4"] = {**VALID["match_manifest_v0_3"], "schema_version": "0.4",
                                 "judge_version": "0.4.0", "blue_params": None}
 RED_PARAMS = {
@@ -235,16 +252,21 @@ RED_PARAMS = {
                 "prompt_caching": "disabled", "temperature": None, "temperature_note": "x"},
     "feedback_body_chars": 500,
     "guard": {"methods": ["GET", "POST"], "max_path_chars": 2048, "max_body_chars": 4096}}
-VALID["match_manifest"] = {**VALID["match_manifest_v0_4"], "schema_version": "0.5",
-                           "judge_version": "0.5.0", "red_engine": "scripted",
-                           "red_params": None}
-BLUE_PARAMS = {
+VALID["match_manifest_v0_5"] = {**VALID["match_manifest_v0_4"], "schema_version": "0.5",
+                                "judge_version": "0.5.0", "red_engine": "scripted",
+                                "red_params": None}
+VALID["match_manifest"] = {**VALID["match_manifest_v0_5"], "schema_version": "0.6",
+                           "judge_version": "0.6.0"}
+BLUE_PARAMS_V0_5 = {
     "provider": "anthropic", "model": "claude-haiku-5-5", "chunk_size": 1,
     "prompt_version": "1", "system_prompt_sha256": SHA,
     "sdk": {"package": "anthropic", "version": "2.3.0"},
     "request": {"max_output_tokens": 256, "thinking": "disabled", "effort": "low",
                 "output_format": "json_schema", "temperature": None,
                 "temperature_note": "not settable"}}
+BLUE_PARAMS = {**BLUE_PARAMS_V0_5, "prompt_version": "2",
+               "rules": {"mode": "on", "max_rules": 10},
+               "request": {**BLUE_PARAMS_V0_5["request"], "max_output_tokens": 512}}
 CLAUDE_MANIFEST = {**VALID["match_manifest"], "blue_engine": "claude",
                    "blue_params": BLUE_PARAMS,
                    "models": {"red": None, "blue": {"provider": "anthropic",
@@ -254,6 +276,19 @@ AI_RED_MANIFEST = {**VALID["match_manifest"], "red_engine": "ai", "red_params": 
                    "red_source": None,
                    "models": {"red": {"provider": "openai", "model": "gpt-6-luna"},
                               "blue": None, "analyst": None}}
+REPLAY = {
+    "schema_version": "0.1", "replay_id": "20261113T200000Z-beef",
+    "started_at": "2026-11-13T20:00:00.000Z", "finished_at": "2026-11-13T20:01:00.000Z",
+    "status": "completed", "failed_step": None, "error": None, "judge_version": "0.6.0",
+    "source": {"match_id": BID_MATCH, "path": "data/golden/x", "match_json_sha256": SHA,
+               "status": "completed", "judge_version": "0.5.0", "blue_engine": "scripted",
+               "red_engine": "ai",
+               "artifacts": {"proxy.jsonl": {"sha256": SHA, "bytes": 10}},
+               "copied": ["proxy.jsonl"]},
+    **{k: CLAUDE_MANIFEST[k] for k in ("blue_engine", "blue_params", "git", "budget",
+                                       "price_table", "cost", "artifacts")},
+    "models": {"blue": CLAUDE_MANIFEST["models"]["blue"]}}
+VALID["replay_manifest"] = REPLAY
 VALID["red_attack"] = {
     "schema_version": "0.2", "match_id": "m001", "round": 7, "request_id": RID,
     "label": "CWE-89", "payload": "p", "endpoint": "/rest/user/login", "method": "POST",
@@ -289,6 +324,15 @@ VALID["benign_fixture"] = {
     "benign_id": "h06", "category": "hard_negative", "method": "POST",
     "path": "/rest/user/login", "query": "",
     "body": "{\"email\": \"sean.o'brien@example.com\", \"password\": \"shamrock\"}"}
+MATCH_RULE = {"schema_version": "0.1", "match_id": BID_MATCH, "hot_loaded": True,
+              "rule": {**RULE, "created_match": BID_MATCH}}
+VALID["match_rule"] = MATCH_RULE
+VALID["rule_rejection"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "rule_id": "r-002",
+    "created_at_log_seq": 9, "source_request_id": RID, "label": "CWE-22",
+    "proposal": {"conditions": [{"field": "path", "op": "regex", "pattern": "(?=x)",
+                                 "case_insensitive": False}]},
+    "reasons": [{"code": "regex_unsupported_feature", "detail": "lookahead"}]}
 VALID["api_call"] = {
     "schema_version": "0.1", "match_id": "20261109T153012Z-a1b2",
     "timestamp": "2026-11-09T15:30:13.120Z", "agent": "blue", "provider": "anthropic",
@@ -383,7 +427,21 @@ INVALID = {
         ("missing source", _drop("source")),
         ("missing no_verdict_reason", _drop("no_verdict_reason")),
         ("missing failure_detail", _drop("failure_detail")),
-        ("source rule arrives in 5.5", _set("source", "rule")),
+        ("source rule without fired_rule_ids", _set("source", "rule")),
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("missing fired_rule_ids", _drop("fired_rule_ids")),
+        ("ai verdict with fired_rule_ids", _set("fired_rule_ids", ["r-001"])),
+        ("rule verdict with a rationale", lambda r: {**RULE_VERDICT, "rationale": "x"}),
+        ("rule verdict with an empty fired list", lambda r: {**RULE_VERDICT,
+                                                             "fired_rule_ids": []}),
+        ("rule id malformed", lambda r: {**RULE_VERDICT, "fired_rule_ids": ["rule-1"]}),
+        ("rule ids repeated", lambda r: {**RULE_VERDICT, "fired_rule_ids": ["r-001", "r-001"]}),
+        ("no verdict with fired ids",
+         lambda r: {k: v for k, v in {**r, "verdict": None, "source": None,
+                                      "no_verdict_reason": "instrument_failure",
+                                      "failure_detail": "refused_by_body",
+                                      "fired_rule_ids": ["r-001"]}.items()
+                    if k != "rationale"}),
         ("verdict with a no_verdict_reason", _set("no_verdict_reason", "no_verdict")),
         ("verdict with a failure_detail", _set("failure_detail", "invalid_json")),
         ("verdict without source", _set("source", None)),
@@ -425,6 +483,11 @@ INVALID = {
         ("legacy round field not allowed", _set("round", 7)),
         ("extra property", _set("confidence", 0.9)),
     ],
+    "verdict_v0_2": [
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("fired_rule_ids is 0.3 only", _set("fired_rule_ids", [])),
+        ("source rule is 0.3 only", _set("source", "rule")),
+    ],
     "verdict_v0_1": [
         ("verdict not in taxonomy", _set("verdict", "SQLi")),
         ("verdict null is 0.2 only", _set("verdict", None)),
@@ -463,6 +526,10 @@ INVALID = {
          lambda r: {**r, "rules": [{k: v for k, v in RULE.items()
                                     if k != "source_request_id"}]}),
     ],
+    "round_record_v0_2": [
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("verdict_source rule is 0.3 only", _set("verdict_source", "rule")),
+    ],
     "round_record": [
         ("label not in taxonomy", _set("label", "XSS")),
         ("verdict not in taxonomy", _set("verdict", "malicious")),
@@ -472,7 +539,8 @@ INVALID = {
         ("schema_version 0.1", _set("schema_version", "0.1")),
         ("missing verdict_source", _drop("verdict_source")),
         ("verdict_source null with a verdict", _set("verdict_source", None)),
-        ("verdict_source not in enum", _set("verdict_source", "rule")),
+        ("verdict_source not in enum", _set("verdict_source", "rules")),
+        ("schema_version 0.2", _set("schema_version", "0.2")),
         ("instrument_failure with detected false",
          lambda r: {**r, "detected": False, "type_correct": None, "verdict": None,
                     "verdict_source": None, "detected_reason": "instrument_failure"}),
@@ -602,7 +670,30 @@ INVALID = {
         ("red_engine is 0.5 only", _set("red_engine", "scripted")),
         ("red_params is 0.5 only", _set("red_params", None)),
     ],
+    "match_manifest_v0_5": [
+        ("schema_version 0.6", _set("schema_version", "0.6")),
+        ("failed_step judge_rules is 0.6 only",
+         lambda r: {**r, "status": "failed", "failed_step": "judge_rules", "error": "x"}),
+        ("blue_params rules is 0.6 only",
+         lambda r: {**r, "blue_engine": "claude", "blue_params": BLUE_PARAMS,
+                    "models": {**r["models"], "blue": {"provider": "anthropic",
+                                                       "model": "claude-haiku-5-5"}}}),
+    ],
     "match_manifest": [
+        ("schema_version 0.5", _set("schema_version", "0.5")),
+        ("claude blue_params without rules",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": BLUE_PARAMS_V0_5}),
+        ("rules mode not in enum",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "rules": {"mode": "maybe", "max_rules": 10}}}),
+        ("rules max_rules negative",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "rules": {"mode": "on", "max_rules": -1}}}),
+        ("rules with an extra key",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "rules": {"mode": "on", "max_rules": 1, "hot": True}}}),
+        ("failed_step not in enum",
+         lambda r: {**r, "status": "failed", "failed_step": "judge_magic", "error": "x"}),
         ("schema_version 0.4", _set("schema_version", "0.4")),
         ("missing red_engine", _drop("red_engine")),
         ("missing red_params", _drop("red_params")),
@@ -692,8 +783,14 @@ INVALID = {
                     "fp_reason": "instrument_failure"}),
         ("verdict_source is 0.2 only", _set("verdict_source", "ai")),
     ],
+    "benign_result_v0_2": [
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("verdict_source rule is 0.3 only", _set("verdict_source", "rule")),
+    ],
     "benign_result": [
         ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("verdict_source not in enum", _set("verdict_source", "rules")),
         ("missing verdict_source", _drop("verdict_source")),
         ("verdict_source null with a verdict", _set("verdict_source", None)),
         ("instrument_failure with a verdict",
@@ -736,6 +833,38 @@ INVALID = {
         ("missing normalization_version", _drop("normalization_version")),
         ("judge_version not semver", _set("judge_version", "3")),
         ("missing summary", _drop("summary")),
+    ],
+    "replay_manifest": [
+        ("source failed", lambda r: {**r, "source": {**r["source"], "status": "failed"}}),
+        ("source without hashes",
+         lambda r: {**r, "source": {k: v for k, v in r["source"].items()
+                                    if k != "match_json_sha256"}}),
+        ("claude without blue_params", _set("blue_params", None)),
+        ("scripted with a blue model", _set("blue_engine", "scripted")),
+        ("failed_step a live-match step",
+         lambda r: {**r, "status": "failed", "failed_step": "traffic", "error": "x"}),
+        ("failed without error", lambda r: {**r, "status": "failed", "failed_step": "blue"}),
+        ("models with red", lambda r: {**r, "models": {**r["models"], "red": None}}),
+        ("replay_id malformed", _set("replay_id", "replay-1")),
+    ],
+    "match_rule": [
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("missing hot_loaded", _drop("hot_loaded")),
+        ("rule with a benign cwe", lambda r: {**r, "rule": {**r["rule"], "cwe": "benign"}}),
+        ("rule with four conditions",
+         lambda r: {**r, "rule": {**r["rule"], "conditions": r["rule"]["conditions"] * 4}}),
+        ("rule without source_request_id",
+         lambda r: {**r, "rule": {k: v for k, v in r["rule"].items()
+                                  if k != "source_request_id"}}),
+        ("extra property", _set("verdict", "CWE-89")),
+    ],
+    "rule_rejection": [
+        ("no reasons", _set("reasons", [])),
+        ("reason code not in enum", _set("reasons", [{"code": "too_clever", "detail": ""}])),
+        ("label not in taxonomy", _set("label", "XSS")),
+        ("rule_id malformed", _set("rule_id", "7")),
+        ("missing proposal", _drop("proposal")),
+        ("created_at_log_seq zero", _set("created_at_log_seq", 0)),
     ],
     "benign_fixture": [
         ("carries request_id", _set("request_id", RID)),
@@ -1072,10 +1201,10 @@ def test_manifest_dispatch_covers_every_version():
     import sys
     sys.path.insert(0, str(ROOT))
     import run_match
-    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5"}
-    assert run_match.MANIFEST_VERSION == "0.5"
+    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5", "0.6"}
+    assert run_match.MANIFEST_VERSION == "0.6"
     for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
-                 "match_manifest_v0_4", "match_manifest"):
+                 "match_manifest_v0_4", "match_manifest_v0_5", "match_manifest"):
         assert run_match.validate_manifest(VALID[name]) == [], name
 
 
@@ -1158,9 +1287,9 @@ def test_committed_claude_blue_first_match_validates_and_is_clean():
     a.pop("README.md")
     assert a == m["artifacts"]
     for name, schema in (("benign_requests.jsonl", "benign_request"),
-                         ("benign_results.jsonl", "benign_result"),
-                         ("verdicts.jsonl", "verdict"),
-                         ("rounds.jsonl", "round_record"),
+                         ("benign_results.jsonl", "benign_result_v0_2"),
+                         ("verdicts.jsonl", "verdict_v0_2"),
+                         ("rounds.jsonl", "round_record_v0_2"),
                          ("api_calls.jsonl", "api_call"),
                          ("challenge_snapshots.jsonl", "challenge_snapshot")):
         rows = [json.loads(l) for l in (d / name).read_text().splitlines()]
@@ -1173,11 +1302,13 @@ def test_committed_claude_blue_first_match_validates_and_is_clean():
     assert len(verdicts) == 24 and {v["source"] for v in verdicts} == {"ai"}
     assert (d / "anomalies.jsonl").read_text() == ""
     # The Judge re-scores the folder offline to exactly the committed outputs
-    # (incl. the instrument_failure cross-check against api_calls.jsonl).
-    assert round_record.build_round_records(d) == \
-        [json.loads(l) for l in (d / "rounds.jsonl").read_text().splitlines()]
-    assert fact4_benign.compute(d) == (
-        [json.loads(l) for l in (d / "benign_results.jsonl").read_text().splitlines()], [])
+    # (incl. the instrument_failure cross-check against api_calls.jsonl); since
+    # Judge 0.6.0 it writes 0.3, the only difference (Stage 5.5).
+    def v03(name):
+        return [{**json.loads(l), "schema_version": "0.3"}
+                for l in (d / name).read_text().splitlines()]
+    assert round_record.build_round_records(d) == v03("rounds.jsonl")
+    assert fact4_benign.compute(d) == (v03("benign_results.jsonl"), [])
 
 
 def test_rule_result_invalid_and_null_shapes_valid():
@@ -1196,3 +1327,14 @@ def test_rule_result_invalid_and_null_shapes_valid():
 def test_anomaly_rule_source_benign_valid():
     validator("anomaly").validate({**VALID["anomaly"], "kind": "rule_source_benign",
                                    "detail": {"rule_id": "r-016", "benign_id": "h06"}})
+
+
+def test_verdict_0_3_rule_and_no_verdict_shapes_valid():
+    # Stage 5.5: a rule verdict lists its rules; an AI or no-verdict row lists none.
+    v = validator("verdict")
+    v.validate(RULE_VERDICT)
+    v.validate({k: val for k, val in {**VALID["verdict"], "verdict": None, "source": None,
+                                      "no_verdict_reason": "instrument_failure",
+                                      "failure_detail": "refused_by_body"}.items()
+                if k != "rationale"})
+    validator("verdict_v0_2").validate(VALID["verdict_v0_2"])

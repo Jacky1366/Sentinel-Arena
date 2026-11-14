@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/verdict.schema.json",
-  "title": "Blue verdict (contract 4, schema_version 0.2)",
-  "description": "One line of data/runs/<match_id>/verdicts.jsonl, exactly one per judged proxy line (Stage 5.4 on). Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round. Either a verdict (verdict + source) or the reason there is none (no_verdict_reason + failure_detail). no_verdict: the brain produced no usable answer (a miss on attacks). instrument_failure: the harness failed (body refusal or API failure after retries, D13); the Judge cross-checks it against api_calls.jsonl and excludes it from detection and FP stats. failure_detail is audit-only: the Judge reads only no_verdict_reason. 'reason' and 'rationale' are for humans only. 0.1 verdicts are validated by verdict_v0_1.schema.json.",
+  "title": "Blue verdict (contract 4, schema_version 0.3)",
+  "description": "One line of data/runs/<match_id>/verdicts.jsonl, exactly one per judged proxy line (Stage 5.4 on). Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round. Either a verdict (verdict + source) or the reason there is none (no_verdict_reason + failure_detail). no_verdict: the brain produced no usable answer (a miss on attacks). instrument_failure: the harness failed (body refusal or API failure after retries, D13); the Judge cross-checks it against api_calls.jsonl and excludes it from detection and FP stats. failure_detail is audit-only: the Judge reads only no_verdict_reason. 'reason' and 'rationale' are for humans only.  Stage 5.5 (0.3): source gains 'rule' (a hot-loaded rule fired, D9: no API call was made for the line), and fired_rule_ids (required) lists every rule that fired, in hot-load order; non-empty iff source is 'rule'. A rule verdict has no rationale. Written by claude Blue with rule invention in mode 'shadow' or 'on'; scripted Blue and mode 'off' keep writing 0.2. 0.2 / 0.1 verdicts are validated by verdict_v0_2 / verdict_v0_1.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,11 +14,12 @@
     "source",
     "no_verdict_reason",
     "failure_detail",
+    "fired_rule_ids",
     "reason"
   ],
   "properties": {
     "schema_version": {
-      "const": "0.2"
+      "const": "0.3"
     },
     "match_id": {
       "type": "string",
@@ -45,6 +46,7 @@
       "enum": [
         "signature",
         "ai",
+        "rule",
         null
       ]
     },
@@ -69,6 +71,14 @@
         "refused_by_body",
         "api_error"
       ]
+    },
+    "fired_rule_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^r-[0-9]{3,}$"
+      }
     },
     "rationale": {
       "type": "string",
@@ -114,7 +124,8 @@
           "source": {
             "enum": [
               "signature",
-              "ai"
+              "ai",
+              "rule"
             ]
           },
           "no_verdict_reason": {
@@ -185,6 +196,38 @@
           "required": [
             "rationale"
           ]
+        }
+      }
+    },
+    {
+      "comment": "a rule verdict lists the rules that fired and has no rationale; every other row lists none",
+      "if": {
+        "properties": {
+          "source": {
+            "const": "rule"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fired_rule_ids": {
+            "minItems": 1
+          }
+        },
+        "not": {
+          "required": [
+            "rationale"
+          ]
+        }
+      },
+      "else": {
+        "properties": {
+          "fired_rule_ids": {
+            "maxItems": 0
+          }
         }
       }
     }

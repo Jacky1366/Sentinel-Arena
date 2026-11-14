@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/round_record.schema.json",
-  "title": "Judge round record (contract 6, schema_version 0.2)",
-  "description": "One line of data/runs/<match_id>/rounds.jsonl, one per Red record (Red is the spine), schema_version 0.2 (Stage 5.4 on). detected = (verdict != 'benign') when a verdict exists; type_correct = (verdict == label) only when detected is true. landed is null only in the not_measurable (contract 11), already_solved and snapshot_missing (contract 6.1) cases. verdict/detected/type_correct are null for the orphan and instrument_failure cases (both excluded from detection stats, D13); no_verdict keeps detected=false (a miss). verdict_source is the verdict's source (null iff verdict null). replay_blocked and benign_fp were removed in 0.2. 0.1 records are validated by round_record_v0_1.schema.json. See the field-relationship table in contract 6.",
+  "title": "Judge round record (contract 6, schema_version 0.3)",
+  "description": "One line of data/runs/<match_id>/rounds.jsonl, one per Red record (Red is the spine), schema_version 0.3 (Stage 5.5 on; 0.2 from Stage 5.4). detected = (verdict != 'benign') when a verdict exists; type_correct = (verdict == label) only when detected is true. landed is null only in the not_measurable (contract 11), already_solved and snapshot_missing (contract 6.1) cases. verdict/detected/type_correct are null for the orphan and instrument_failure cases (both excluded from detection stats, D13); no_verdict keeps detected=false (a miss). verdict_source is the verdict's source (null iff verdict null). replay_blocked and benign_fp were removed in 0.2. 0.1 records are validated by round_record_v0_1.schema.json. See the field-relationship table in contract 6. Stage 5.5 (0.3): verdict_source gains 'rule' (a hot-loaded Blue rule produced the verdict, D9); nothing else changes. 0.2 records are validated by round_record_v0_2.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -22,7 +22,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "0.2"
+      "const": "0.3"
     },
     "match_id": {
       "type": "string",
@@ -56,6 +56,7 @@
       "enum": [
         "signature",
         "ai",
+        "rule",
         null
       ]
     },
@@ -285,7 +286,8 @@
           "verdict_source": {
             "enum": [
               "signature",
-              "ai"
+              "ai",
+              "rule"
             ]
           }
         }

@@ -1,0 +1,26 @@
+{"timestamp":"2026-11-13T05:30:45Z","request_id":"fa8559ac-de10-4a1f-9b3e-a72f50e313ab","method":"POST","path":"/rest/user/login","query":"","body":"{\"email\": \"alice.chen@example.com\", \"password\": \"Tr0ub4dor&3\"}","status":401}
+{"timestamp":"2026-11-13T05:30:49Z","request_id":"4412daa4-e617-4a19-a173-f06999a48a47","method":"POST","path":"/rest/user/login","query":"","body":"{\"email\": \"jim@juice-sh.op\", \"password\": \"summer2024\"}","status":401}
+{"timestamp":"2026-11-13T05:30:52Z","request_id":"a967c23c-086a-49d0-8b19-fccb37ce8db3","method":"POST","path":"/rest/user/login","query":"","body":"{\"email\": \"m.rossi@example.org\", \"password\": \"correct horse battery staple\"}","status":401}
+{"timestamp":"2026-11-13T05:30:55Z","request_id":"19603a53-4a70-4d7d-90e6-7d977292bb64","method":"GET","path":"/rest/products/search","query":"q=apple","body":"","status":200}
+{"timestamp":"2026-11-13T05:30:58Z","request_id":"544efa65-acd2-4124-ae52-193e2a7e85d9","method":"GET","path":"/rest/products/search","query":"q=banana+juice","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:04Z","request_id":"507fe4c3-71b0-43fc-a137-9d6b0cad0fcf","method":"GET","path":"/search","query":"q=%27%20OR%201%3D1--","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:07Z","request_id":"5ceea6f3-291e-4eaa-991a-ebd4ec15c707","method":"GET","path":"/rest/products/search","query":"q=","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:13Z","request_id":"49c48e8e-ac62-4329-9973-f1e53e6cbec2","method":"GET","path":"/rest/products/search","query":"q=%27%20OR%201%3D1--","body":"","status":500}
+{"timestamp":"2026-11-13T05:31:14Z","request_id":"5a85d3b8-cd53-484d-834f-2a6df6ce4906","method":"GET","path":"/ftp/legal.md","query":"","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:23Z","request_id":"126578b6-d8dd-4c2e-a98d-44a7b45be161","method":"GET","path":"/ftp/","query":"","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:29Z","request_id":"e1f6bb63-46f5-4a67-94c6-33e0375c2662","method":"GET","path":"/rest/products/search","query":"q=%27%29%20OR%201%3D1--%20","body":"","status":500}
+{"timestamp":"2026-11-13T05:31:32Z","request_id":"f3f1a12d-2ee2-449e-9f74-252252dff26c","method":"GET","path":"/rest/track-order/5267-f9cd5882f54c75a3","query":"","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:37Z","request_id":"5f1cf2fa-cb36-490f-ba2e-176a827836c6","method":"GET","path":"/rest/products/search","query":"q=%27%20OR%20%271%27%3D%271%27%20--%20","body":"","status":500}
+{"timestamp":"2026-11-13T05:31:43Z","request_id":"c725a56f-7ee6-487c-9d16-76db134b9fef","method":"GET","path":"/ftp/%2e%2e%2fpackage.json","query":"","body":"","status":403}
+{"timestamp":"2026-11-13T05:31:46Z","request_id":"a57673bd-8ea4-4f04-a12b-d10ed5c5b5e7","method":"POST","path":"/api/Users","query":"","body":"{\"email\": \"priya.nair@example.com\", \"password\": \"Mango-Lassi-2026\", \"passwordRepeat\": \"Mango-Lassi-2026\"}","status":201}
+{"timestamp":"2026-11-13T05:31:55Z","request_id":"e5ee0827-7ba4-4e9f-856a-d51e73936101","method":"GET","path":"/rest/products/search","query":"q=%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E","body":"","status":200}
+{"timestamp":"2026-11-13T05:31:58Z","request_id":"7c26ce23-1f2f-4aa9-b7ed-03f4b1d7a1a5","method":"POST","path":"/rest/user/login","query":"","body":"{\"email\": \"priya.nair@example.com\", \"password\": \"Mango-Lassi-2026\"}","status":200}
+{"timestamp":"2026-11-13T05:32:03Z","request_id":"65fdeec8-4ded-4b97-864e-21360f175c96","method":"GET","path":"/rest/products/search","query":"q=%3Cscript%3Ealert(1)%3C%2Fscript%3E","body":"","status":200}
+{"timestamp":"2026-11-13T05:32:06Z","request_id":"533cccaa-6ae2-4c83-9133-4a80fb1e1b74","method":"GET","path":"/rest/products/search","query":"q=union+jack+t-shirt","body":"","status":200}
+{"timestamp":"2026-11-13T05:32:11Z","request_id":"99b9ebd8-d763-4b3a-9fcb-3d1365cfc864","method":"GET","path":"/ftp/acquisitions.md","query":"","body":"","status":200}
+{"timestamp":"2026-11-13T05:32:16Z","request_id":"05f1ae88-05c5-49b4-b52d-f5d7fb027b33","method":"GET","path":"/ftp/%2e%2e/ftp/package.json","query":"","body":"","status":403}
+{"timestamp":"2026-11-13T05:32:19Z","request_id":"a0c2127d-ecd2-4ef1-9907-e172ee2d7e73","method":"GET","path":"/rest/products/search","query":"q=lemon+drop","body":"","status":200}
+{"timestamp":"2026-11-13T05:32:22Z","request_id":"c05dca2d-0225-4aef-83e0-ec5592308e41","method":"GET","path":"/rest/products/search","query":"q=juice+%3C3","body":"","status":200}
+{"timestamp":"2026-11-13T05:32:26Z","request_id":"854202de-707a-4060-9695-04f4238c12b2","method":"POST","path":"/rest/user/login","query":"","body":"{\"email\": \"sean.obrien@example.com\", \"password\": \"Don't-Panic--42\"}","status":401}
+{"timestamp":"2026-11-13T05:32:29Z","request_id":"81bb6487-155f-47ea-b1e4-fdb82a4d4d14","method":"GET","path":"/rest/products/search","query":"q=javascript","body":"","status":200}
+{"timestamp":"2026-11-13T05:32:32Z","request_id":"153b183c-5dd6-4f11-b06c-69a96b4cf3ce","method":"POST","path":"/rest/user/login","query":"","body":"{\"email\": \"sean.o'brien@example.com\", \"password\": \"shamrock\"}","status":500}

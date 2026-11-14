@@ -74,7 +74,7 @@ def test_claude_match_completes_and_records_blue_params(dirs):
     code, match_dir, out = go(ClaudeOps(dirs[0]), dirs)
     assert code == 0, out
     m = assert_finalized(dirs[0], match_dir)
-    assert m["schema_version"] == "0.5" and m["blue_engine"] == "claude"
+    assert m["schema_version"] == "0.6" and m["blue_engine"] == "claude"
     assert m["models"]["blue"] == {"provider": "fake", "model": "fake-small"}
     assert m["blue_params"] == claude_engine.blue_params(CONFIG, "fake-small", 1)
     assert m["blue_params"]["sdk"] is None and m["blue_params"]["chunk_size"] == 1

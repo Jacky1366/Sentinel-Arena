@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/rule_rejection.schema.json",
+  "title": "Rule rejection (contract 5.2, schema_version 0.1)",
+  "description": "One line of data/runs/<match_id>/rule_rejections.jsonl (Stage 5.5): one rule proposal by AI Blue that was NOT stored, with every reason. 'proposal' is exactly what the AI wrote (untrusted data, any JSON value). rule_id is the id the body assigned (rejected proposals use up ids too, so every proposal has one). label is the label Blue gave the line (a proposal on a 'benign' line is rejected as cwe_benign). Reason codes are the validator's (contract 5) plus rule_cap_reached (a valid rule over agents.blue.rules.max_rules). The verdict on the line stands whatever happens to its proposal.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "rule_id",
+    "created_at_log_seq",
+    "source_request_id",
+    "label",
+    "proposal",
+    "reasons"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^r-[0-9]{3,}$"
+    },
+    "created_at_log_seq": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "source_request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "label": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        "benign"
+      ]
+    },
+    "proposal": {},
+    "reasons": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "schema_error",
+              "condition_count",
+              "forbidden_field",
+              "unknown_field",
+              "unknown_op",
+              "empty_pattern",
+              "pattern_too_long",
+              "cwe_benign",
+              "cwe_unknown",
+              "duplicate_rule_id",
+              "regex_unsupported_feature",
+              "regex_compile_error",
+              "rule_cap_reached"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -74,13 +74,7 @@ def load_match(match_dir: Path) -> rule_facts.MatchView:
     if not manifest_path.is_file():
         raise Refused(f"{match_dir} is not a frozen match (no match.json)")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    return rule_facts.MatchView(
-        match_id=manifest["match_id"],
-        red_labels={r["request_id"]: r["label"] for r in _jsonl(match_dir / "red_attacks.jsonl")},
-        benign_ids={b["request_id"]: b["benign_id"]
-                    for b in _jsonl(match_dir / "benign_requests.jsonl")},
-        proxy={l["request_id"]: l for l in _jsonl(match_dir / "proxy.jsonl")
-               if l.get("request_id")})
+    return rule_facts.load_view(match_dir, manifest["match_id"])
 
 
 def load_rules(path: Path) -> list:

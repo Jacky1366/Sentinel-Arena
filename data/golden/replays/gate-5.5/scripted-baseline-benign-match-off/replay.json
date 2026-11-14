@@ -1,0 +1,217 @@
+{
+  "schema_version": "0.1",
+  "replay_id": "20261114T053436Z-3a56",
+  "started_at": "2026-11-14T05:34:36.982Z",
+  "finished_at": "2026-11-14T05:35:12.844Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.6.0",
+  "source": {
+    "match_id": "20261109T021518Z-7d72",
+    "path": "data/golden/scripted-baseline-benign-match",
+    "match_json_sha256": "b69f74c366729ceddc956285c544dcdfbb731ce8f81517a48a7b2a1b2ca8ccfd",
+    "status": "completed",
+    "judge_version": "0.2.0",
+    "blue_engine": "scripted",
+    "red_engine": "scripted",
+    "artifacts": {
+      "anomalies.jsonl": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "benign_requests.jsonl": {
+        "sha256": "bfd79b030f7a53988ef98b9a880bb59d88cf262b68633e345ab925845333e553",
+        "bytes": 3815
+      },
+      "benign_results.jsonl": {
+        "sha256": "54b3a5ebaed3ddce4c64cef7fe895d1e24cc7b18098ee8edaebcf3c1c60a4253",
+        "bytes": 3850
+      },
+      "challenge_snapshots.jsonl": {
+        "sha256": "6c3dc677fbb05f14ac3919f0f1ddbc8090975d419fe92e3fdc90c7c502d98bcb",
+        "bytes": 6398
+      },
+      "landed.jsonl": {
+        "sha256": "9f452dcc89b2bac8122f50e960b694384e217e8fdb40375d3f49a415ab9fd8da",
+        "bytes": 1589
+      },
+      "proxy.jsonl": {
+        "sha256": "558920c8dcbcd1d28340b4846737444bdff1f64e4dfa45f534ccefc73a706698",
+        "bytes": 5027
+      },
+      "red_attacks.jsonl": {
+        "sha256": "19e8fd156c06f8a2657086057a1414b0bd025bfa5fac940a0cc3063160960940",
+        "bytes": 2319
+      },
+      "rounds.jsonl": {
+        "sha256": "8646ebd0ddf8e49235e71cf2360fac44f0a7ff95ee1f16156b13ab9330701226",
+        "bytes": 2492
+      },
+      "verdicts.jsonl": {
+        "sha256": "a2cf058b4c34bb614c01e37213338a7b8a5851e931bd6a9f517012f14847236e",
+        "bytes": 5143
+      }
+    },
+    "copied": [
+      "benign_requests.jsonl",
+      "challenge_snapshots.jsonl",
+      "proxy.jsonl",
+      "red_attacks.jsonl"
+    ]
+  },
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "1",
+    "system_prompt_sha256": "938ea67c385af3b8faa536c9d1a67ff9c6bc394c217dd95be6066145ecc80190",
+    "rules": {
+      "mode": "off",
+      "max_rules": 10
+    },
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "git": {
+    "commit": "072e9d72daa836ab936574aab3ac0d3af456fd76",
+    "dirty": false
+  },
+  "models": {
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    }
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "2745024540ffe2c9ea838dde7a11a5320408c772536a08a12547b6e482f21e23",
+    "as_of": "2026-11-12"
+  },
+  "cost": {
+    "total_usd": 0.002852,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.0,
+    "attempts": 24,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 20897,
+      "cached_input": 0,
+      "cache_write": 0,
+      "output": 1525
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.002852,
+        "failed_attempts_usd": 0.0,
+        "attempts": 24,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 20897,
+          "cached_input": 0,
+          "cache_write": 0,
+          "output": 1525
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.002852,
+        "failed_attempts_usd": 0.0,
+        "attempts": 24,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 20897,
+          "cached_input": 0,
+          "cache_write": 0,
+          "output": 1525
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "api_calls.jsonl": {
+      "sha256": "112e0226f6ede428d9e685d7b86d9e597ef541c80ae43936e007a0bbcd0aa7bd",
+      "bytes": 12918
+    },
+    "benign_requests.jsonl": {
+      "sha256": "bfd79b030f7a53988ef98b9a880bb59d88cf262b68633e345ab925845333e553",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "514b35c5966093925b062c5b61b127cddc7f284bc18ff0a189e93a18d314fe3c",
+      "bytes": 4258
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "6c3dc677fbb05f14ac3919f0f1ddbc8090975d419fe92e3fdc90c7c502d98bcb",
+      "bytes": 6398
+    },
+    "landed.jsonl": {
+      "sha256": "9f452dcc89b2bac8122f50e960b694384e217e8fdb40375d3f49a415ab9fd8da",
+      "bytes": 1589
+    },
+    "proxy.jsonl": {
+      "sha256": "558920c8dcbcd1d28340b4846737444bdff1f64e4dfa45f534ccefc73a706698",
+      "bytes": 5027
+    },
+    "red_attacks.jsonl": {
+      "sha256": "19e8fd156c06f8a2657086057a1414b0bd025bfa5fac940a0cc3063160960940",
+      "bytes": 2319
+    },
+    "rounds.jsonl": {
+      "sha256": "edac5b85c2e2738b29c9271a615d60702f4f92d15cb02f7d26a9bd951e77ac11",
+      "bytes": 2359
+    },
+    "verdicts.jsonl": {
+      "sha256": "82dbe2c95893ccd6d179248089a4de6b47d96a39adc9f3cc13c2e2e51bb3e27c",
+      "bytes": 8837
+    }
+  }
+}
