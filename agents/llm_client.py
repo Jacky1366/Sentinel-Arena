@@ -302,16 +302,16 @@ class Adapter(Protocol):
 # Usage mappings. Common rule: input_tokens = full-price input only; the whole
 # prompt is input + cached_input + cache_write.
 # Anthropic: VERIFIED 2026-11-12 (Stage 5.4 Gate 1, designer checked the Console:
-#   885 input / 60 output) for UNCACHED, NON-THINKING calls only.
-#   STILL TO VERIFY: (a) that input_tokens excludes cache reads/writes (caching is
-#   off until 5.7, both cache fields were 0); (b) whether output_tokens includes
-#   thinking tokens (raw usage reports output_tokens_details.thinking_tokens; thinking
-#   was disabled, so 0).
-# OpenAI (Responses API): VERIFIED 2026-11-12 (Stage 5.6 Gate 1, designer checked the
-#   dashboard: 357 input / 114 output) for UNCACHED calls with ZERO reasoning tokens.
-#   STILL TO VERIFY: (a) that input_tokens includes cache reads/writes so subtracting
-#   both is right (caching is off until 5.7, both were 0); (b) that output_tokens
-#   includes reasoning tokens (effort low produced 0 on the Gate-1 turn).
+#   885 input / 60 output) for uncached calls; cache reads and writes VERIFIED
+#   2026-11-14 (Stage 5.7 Gate 1, designer checked the Console): input_tokens EXCLUDES
+#   cache reads / writes (105 input + 1796 written; then 99 input + 1796 read).
+#   STILL OPEN: whether output_tokens includes thinking tokens (raw usage reports
+#   output_tokens_details.thinking_tokens; thinking is disabled, so always 0 so far).
+# OpenAI (Responses API): VERIFIED 2026-11-12 (Stage 5.6 Gate 1: 357 input / 114
+#   output) for uncached calls; cache reads / writes and reasoning tokens VERIFIED
+#   2026-11-14 (Stage 5.7 Gate 1, designer checked the dashboard): input_tokens
+#   INCLUDES cache reads and writes (1161 = 3 + 1063 read + 95 written), so subtracting
+#   both is right; output_tokens INCLUDES reasoning tokens (225 of 914 over 10 turns).
 
 def _int(v: Any) -> int:
     return v if isinstance(v, int) and not isinstance(v, bool) else 0
@@ -453,8 +453,10 @@ def openai_input(messages: list[dict], cache: bool) -> list[dict]:
     """Caching off: the messages unchanged (Stage 5.6 bytes). On: every user turn
     becomes one input_text block ending in an explicit breakpoint (TTL inherited
     from the request). Every earlier turn keeps its breakpoint, so request N+1 is a
-    byte-exact extension of request N: the latest breakpoint writes the whole prompt,
-    the previous one (written by the previous call) is the read point. A request
+    byte-exact extension of request N: the previous breakpoint (written by the
+    previous call) is the read point, and the latest one writes what follows it (the
+    previous assistant reply + the new user turn, at the 30m write price); only a few
+    trailing tokens are full-price input (Stage 5.7 Gate 1: 3 per call). A request
     writes at most its 4 latest breakpoints; lookup covers the first 2 and latest 50
     (OpenAI prompt caching guide) - Red has at most round_cap user turns."""
     if not cache:

@@ -407,10 +407,12 @@ Plan: `docs/plans/stage5_7_step0.md`; the designer's decisions on it (C1–C8):
   listed among the settings that break a prefix, but the docs do not say either way. The
   scheme therefore never moves or removes a marker: every user turn keeps its breakpoint,
   so every request is a byte-exact extension of the previous one; each call needs only one
-  new write (its newest turn), and older turns are read points. Red has at most
-  `round_cap` (10) user turns, within the lookup window. Gate 1's dry run reaches more than
-  four markers from turn 5 on, which verifies that the API accepts them; the fallback, if
-  it did not, is a single breakpoint on the newest user turn only.
+  new write, and older turns are read points. Red has at most `round_cap` (10) user turns,
+  within the lookup window. **Gate 1 confirmed it** (10 markers on turn 10 accepted; no
+  fallback needed). **Correction after Gate 1:** on call n the previous assistant reply and
+  the new user turn are not left uncached: they are *written* at the new breakpoint
+  (30-minute write price, 1.25× input), and only about 3 trailing tokens per call are
+  full-price input (turn 9: read 1,063, wrote 95; turn 10: read 1,158, wrote 102).
 - **Formats:** `api_calls.jsonl` 0.2, `match.json` 0.7, `replay.json` 0.2 (frozen
   `api_call_v0_1`, `match_manifest_v0_6`, `replay_manifest_v0_1`). No Judge or `rules/`
   change: `JUDGE_VERSION` 0.6.0. The fake test provider is given the Anthropic 5-minute

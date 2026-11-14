@@ -353,10 +353,22 @@ notes). Gates 1–3 (real calls) run only after the designer's GO, one at a time
   traffic).
 - **AI vs AI:** `run_match.py --red ai --blue claude --blue-rules-mode on --blue-caching
   on --red-caching on` works end to end on the fake provider (wiring test).
-- **What Gate 1 must settle:** whether prompt v1 (about 350–400 tokens of system text)
-  reaches Haiku 5.5's 512-token cache minimum (C1, never padded); Red's per-turn cached
-  tokens (OpenAI's minimum is 1,024 tokens per prefix, so early turns are not cached);
-  both cached-token mappings against the dashboards.
+- **Gate 1 (Nov 14, $0.0016, verified by the designer against both dashboards).** The
+  cached-token mapping is verified for both providers, and OpenAI's `output_tokens`
+  includes reasoning tokens (225 of 914). Only the Anthropic thinking-token question stays
+  open (thinking is disabled). Evidence: `data/replays/gate1-5.7-20261114T064343Z-cbf9/`
+  (git-ignored).
+  - **Blue:** call 1 (prompt v2) wrote 1,796 tokens (105 full-price), cost $0.000264;
+    call 2 read all 1,796 (99 full-price), cost $0.000056: **a cached call costs about one
+    fifth of the first call.** The output schema is part of the cached prefix. **Prompt v1
+    also caches** (780 tokens with the schema, above the 512 minimum): C1 resolved, no
+    padding needed.
+  - **Red (10-turn dry run):** nothing caches until the prompt reaches OpenAI's
+    1,024-token minimum, **at turn 8** (1,066 tokens: write 1,063); turn 9 read 1,063 and
+    wrote 95, turn 10 read 1,158 and wrote 102, 3 full-price tokens each. Ten breakpoints
+    were accepted. With real feedback (longer turns) the minimum comes a few turns earlier
+    (about turn 4–5), but **caching barely helps a 10-round Red**: Red's net saving over the
+    run was $0.000168 of $0.001096.
 - **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass against
   the live stack (Nov 14).
 
