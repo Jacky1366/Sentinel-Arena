@@ -26,7 +26,7 @@ call each other; each step reads and writes file artifacts (docs/contract.md).
                  directory
   9. match.json  written LAST (status, provenance, traffic seed + schedule,
                  models, blue_params incl. the rules mode, budget, cost, sha256 of
-                 every artifact), schema_version 0.6
+                 every artifact), schema_version 0.7 (caching per agent)
  10. summary     a pure read of the Judge outputs + match.json: detection is
                  always printed next to the FP rate
 
@@ -72,16 +72,18 @@ from runner import match_ops  # noqa: E402
 from runner.schedule import Schedule, new_seed  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
 from stats import match_stats  # noqa: E402
+from tools import four_facts  # noqa: E402
 
 
 def _schema(name: str) -> dict:
     return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
-MANIFEST_VERSION = "0.6"
+MANIFEST_VERSION = "0.7"
 MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest_v0_2"),
                     "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest_v0_4"),
-                    "0.5": _schema("match_manifest_v0_5"), "0.6": _schema("match_manifest")}
+                    "0.5": _schema("match_manifest_v0_5"), "0.6": _schema("match_manifest_v0_6"),
+                    "0.7": _schema("match_manifest")}
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -235,7 +237,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               red_engine: str = "scripted", red_model: str | None = None,
-              blue_rules_mode: str | None = None,
+              blue_rules_mode: str | None = None, blue_caching: str | None = None,
+              red_caching: str | None = None,
               out=print) -> tuple[int, Path | None]:
     """Run one match. Returns (exit_code, match_dir or None if never started)."""
     ops = ops or Ops()
@@ -245,6 +248,13 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         images = ops.preflight()
         match_ops.check_live_clean(live_dir)
         llm_config, prices, price_ref = ops.llm_setup()
+        if red_caching is not None and red_engine != "ai":
+            raise ValueError("--red-caching needs --red ai (caching is an AI-call setting)")
+        if blue_caching is not None and engine != "claude":
+            raise ValueError("--blue-caching needs --blue claude (caching is an AI-call "
+                             "setting)")
+        llm_config = llm_client.with_caching(llm_config, "red", red_caching)
+        llm_config = llm_client.with_caching(llm_config, "blue", blue_caching)
         attacks = scripted_red.load_attacks(payloads)
         bset = send_benign.load_set(benign_set)  # BenignSetError is a ValueError
         seed_source = "generated" if seed is None else "cli"
@@ -433,6 +443,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         rules=(match_stats.read_rounds(match_dir / "rules.jsonl"),
                match_stats.read_rounds(match_dir / "rule_rejections.jsonl"),
                match_stats.read_rounds(match_dir / rule_facts.RESULTS))))
+    if manifest["status"] != "failed":  # the Stage 5 done-when check (Stage 5.7)
+        out(four_facts.format_result(four_facts.check(match_dir)))
     return EXIT[manifest["status"]], match_dir
 
 
@@ -453,6 +465,12 @@ def main(argv: list[str] | None = None) -> int:
                              "agents.blue.rules.mode). off = prompt v1 (Stage 5.4); shadow = "
                              "prompt v2, rules recorded and scored, never applied; on = "
                              "prompt v2, rules hot-loaded")
+    parser.add_argument("--blue-caching", choices=("off", "on"), default=None,
+                        help="claude: prompt caching (default: config/llm.json "
+                             "agents.blue.caching). on = system prompt cached, 5-minute TTL")
+    parser.add_argument("--red-caching", choices=("off", "on"), default=None,
+                        help="ai: prompt caching (default: config/llm.json agents.red.caching)"
+                             ". on = explicit breakpoint per user turn, 30-minute TTL")
     parser.add_argument("--red", choices=("scripted", "ai"), default="scripted",
                         help="Red engine: scripted payload set, or ai (OpenAI; real, paid "
                              "API calls through agents/llm_client.py)")
@@ -464,7 +482,8 @@ def main(argv: list[str] | None = None) -> int:
     code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
                         settle=args.settle, engine=args.blue, blue_model=args.blue_model,
                         red_engine=args.red, red_model=args.red_model,
-                        blue_rules_mode=args.blue_rules_mode)
+                        blue_rules_mode=args.blue_rules_mode,
+                        blue_caching=args.blue_caching, red_caching=args.red_caching)
     return code
 
 

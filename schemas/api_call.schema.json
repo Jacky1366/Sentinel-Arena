@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/api_call.schema.json",
   "title": "API call attempt (contract 6.3)",
-  "description": "One line of data/runs/<match_id>/api_calls.jsonl, written by agents/llm_client.py for every attempt (including failures and retries) and for every call the body refused before sending (refusal non-null, nothing sent). input_tokens is full-price input only; the whole prompt is input_tokens + cached_input_tokens + cache_write_tokens. A null token count means the provider reported no usage. Never contains a key, prompt text or error text. stop_reason is the provider's stop reason for a reply (e.g. end_turn, max_tokens, refusal; a safety refusal is an ok reply with stop_reason refusal); null when there was no reply. provider comes from config/llm.json (never from the price table), so it is never null, even for a missing_price refusal.",
+  "description": "One line of data/runs/<match_id>/api_calls.jsonl, written by agents/llm_client.py for every attempt (including failures and retries) and for every call the body refused before sending (refusal non-null, nothing sent). input_tokens is full-price input only; the whole prompt is input_tokens + cached_input_tokens + cache_write_tokens. A null token count means the provider reported no usage. Never contains a key, prompt text or error text. stop_reason is the provider's stop reason for a reply (e.g. end_turn, max_tokens, refusal; a safety refusal is an ok reply with stop_reason refusal); null when there was no reply. provider comes from config/llm.json (never from the price table), so it is never null, even for a missing_price refusal. Schema 0.2 (Stage 5.7): unpriced_cache_write_tokens is the part of cache_write_tokens written at a cache lifetime config/prices.json has no price for (Anthropic 1-hour, OpenAI 12-hour, or an unknown write breakdown; cache_write prices are the Anthropic 5-minute and OpenAI 30-minute writes). Any value > 0 stops the match (unpriced_usage). 0.1 lines (frozen schema) have no such field and are read as 0.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,6 +24,7 @@
     "input_tokens",
     "cached_input_tokens",
     "cache_write_tokens",
+    "unpriced_cache_write_tokens",
     "output_tokens",
     "latency_ms",
     "prompt_sha256"
@@ -46,7 +47,7 @@
   },
   "properties": {
     "schema_version": {
-      "const": "0.1"
+      "const": "0.2"
     },
     "match_id": {
       "type": "string",
@@ -164,6 +165,9 @@
     "cache_write_tokens": {
       "$ref": "#/$defs/tokens"
     },
+    "unpriced_cache_write_tokens": {
+      "$ref": "#/$defs/tokens"
+    },
     "output_tokens": {
       "$ref": "#/$defs/tokens"
     },
@@ -203,6 +207,9 @@
             "type": "integer"
           },
           "output_tokens": {
+            "type": "integer"
+          },
+          "unpriced_cache_write_tokens": {
             "type": "integer"
           }
         }
@@ -247,6 +254,9 @@
             "const": 0
           },
           "latency_ms": {
+            "const": 0
+          },
+          "unpriced_cache_write_tokens": {
             "const": 0
           }
         }
@@ -312,6 +322,28 @@
           },
           "log_seq_last": {
             "const": null
+          }
+        }
+      }
+    },
+    {
+      "comment": "unpriced writes are a part of the writes",
+      "if": {
+        "properties": {
+          "unpriced_cache_write_tokens": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "unpriced_cache_write_tokens"
+        ]
+      },
+      "then": {
+        "properties": {
+          "cache_write_tokens": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       }

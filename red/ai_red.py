@@ -214,11 +214,11 @@ def red_params(cfg: dict, model: str) -> dict:
     return {
         "provider": provider, "model": model, "round_cap": round_cap_of(cfg),
         "prompt_version": RED_PROMPT_VERSION, "system_prompt_sha256": SYSTEM_PROMPT_SHA256,
+        "caching": lc.caching_params(cfg, "red"),
         "sdk": sdk_info(provider),
         "request": {"max_output_tokens": lc.agent_max_output_tokens(cfg, "red"),
                     "reasoning_effort": req["effort"], "output_format": "json_schema",
-                    "store": False, "prompt_caching": "disabled (implicit breakpoint off)",
-                    "temperature": None,
+                    "store": False, "temperature": None,
                     "temperature_note": "not set; run-to-run variation is expected"},
         "feedback_body_chars": FEEDBACK_BODY_CHARS,
         "guard": {"methods": list(METHODS), "max_path_chars": red_guard.MAX_PATH_CHARS,

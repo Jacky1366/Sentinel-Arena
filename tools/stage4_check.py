@@ -8,7 +8,7 @@ checks the resulting data/runs/<match_id>/:
   - every landed fact matches payloads.json expectations
   - match.json is schema-valid, status "completed", and every artifact's sha256 and
     size recompute to what match.json recorded (and match.json lists every file)
-  - match.json is schema_version 0.6 (0.5 before Stage 5.5) and shows the scripted
+  - match.json is schema_version 0.7 (0.6 before Stage 5.7) and shows the scripted
     match's AI side: blue/red engine scripted, blue_params/red_params null, models all null, $0
     cost, 0 API calls, no api_calls.jsonl, budget not hit,
     and the price table it recorded is the current config/prices.json
@@ -67,7 +67,7 @@ def check_manifest(match_dir: Path) -> list[str]:
     bad = [n for n in recorded if recomputed.get(n) != recorded[n]]
     check("artifacts: sha256 + bytes recompute", not bad, fails, f"mismatch: {bad}")
     # Stage 5.1: the scripted match makes no AI calls and says so (0.5 from Stage 5.6).
-    check("match.json schema_version 0.6", manifest.get("schema_version") == "0.6", fails,
+    check("match.json schema_version 0.7", manifest.get("schema_version") == "0.7", fails,
           str(manifest.get("schema_version")))
     check("scripted Blue/Red: blue_params and red_params null",
           manifest.get("blue_engine") == "scripted" and manifest.get("blue_params") is None

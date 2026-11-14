@@ -19,6 +19,11 @@ Unknown prices:
     priced: it is left out of usd and flagged `unpriced_usage` AND `lower_bound`
     (the total is then an undercount). The budget then refuses every further
     call (stopped_by reason "unpriced_usage").
+  - unpriced_cache_write_tokens > 0 (api_call 0.2, Stage 5.7: writes at a cache
+    lifetime the table has no price for, e.g. Anthropic 1h / OpenAI 12h) -> that
+    part of cache_write is left out of usd (savings too) and flagged
+    `unpriced_usage` AND `lower_bound`, exactly like a null cache_write price.
+    0.1 lines have no such field: read as 0.
   - token counts null (the provider reported no usage, e.g. a timeout) ->
     counted as 0 and flagged `lower_bound`: the provider may still have billed it.
 
@@ -106,20 +111,22 @@ def call_cost(call: dict, prices: dict) -> dict:
             usd += t["cached_input"] * p_cached
             savings += t["cached_input"] * (p_in - p_cached)
     if t["cache_write"]:
-        if p_write is None:
+        unpriced = min(t["cache_write"], call.get("unpriced_cache_write_tokens") or 0)
+        priced = t["cache_write"] - unpriced
+        if p_write is None or unpriced:
             out["unpriced_usage"] = True
             out["lower_bound"] = True  # left out of usd, so usd undercounts
-        else:
-            usd += t["cache_write"] * p_write
-            savings -= t["cache_write"] * (p_write - p_in)
+        if p_write is not None and priced:
+            usd += priced * p_write
+            savings -= priced * (p_write - p_in)
     out["usd"] = usd / 1e6
     out["savings_usd"] = savings / 1e6
     return out
 
 
 def _bucket() -> dict:
-    return {"usd": 0.0, "failed_attempts_usd": 0.0, "attempts": 0, "failed_attempts": 0,
-            "refused": 0, "tokens": {k: 0 for k in TOKEN_KEYS}}
+    return {"usd": 0.0, "failed_attempts_usd": 0.0, "cache_savings_usd": 0.0, "attempts": 0,
+            "failed_attempts": 0, "refused": 0, "tokens": {k: 0 for k in TOKEN_KEYS}}
 
 
 def _add(b: dict, call: dict, c: dict) -> None:
@@ -128,6 +135,7 @@ def _add(b: dict, call: dict, c: dict) -> None:
         return
     b["attempts"] += 1
     b["usd"] += c["usd"]
+    b["cache_savings_usd"] += c["savings_usd"]
     if call.get("ok") is not True:
         b["failed_attempts"] += 1
         b["failed_attempts_usd"] += c["usd"]
@@ -136,7 +144,8 @@ def _add(b: dict, call: dict, c: dict) -> None:
 
 
 def _round(b: dict) -> dict:
-    return {**b, "usd": round(b["usd"], 6), "failed_attempts_usd": round(b["failed_attempts_usd"], 6)}
+    return {**b, "usd": round(b["usd"], 6), "failed_attempts_usd": round(b["failed_attempts_usd"], 6),
+            "cache_savings_usd": round(b["cache_savings_usd"], 6)}
 
 
 def summarize(calls: list[dict], prices: dict) -> dict:
@@ -196,3 +205,19 @@ def format_cost_line(cost: dict) -> str:
     if notes:
         parts.append("  [" + "; ".join(notes) + "]")
     return "".join(parts)
+
+
+def format_agent_lines(cost: dict) -> list[str]:
+    """One line per agent that sent calls (Stage 5.7): cost, calls, cache read / write
+    tokens and NET cache savings (negative when writes cost more than reads saved).
+    The uncached counterfactual = usd + net savings (the same calls, no caching)."""
+    out = []
+    for agent, b in sorted(cost.get("by_agent", {}).items()):
+        if not b["attempts"]:
+            continue
+        s = b.get("cache_savings_usd", 0.0)
+        out.append(f"  {agent:5} ${b['usd']:.6f}  ({b['attempts']} calls; cache read "
+                   f"{b['tokens']['cached_input']} / write {b['tokens']['cache_write']} tok; "
+                   f"net savings {'-' if s < 0 else ''}${abs(s):.6f}; uncached "
+                   f"${b['usd'] + s:.6f})")
+    return out

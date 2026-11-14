@@ -38,8 +38,10 @@ SCHEMA_NAMES = [
     "match_manifest_v0_3",
     "match_manifest_v0_4",
     "match_manifest_v0_5",
+    "match_manifest_v0_6",
     "match_manifest",
     "api_call",
+    "api_call_v0_1",
     "prices",
     "benign_set",
     "benign_request",
@@ -53,6 +55,7 @@ SCHEMA_NAMES = [
     "match_rule",
     "rule_rejection",
     "replay_manifest",
+    "replay_manifest_v0_1",
 ]
 
 
@@ -244,7 +247,7 @@ VALID["benign_result"] = {**VALID["benign_result_v0_2"], "schema_version": "0.3"
                           "verdict_source": "rule"}
 VALID["match_manifest_v0_4"] = {**VALID["match_manifest_v0_3"], "schema_version": "0.4",
                                 "judge_version": "0.4.0", "blue_params": None}
-RED_PARAMS = {
+RED_PARAMS_V0_6 = {
     "provider": "openai", "model": "gpt-6-luna", "round_cap": 10, "prompt_version": "1",
     "system_prompt_sha256": SHA, "sdk": {"package": "openai", "version": "3.41.0"},
     "request": {"max_output_tokens": 2048, "reasoning_effort": "low",
@@ -252,11 +255,16 @@ RED_PARAMS = {
                 "prompt_caching": "disabled", "temperature": None, "temperature_note": "x"},
     "feedback_body_chars": 500,
     "guard": {"methods": ["GET", "POST"], "max_path_chars": 2048, "max_body_chars": 4096}}
+# Stage 5.7: caching {mode, ttl}; the free-text request.prompt_caching is gone.
+RED_PARAMS = {**RED_PARAMS_V0_6, "caching": {"mode": "on", "ttl": "30m"},
+              "request": {k: v for k, v in RED_PARAMS_V0_6["request"].items()
+                          if k != "prompt_caching"}}
 VALID["match_manifest_v0_5"] = {**VALID["match_manifest_v0_4"], "schema_version": "0.5",
                                 "judge_version": "0.5.0", "red_engine": "scripted",
                                 "red_params": None}
-VALID["match_manifest"] = {**VALID["match_manifest_v0_5"], "schema_version": "0.6",
-                           "judge_version": "0.6.0"}
+VALID["match_manifest_v0_6"] = {**VALID["match_manifest_v0_5"], "schema_version": "0.6",
+                                "judge_version": "0.6.0"}
+VALID["match_manifest"] = {**VALID["match_manifest_v0_6"], "schema_version": "0.7"}
 BLUE_PARAMS_V0_5 = {
     "provider": "anthropic", "model": "claude-haiku-5-5", "chunk_size": 1,
     "prompt_version": "1", "system_prompt_sha256": SHA,
@@ -264,9 +272,10 @@ BLUE_PARAMS_V0_5 = {
     "request": {"max_output_tokens": 256, "thinking": "disabled", "effort": "low",
                 "output_format": "json_schema", "temperature": None,
                 "temperature_note": "not settable"}}
-BLUE_PARAMS = {**BLUE_PARAMS_V0_5, "prompt_version": "2",
-               "rules": {"mode": "on", "max_rules": 10},
-               "request": {**BLUE_PARAMS_V0_5["request"], "max_output_tokens": 512}}
+BLUE_PARAMS_V0_6 = {**BLUE_PARAMS_V0_5, "prompt_version": "2",
+                    "rules": {"mode": "on", "max_rules": 10},
+                    "request": {**BLUE_PARAMS_V0_5["request"], "max_output_tokens": 512}}
+BLUE_PARAMS = {**BLUE_PARAMS_V0_6, "caching": {"mode": "on", "ttl": "5m"}}
 CLAUDE_MANIFEST = {**VALID["match_manifest"], "blue_engine": "claude",
                    "blue_params": BLUE_PARAMS,
                    "models": {"red": None, "blue": {"provider": "anthropic",
@@ -285,9 +294,12 @@ REPLAY = {
                "red_engine": "ai",
                "artifacts": {"proxy.jsonl": {"sha256": SHA, "bytes": 10}},
                "copied": ["proxy.jsonl"]},
-    **{k: CLAUDE_MANIFEST[k] for k in ("blue_engine", "blue_params", "git", "budget",
+    **{k: CLAUDE_MANIFEST[k] for k in ("blue_engine", "git", "budget",
                                        "price_table", "cost", "artifacts")},
+    "blue_params": BLUE_PARAMS_V0_6,
     "models": {"blue": CLAUDE_MANIFEST["models"]["blue"]}}
+VALID["replay_manifest_v0_1"] = REPLAY
+REPLAY = {**REPLAY, "schema_version": "0.2", "blue_params": BLUE_PARAMS}
 VALID["replay_manifest"] = REPLAY
 VALID["red_attack"] = {
     "schema_version": "0.2", "match_id": "m001", "round": 7, "request_id": RID,
@@ -333,7 +345,7 @@ VALID["rule_rejection"] = {
     "proposal": {"conditions": [{"field": "path", "op": "regex", "pattern": "(?=x)",
                                  "case_insensitive": False}]},
     "reasons": [{"code": "regex_unsupported_feature", "detail": "lookahead"}]}
-VALID["api_call"] = {
+VALID["api_call_v0_1"] = {
     "schema_version": "0.1", "match_id": "20261109T153012Z-a1b2",
     "timestamp": "2026-11-09T15:30:13.120Z", "agent": "blue", "provider": "anthropic",
     "model": "claude-haiku-5-5", "round": None, "log_seq_first": 1, "log_seq_last": 20,
@@ -341,6 +353,8 @@ VALID["api_call"] = {
     "stop_reason": "end_turn", "input_tokens": 1200, "cached_input_tokens": 0, "cache_write_tokens": 0,
     "output_tokens": 300, "latency_ms": 812, "prompt_sha256": SHA,
 }
+VALID["api_call"] = {**VALID["api_call_v0_1"], "schema_version": "0.2",
+                     "unpriced_cache_write_tokens": 0}
 VALID["prices"] = {
     "schema_version": "0.1", "as_of": "2026-11-08", "currency": "USD",
     "unit": "per_million_tokens",
@@ -679,8 +693,32 @@ INVALID = {
                     "models": {**r["models"], "blue": {"provider": "anthropic",
                                                        "model": "claude-haiku-5-5"}}}),
     ],
+    "match_manifest_v0_6": [
+        ("schema_version 0.7", _set("schema_version", "0.7")),
+        ("blue_params caching is 0.7 only",
+         lambda r: {**r, "blue_engine": "claude", "blue_params": BLUE_PARAMS,
+                    "models": {**r["models"], "blue": {"provider": "anthropic",
+                                                       "model": "claude-haiku-5-5"}}}),
+    ],
     "match_manifest": [
         ("schema_version 0.5", _set("schema_version", "0.5")),
+        ("claude blue_params without caching (0.6 shape)",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": BLUE_PARAMS_V0_6}),
+        ("caching on without a ttl",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "caching": {"mode": "on", "ttl": None}}}),
+        ("caching off with a ttl",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "caching": {"mode": "off", "ttl": "5m"}}}),
+        ("a 1h ttl (unpriced)",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {
+             **BLUE_PARAMS, "caching": {"mode": "on", "ttl": "1h"}}}),
+        ("red_params with the 0.6 free-text prompt_caching",
+         lambda r: {**AI_RED_MANIFEST, "red_params": RED_PARAMS_V0_6}),
+        ("cost bucket without cache_savings_usd",
+         lambda r: {**r, "cost": {**r["cost"], "by_agent": {"blue": {
+             "usd": 0.0, "failed_attempts_usd": 0.0, "attempts": 0, "failed_attempts": 0,
+             "refused": 0, "tokens": TOKENS0}}}}),
         ("claude blue_params without rules",
          lambda r: {**CLAUDE_MANIFEST, "blue_params": BLUE_PARAMS_V0_5}),
         ("rules mode not in enum",
@@ -834,7 +872,13 @@ INVALID = {
         ("judge_version not semver", _set("judge_version", "3")),
         ("missing summary", _drop("summary")),
     ],
+    "replay_manifest_v0_1": [
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("blue_params caching is 0.2 only", _set("blue_params", BLUE_PARAMS)),
+    ],
     "replay_manifest": [
+        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("blue_params without caching (0.1 shape)", _set("blue_params", BLUE_PARAMS_V0_6)),
         ("source failed", lambda r: {**r, "source": {**r["source"], "status": "failed"}}),
         ("source without hashes",
          lambda r: {**r, "source": {k: v for k, v in r["source"].items()
@@ -871,7 +915,14 @@ INVALID = {
         ("carries status", _set("status", 500)),
         ("bad benign_id", _set("benign_id", "x9")),
     ],
+    "api_call_v0_1": [
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("carries unpriced_cache_write_tokens", _set("unpriced_cache_write_tokens", 0)),
+    ],
     "api_call": [
+        ("schema_version 0.1", _set("schema_version", "0.1")),
+        ("missing unpriced_cache_write_tokens", _drop("unpriced_cache_write_tokens")),
+        ("negative unpriced writes", _set("unpriced_cache_write_tokens", -1)),
         ("ok but error_type set", _set("error_type", "timeout")),
         ("missing stop_reason", _drop("stop_reason")),
         ("stop_reason on a failed call",
@@ -1051,24 +1102,34 @@ def test_api_call_refusal_and_failure_shapes_valid():
     base = VALID["api_call"]
     v.validate({**base, "ok": False, "error_type": "timeout", "http_status": None,
                 "stop_reason": None, "input_tokens": None, "cached_input_tokens": None, "cache_write_tokens": None,
-                "output_tokens": None})
+                "unpriced_cache_write_tokens": None, "output_tokens": None})
     v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
                 "refusal": {"scope": "match", "reason": "max_usd"}, "stop_reason": None,
                 "input_tokens": 0,
                 "cached_input_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
-                "latency_ms": 0})
+                "unpriced_cache_write_tokens": 0, "latency_ms": 0})
     v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
                 "refusal": {"scope": "blue", "reason": "missing_price"}, "stop_reason": None,
                 "input_tokens": 0, "cached_input_tokens": 0, "cache_write_tokens": 0,
-                "output_tokens": 0, "latency_ms": 0})
+                "unpriced_cache_write_tokens": 0, "output_tokens": 0, "latency_ms": 0})
     v.validate({**base, "ok": False, "error_type": "refused", "http_status": None,
                 "refusal": {"scope": "blue", "reason": "price_unverified"}, "stop_reason": None,
                 "input_tokens": 0, "cached_input_tokens": 0, "cache_write_tokens": 0,
-                "output_tokens": 0, "latency_ms": 0})
+                "unpriced_cache_write_tokens": 0, "output_tokens": 0, "latency_ms": 0})
     # a safety refusal by the model is an ok reply with stop_reason "refusal"
     v.validate({**base, "stop_reason": "refusal"})
     v.validate({**base, "agent": "red", "round": 4, "log_seq_first": None, "log_seq_last": None})
     v.validate({**base, "agent": "analyst", "log_seq_first": None, "log_seq_last": None})
+    # Stage 5.7: unpriced writes are part of the writes; refusals carry 0.
+    v.validate({**base, "cache_write_tokens": 900, "unpriced_cache_write_tokens": 900})
+    assert not v.is_valid({**base, "cache_write_tokens": 0, "unpriced_cache_write_tokens": 5})
+    assert not v.is_valid({k: x for k, x in base.items() if k != "unpriced_cache_write_tokens"})
+    assert not v.is_valid({**base, "ok": False, "error_type": "refused", "http_status": None,
+                           "refusal": {"scope": "blue", "reason": "max_usd"},
+                           "stop_reason": None, "input_tokens": 0, "cached_input_tokens": 0,
+                           "cache_write_tokens": 0, "unpriced_cache_write_tokens": 3,
+                           "output_tokens": 0, "latency_ms": 0})
+    validator("api_call_v0_1").validate(VALID["api_call_v0_1"])  # 0.1 lines stay valid
 
 
 # Only the designer verifies a price (Stage 5.4: Haiku 5.5, Sonnet 5.5; Stage 5.6:
@@ -1100,7 +1161,8 @@ def test_match_id_accepts_both_forms(match_id, ok):
     for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
-                 "match_manifest", "api_call", "benign_request", "benign_result",
+                 "match_manifest_v0_6", "match_manifest", "api_call", "api_call_v0_1",
+                 "benign_request", "benign_result",
                  "benign_result_v0_1", "anomaly"):
         rec = {**VALID[name], "match_id": match_id}
         assert validator(name).is_valid(rec) is ok, (name, match_id)
@@ -1116,7 +1178,8 @@ def test_record_schemas_require_version_and_match_id():
     for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
-                 "match_manifest", "api_call", "benign_request", "benign_result",
+                 "match_manifest_v0_6", "match_manifest", "api_call", "api_call_v0_1",
+                 "benign_request", "benign_result",
                  "benign_result_v0_1", "anomaly"):
         required = SCHEMAS[name]["required"]
         assert "schema_version" in required and "match_id" in required, name
@@ -1201,10 +1264,11 @@ def test_manifest_dispatch_covers_every_version():
     import sys
     sys.path.insert(0, str(ROOT))
     import run_match
-    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5", "0.6"}
-    assert run_match.MANIFEST_VERSION == "0.6"
+    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"}
+    assert run_match.MANIFEST_VERSION == "0.7"
     for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
-                 "match_manifest_v0_4", "match_manifest_v0_5", "match_manifest"):
+                 "match_manifest_v0_4", "match_manifest_v0_5", "match_manifest_v0_6",
+                 "match_manifest"):
         assert run_match.validate_manifest(VALID[name]) == [], name
 
 
@@ -1290,7 +1354,7 @@ def test_committed_claude_blue_first_match_validates_and_is_clean():
                          ("benign_results.jsonl", "benign_result_v0_2"),
                          ("verdicts.jsonl", "verdict_v0_2"),
                          ("rounds.jsonl", "round_record_v0_2"),
-                         ("api_calls.jsonl", "api_call"),
+                         ("api_calls.jsonl", "api_call_v0_1"),  # Stage 5.4: 0.1
                          ("challenge_snapshots.jsonl", "challenge_snapshot")):
         rows = [json.loads(l) for l in (d / name).read_text().splitlines()]
         assert rows, name

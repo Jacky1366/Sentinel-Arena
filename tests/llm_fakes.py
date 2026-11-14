@@ -44,7 +44,7 @@ CONFIG = {
                "blue": {"provider": "fake", "model": "fake-small"},
                "analyst": {"provider": "fake", "model": None}},
     "timeout_s": 5, "max_retries": 3, "backoff_base_s": 1.0, "backoff_max_s": 30.0,
-    "max_output_tokens": 100, "chars_per_token": 3, "provider_caching": False,
+    "max_output_tokens": 100, "chars_per_token": 3,
     "caps": {"red": {"max_calls": 1000, "max_tokens": 10**9, "max_usd": 1000.0},
              "blue": {"max_calls": 1000, "max_tokens": 10**9, "max_usd": 1000.0},
              "analyst": {"max_calls": 0, "max_tokens": 0, "max_usd": 0},

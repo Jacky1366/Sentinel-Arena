@@ -476,7 +476,8 @@ def blue_params(cfg: dict, model: str, chunk_size: int, rules_mode: str | None =
     version, _, sha, _ = PROMPTS[rules["mode"]]
     return {"provider": provider, "model": model, "chunk_size": chunk_size,
             "prompt_version": version, "system_prompt_sha256": sha,
-            "rules": rules, "sdk": sdk_info(provider),
+            "rules": rules, "caching": lc.caching_params(cfg, "blue"),
+            "sdk": sdk_info(provider),
             "request": {"max_output_tokens": lc.agent_max_output_tokens(cfg, "blue"),
                         "thinking": req["thinking"], "effort": req["effort"],
                         "output_format": "json_schema", "temperature": None,

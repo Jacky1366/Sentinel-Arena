@@ -419,7 +419,9 @@ def test_committed_config_loads_with_designer_caps():
         "blue": {"max_calls": 100, "max_tokens": 300000, "max_usd": 0.25},
         "analyst": {"max_calls": 0, "max_tokens": 0, "max_usd": 0},
         "match": {"max_calls": None, "max_tokens": None, "max_usd": 0.50}}
-    assert cfg["provider_caching"] is False
+    assert "provider_caching" not in cfg  # replaced by agents.<agent>.caching (5.7)
+    assert {a: lc.agent_caching(cfg, a) for a in ("red", "blue")} == {"red": "off",
+                                                                     "blue": "off"}
     assert {a: cfg["agents"][a]["provider"] for a in lc.AGENTS} == {
         "red": "openai", "blue": "anthropic", "analyst": None}
 
@@ -429,7 +431,10 @@ def test_committed_config_loads_with_designer_caps():
     lambda c: c["caps"]["red"].update(max_usd=None),
     lambda c: c["caps"]["blue"].pop("max_tokens"),
     lambda c: c["caps"]["match"].update(max_usd=-1),
-    lambda c: c.update(provider_caching=True),
+    lambda c: c.update(provider_caching=False),  # the old global switch is gone
+    lambda c: c["agents"]["blue"].update(caching=True),
+    lambda c: c["agents"]["red"].update(caching="sometimes"),
+    lambda c: c["agents"]["red"].update(provider="gemini", caching="on"),  # no cache price
     lambda c: c.pop("timeout_s"),
     lambda c: c["agents"]["blue"].pop("provider"),
     lambda c: c["agents"]["blue"].update(provider="bogus"),

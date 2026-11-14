@@ -23,7 +23,8 @@ file artifacts defined in a data contract.
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
 | 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch, D16 label audit | Nov 13–19 (Stage 5) | Done (Nov 13; Gates 1–2 passed + first label audit; merged) |
-| 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); branch `stage5.5-rules-invention` |
+| 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); merged |
+| 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Built + tested on the fake provider (Nov 14); Gates 1–3 wait for the designer's GO; branch `stage5.7-caching-ai-vs-ai` |
 
 Currently ~4 days ahead of plan. Next milestone: Assignment 3 (Nov 26).
 
@@ -329,6 +330,35 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   stack after the normalization move (matches `20261109T041650Z-e736` /
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
+### Stage 5.7 — Prompt caching + first AI-vs-AI matches (Stage 5 finale)
+Built and tested on the fake provider (Nov 14), branch `stage5.7-caching-ai-vs-ai`. Plan:
+`docs/plans/stage5_7_step0.md`; decisions: `docs/stage5_decisions.md` (D18, Stage 5.7
+notes). Gates 1–3 (real calls) run only after the designer's GO, one at a time.
+- **Caching (D18):** `agents.<agent>.caching` off | on (default off; replaces the global
+  `provider_caching`). Blue: one explicit breakpoint on the system block, 5-minute TTL.
+  Red: an explicit breakpoint at the end of every user turn, never moved, 30-minute TTL.
+  Caching off sends the Stage 5.4 / 5.6 request bytes exactly (tested byte for byte);
+  prompts and their hashes are unchanged. Flags: `run_match.py --blue-caching /
+  --red-caching`, `tools/replay_blue.py --caching`.
+- **Unpriced lifetimes:** `api_calls.jsonl` 0.2 adds `unpriced_cache_write_tokens`
+  (Anthropic 1h, OpenAI 12h, or an unknown breakdown); any value stops the match
+  (`unpriced_usage`).
+- **Cost:** every cost bucket carries net `cache_savings_usd` (may be negative); the match
+  summary prints one line per agent with cache read / write tokens, net savings and the
+  uncached counterfactual. `match.json` 0.7, `replay.json` 0.2.
+- **Four-facts check** (`tools/four_facts.py`): PASS / N/A (no rules) / FAIL, printed in
+  every match summary. On the committed evidence: gate-5.5 shadow and on replays PASS,
+  off replays and scripted Blue N/A, the pre-5.2 scripted baseline FAIL (no benign
+  traffic).
+- **AI vs AI:** `run_match.py --red ai --blue claude --blue-rules-mode on --blue-caching
+  on --red-caching on` works end to end on the fake provider (wiring test).
+- **What Gate 1 must settle:** whether prompt v1 (about 350–400 tokens of system text)
+  reaches Haiku 5.5's 512-token cache minimum (C1, never padded); Red's per-turn cached
+  tokens (OpenAI's minimum is 1,024 tokens per prefix, so early turns are not cached);
+  both cached-token mappings against the dashboards.
+- **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass against
+  the live stack (Nov 14).
 
 ### Stage 5.5 — Blue rule invention + hot-load + replay mode (D17)
 Built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`. Gate
@@ -671,7 +701,8 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
     gate run Nov 13 (12/12 replays, $0.057), accepted by the designer: **done**.
   - ~~5.6 AI Red (OpenAI gpt-6-luna), D15 scope guard, label_mismatch~~ (built Nov 13,
     before 5.5; Gates 1–2 passed + D16 label audit Nov 13; merged).
-  - **5.7** Integration + provider-side caching.
+  - **5.7** Prompt caching (D18) + first AI-vs-AI matches + four-facts check: built and
+    tested (Nov 14); Gates 1–3 wait for the GO.
   - Also in Stage 5: variant / held-out attacks for any AI-vs-baseline comparison;
     revisit the CWE-22 challenge map (round-5 finding).
 - Designer: verify `config/prices.json` against the official pricing pages (incl. the

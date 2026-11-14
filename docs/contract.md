@@ -145,6 +145,20 @@ labels only: scripted Red labels are valid by construction. Blue's `max_output_t
 512 in all three modes. `rule.schema.json`, `api_calls`, `anomaly` and `rule_result`
 formats and the normalization are unchanged. `JUDGE_VERSION` 0.6.0.*
 
+*Revised 2026-11-14 (Stage 5.7, D18): **prompt caching**, per agent, off by default (§6.10).
+**`api_calls.jsonl` moves to `"0.2"`** (§6.3): new required
+`unpriced_cache_write_tokens` (cache writes at a lifetime the price table has no price
+for; > 0 stops the match with `unpriced_usage`). **`match.json` moves to `"0.7"`** (§6.2):
+`blue_params.caching` and `red_params.caching` `{mode, ttl}`; the free-text
+`red_params.request.prompt_caching` is removed; every cost bucket (`by_agent`, `by_model`)
+carries `cache_savings_usd`. **`replay.json` moves to `"0.2"`** (§6.9): `blue_params.caching`,
+the same bucket field. Frozen: `api_call_v0_1`, `match_manifest_v0_6`,
+`replay_manifest_v0_1` (the committed gate-5.5 replays stay valid against it).
+`config/llm.json` (§6.4): the global `provider_caching` key is replaced by
+`agents.<agent>.caching`. New check `tools/four_facts.py` (§6.11): PASS / N/A (no rules) /
+FAIL. No Judge or `rules/` change: `JUDGE_VERSION` stays 0.6.0; prompts, prompt versions and
+their hashes are unchanged.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`) controls ordering.
@@ -802,7 +816,7 @@ frozen schema (`match_manifest_v0_1`…`v0_5`); validators dispatch on `schema_v
 
 | Field | Type | Rationale |
 |---|---|---|
-| `schema_version` | `"0.6"` | Versioning (`"0.1"` before Stage 5.1 … `"0.5"` in Stage 5.6, see above). |
+| `schema_version` | `"0.7"` | Versioning (`"0.1"` before Stage 5.1 … `"0.5"` in Stage 5.6, `"0.6"` in Stage 5.5, see above). |
 | `match_id` | match_id (§0) | Equals the directory name; self-describing when copied out. |
 | `started_at` / `finished_at` | UTC ISO 8601 | Wall-clock span of the match. |
 | `status` | `"completed"` \| `"failed"` \| `"stopped"` | `failed`: a step raised. `stopped`: every step ran, but the AI body refused a call or saw usage it cannot price (`budget.stopped_by`). `completed`: neither. A failure wins over a stop. |
@@ -811,8 +825,8 @@ frozen schema (`match_manifest_v0_1`…`v0_5`); validators dispatch on `schema_v
 | `judge_version` | semver string | `judge.JUDGE_VERSION` that scored `rounds.jsonl`. Bumped on any Judge logic change, so results scored by older logic are identifiable. |
 | `blue_engine` | `"scripted"` \| `"claude"` | Which Blue engine produced `verdicts.jsonl` (`run_match.py --blue`). |
 | `red_engine` | `"scripted"` \| `"ai"` | Which Red chose the attacks (`run_match.py --red`). |
-| `red_params` | `null` \| object | **The AI Red configuration; `null` iff `red_engine` is `scripted`.** `{provider, model, round_cap, prompt_version, system_prompt_sha256, sdk: null \| {package, version}, request: {max_output_tokens, reasoning_effort, output_format, store, prompt_caching, temperature, temperature_note}, feedback_body_chars, guard: {methods, max_path_chars, max_body_chars}}`. `temperature` is `null` (not set; run-to-run variation is expected and wanted for attack variety). `store` is `false` and prompt caching is off (D11). All of it must be held constant within any comparison. `sdk` is `null` for the fake provider (tests). |
-| `blue_params` | `null` \| object | **The AI Blue configuration; `null` iff `blue_engine` is `scripted`.** `{provider, model, chunk_size, prompt_version, system_prompt_sha256, rules: {mode, max_rules}, sdk: null \| {package, version}, request: {max_output_tokens, thinking, effort, output_format, temperature, temperature_note}}`. `rules.mode` is `off` \| `shadow` \| `on` (§5.2); `prompt_version` / `system_prompt_sha256` are those of the prompt the mode sends (`"1"` for off, `"2"` for shadow and on). `temperature` is `null` with a note: Haiku 5.5 and API version `2026-10-21` reject sampling parameters, so run-to-run variation is measured, not suppressed. Thinking, effort, output format and the output-token cap are part of the Blue configuration and **must be held constant within any comparison**. `sdk` is `null` for the fake provider (tests). |
+| `red_params` | `null` \| object | **The AI Red configuration; `null` iff `red_engine` is `scripted`.** `{provider, model, round_cap, prompt_version, system_prompt_sha256, caching: {mode, ttl}, sdk: null \| {package, version}, request: {max_output_tokens, reasoning_effort, output_format, store, temperature, temperature_note}, feedback_body_chars, guard: {methods, max_path_chars, max_body_chars}}`. `temperature` is `null` (not set; run-to-run variation is expected and wanted for attack variety). `store` is `false`. `caching` (Stage 5.7, §6.10): `mode` `off` \| `on`, `ttl` the cache-write lifetime used (`"30m"` for OpenAI), `null` iff `mode` is `off` (0.6 had a free-text `request.prompt_caching`). All of it must be held constant within any comparison. `sdk` is `null` for the fake provider (tests). |
+| `blue_params` | `null` \| object | **The AI Blue configuration; `null` iff `blue_engine` is `scripted`.** `{provider, model, chunk_size, prompt_version, system_prompt_sha256, rules: {mode, max_rules}, caching: {mode, ttl}, sdk: null \| {package, version}, request: {max_output_tokens, thinking, effort, output_format, temperature, temperature_note}}`. `rules.mode` is `off` \| `shadow` \| `on` (§5.2); `caching` as for Red (`ttl` `"5m"` for Anthropic; §6.10); `prompt_version` / `system_prompt_sha256` are those of the prompt the mode sends (`"1"` for off, `"2"` for shadow and on). `temperature` is `null` with a note: Haiku 5.5 and API version `2026-10-21` reject sampling parameters, so run-to-run variation is measured, not suppressed. Thinking, effort, output format and the output-token cap are part of the Blue configuration and **must be held constant within any comparison**. `sdk` is `null` for the fake provider (tests). |
 | `red_source` | `null` \| `{path, sha256}` | The scripted payload file fired (`null` for AI Red, which has no payload file; the prompt is pinned by `red_params`). **`null` iff `red_engine` is `ai`.** |
 | `git` | `{commit, dirty}` | Code provenance. `dirty` counts untracked files too. A committed reference run (the scripted baseline run, and later the golden run) must say `false`. |
 | `traffic` | `{seed, seed_source, benign_set, schedule}` | `seed`: 0..2³²−1; `seed_source`: `cli` (`--seed`) or `generated`. `benign_set`: `{path, sha256, set_version}`. `schedule`: the **planned** slot order from the seed, `red:<round>` / `benign:<benign_id>` (§2.1). Same seed + same set + same payloads → same schedule. |
@@ -821,7 +835,7 @@ frozen schema (`match_manifest_v0_1`…`v0_5`); validators dispatch on `schema_v
 | `budget.limits` | `{red, blue, analyst, match}`: each `{max_calls, max_tokens, max_usd}` | The caps in force (`config/llm.json`). Per-agent caps are **required numbers**; the match-level total may leave a field `null` (no match-level limit on it). |
 | `budget.stopped_by` | `null` \| `{scope, reason}` | The **first** refusal in `api_calls.jsonl` (§6.3), or `{scope: "match", reason: "unpriced_usage"}` if usage could not be priced. `scope` ∈ red / blue / analyst / match; `reason` ∈ `max_calls` / `max_tokens` / `max_usd` / `unpriced_usage` / `missing_price` / `price_unverified` / `missing_key`. **Non-null whenever `status == "stopped"`, `null` when `completed`**; a failed match may carry one (both are facts). |
 | `price_table` | `{path, sha256, as_of}` | The price table the dollar snapshot below was computed with. |
-| `cost` | object | Dollar **snapshot** derived by `stats/cost.py` from `api_calls.jsonl` and that price table (D10: tokens are the evidence; dollars can be recomputed against any later table). `total_usd` includes failed attempts; `failed_attempts_usd` is that subset. `cache_savings_usd` is **net** of the cache-write premium and may be negative. `attempts` counts sent attempts; `refused` counts refusals (never sent, $0; they add nothing to `attempts`, tokens or dollars, here or in any cap total). `by_agent` / `by_model` break it down. Flags: `lower_bound` (`total_usd` is an undercount: an attempt reported no usage, e.g. a timeout the provider may still bill, or usage was unpriced), `cached_at_input_price` (cached tokens of a model with no cached price, charged at the input price), `unpriced_usage` (cache writes with no cache-write price; not included in `total_usd`, so `lower_bound` is `true` too). `prices_verified`: `null` if no calls, else whether every model used has `verified: true`. A scripted match: all zeros, no `api_calls.jsonl`. |
+| `cost` | object | Dollar **snapshot** derived by `stats/cost.py` from `api_calls.jsonl` and that price table (D10: tokens are the evidence; dollars can be recomputed against any later table). `total_usd` includes failed attempts; `failed_attempts_usd` is that subset. `cache_savings_usd` is **net** of the cache-write premium and may be negative. `attempts` counts sent attempts; `refused` counts refusals (never sent, $0; they add nothing to `attempts`, tokens or dollars, here or in any cap total). `by_agent` / `by_model` break it down; each bucket carries its own net `cache_savings_usd` (0.7; may be negative), so `usd + cache_savings_usd` is what the same calls would have cost uncached. Flags: `lower_bound` (`total_usd` is an undercount: an attempt reported no usage, e.g. a timeout the provider may still bill, or usage was unpriced), `cached_at_input_price` (cached tokens of a model with no cached price, charged at the input price), `unpriced_usage` (cache writes with no cache-write price, or written at an unpriced lifetime, `unpriced_cache_write_tokens` §6.3; not included in `total_usd`, so `lower_bound` is `true` too). `prices_verified`: `null` if no calls, else whether every model used has `verified: true`. A scripted match: all zeros, no `api_calls.jsonl`. |
 | `artifacts` | `{name: {sha256, bytes}}` | Every other file in the match directory (never `match.json` itself). Lets anyone verify the frozen files were not changed afterwards. |
 
 **Failure handling.** If a step from `reset` on fails, the match is still
@@ -860,17 +874,17 @@ it, so separate steps share one budget without sharing memory. A scripted match
 makes no calls and has no `api_calls.jsonl`.
 
 ```json
-{"schema_version":"0.1","match_id":"20261109T153012Z-a1b2",
+{"schema_version":"0.2","match_id":"20261109T153012Z-a1b2",
  "timestamp":"2026-11-09T15:30:13.120Z","agent":"blue","provider":"anthropic",
  "model":"claude-haiku-5-5","round":null,"log_seq_first":1,"log_seq_last":20,
  "attempt":1,"ok":true,"error_type":null,"http_status":200,"refusal":null,
  "stop_reason":"end_turn","input_tokens":1200,"cached_input_tokens":0,"cache_write_tokens":0,
- "output_tokens":300,"latency_ms":812,"prompt_sha256":"<64 hex>"}
+ "unpriced_cache_write_tokens":0,"output_tokens":300,"latency_ms":812,"prompt_sha256":"<64 hex>"}
 ```
 
 | Field | Type | Rationale |
 |---|---|---|
-| `schema_version` / `match_id` | `"0.1"` / match_id | §0 common rules. |
+| `schema_version` / `match_id` | `"0.2"` / match_id | §0 common rules. `"0.1"` before Stage 5.7 (no `unpriced_cache_write_tokens`; read as 0). |
 | `timestamp` | UTC ISO 8601 | When the attempt started. |
 | `agent` | `red` \| `blue` \| `analyst` | Which component asked. |
 | `provider` | `openai` \| `anthropic` \| `gemini` \| `fake` | From `config/llm.json` (`agents.<agent>.provider`), never from the price table, so it is **never `null`**, even for a `missing_price` refusal. A model whose price entry names another provider is a config error (the call raises, nothing is written). `fake` appears only in tests. |
@@ -883,8 +897,9 @@ makes no calls and has no `api_calls.jsonl`.
 | `http_status` | int \| null | When the provider gave one. |
 | `refusal` | `null` \| `{scope, reason}` | Set iff `error_type == "refused"`. Same vocabulary as `budget.stopped_by` (§6.2). |
 | `stop_reason` | string \| null | The provider's stop reason for a reply, normalized across SDKs (`end_turn`/`completed`, `max_tokens`, `refusal`, `incomplete:<reason>`; Stage 5.4/5.6). **A model's safety refusal is an `ok` reply with `stop_reason: "refusal"`**: billed, and a brain failure for the agent (§4, AI Red §2.2), never a body refusal. OpenAI's Responses API maps an output refusal item to `refusal` and `status: "incomplete"` at the output cap to `max_tokens`. `null` when there was no reply. |
-| `input_tokens` | int \| null | **Full-price input only.** The whole prompt is `input + cached_input + cache_write` (OpenAI Responses `input_tokens` includes cached and cache-write tokens, so the adapter subtracts both; Anthropic's `input_tokens` already excludes them). `output_tokens` includes reasoning / thinking tokens (billed as output) for both. **Anthropic mapping verified 2026-11-12 (Gate 1, against the Console) for uncached, non-thinking calls only.** **OpenAI mapping verified 2026-11-12 (Gate 1, against the dashboard: 357 input / 114 output) for uncached calls with zero reasoning tokens;** still flagged: that `input_tokens` includes cache reads / writes (unchecked until caching, 5.7) and that `output_tokens` includes reasoning tokens (none on the Gate-1 turn). |
+| `input_tokens` | int \| null | **Full-price input only.** The whole prompt is `input + cached_input + cache_write` (OpenAI Responses `input_tokens` includes cached and cache-write tokens, so the adapter subtracts both; Anthropic's `input_tokens` already excludes them). `output_tokens` includes reasoning / thinking tokens (billed as output) for both. **Anthropic mapping verified 2026-11-12 (Gate 1, against the Console) for uncached, non-thinking calls only.** **OpenAI mapping verified 2026-11-12 (Gate 1, against the dashboard: 357 input / 114 output) for uncached calls with zero reasoning tokens;** still flagged: that `input_tokens` includes cache reads / writes and that `output_tokens` includes reasoning tokens (none on the Gate-1 turn). **Cached-token mapping (Stage 5.7): implemented for both providers, to be verified against both dashboards at Stage 5.7 Gate 1; the flags above are removed only after the designer's check.** |
 | `cached_input_tokens` / `cache_write_tokens` / `output_tokens` | int \| null | Cache reads, cache writes, output (incl. reasoning tokens). **`null`** = the provider reported no usage (e.g. a timeout), distinct from 0. Integers whenever `ok`; all `0` for a refusal. |
+| `unpriced_cache_write_tokens` | int ≥ 0 \| null | **0.2 (Stage 5.7).** The part of `cache_write_tokens` written at a cache lifetime `config/prices.json` has no price for: Anthropic's 1-hour write (`usage.cache_creation.ephemeral_1h_input_tokens`), OpenAI's 12-hour write (`input_tokens_details.cache_write_tokens_details.ttl_12h_tokens`), any other lifetime in a provider's write breakdown, or **every** write of an OpenAI request that itself asked for a lifetime other than 30 minutes. `cache_write` prices are the Anthropic 5-minute and the OpenAI 30-minute write. **> 0 is unpriced usage** (§6.4): left out of dollars, and the match stops. `≤ cache_write_tokens`; `null` with the other counts; `0` on a refusal. |
 | `latency_ms` | int ≥ 0 | Wall time of the attempt; `0` for a refusal. |
 | `prompt_sha256` | 64 hex | sha256 of the canonical JSON of `{model, system, messages}`. The prompt text itself is **never** stored. |
 
@@ -927,7 +942,9 @@ savings = cached_input·(p.input − p.cached_input) − cache_write·(p.cache_w
 ```
 
 A `null` `cached_input` price charges cached tokens at the input price (flagged
-`cached_at_input_price`). A `null` `cache_write` price with cache-write tokens > 0 is
+`cached_at_input_price`). A `null` `cache_write` price with cache-write tokens > 0, or any
+`unpriced_cache_write_tokens` (a write at a lifetime the table has no price for, §6.3:
+`cache_write` is the Anthropic **5-minute** and the OpenAI **30-minute** write price), is
 **unpriced usage**: left out of `usd`, flagged (`unpriced_usage` and `lower_bound`: the
 total is an undercount), and it stops further calls
 (`stopped_by` reason `unpriced_usage`, never `max_usd`).
@@ -935,15 +952,15 @@ total is an undercount), and it stops further calls
 **`config/llm.json`**: per agent the `provider` (`openai` / `anthropic` / `gemini`;
 `null` only while the agent has no model, and the client refuses to run such an
 agent) and the default `model` (`null` = no AI for that agent yet), `timeout_s`, `max_retries`, `backoff_base_s`, `backoff_max_s`,
-`max_output_tokens`, `chars_per_token`, `provider_caching` (must be `false` until
-Stage 5.7, D11), and `caps`. Per agent, optionally (Stage 5.4): `max_output_tokens`
+`max_output_tokens`, `chars_per_token`, and `caps` (the global `provider_caching` key
+of Stages 5.1–5.6 is gone; a config that still has it is refused). Per agent, optionally (Stage 5.4): `max_output_tokens`
 (overrides the global value, also in the worst-case estimate), `request`
 (`{thinking: disabled|adaptive, effort: low|medium|high|xhigh|max}`; nothing else, in
 particular no sampling parameters) and `chunk_size` (Blue; ≥ 1, > 1 only for unscored
 runs). For Blue (Stage 5.5): `rules` `{mode: off|shadow|on, max_rules: int ≥ 0}` (§5.2;
 default mode `off`; only Blue may have it) and `max_output_tokens` 512 in all three modes
 (256 in Stage 5.4; raised so a reply carrying a three-condition rule is not cut off, and
-held constant across the modes). For Red (Stage 5.6): `request.effort` maps to OpenAI reasoning effort (`thinking` is Anthropic-only and is refused for OpenAI), `max_output_tokens` (dev 2048: reasoning tokens count toward it, so too small a cap would truncate the reply and be misread as a brain failure), and `round_cap` (dev 10, the number of Red slots). The guard's method allowlist and size caps (D15) live in `red/red_guard.py`. These are recorded in `match.json` `blue_params` / `red_params`. Also `caps` for `red`, `blue`, `analyst` (all three fields required)
+held constant across the modes). For Red (Stage 5.6): `request.effort` maps to OpenAI reasoning effort (`thinking` is Anthropic-only and is refused for OpenAI), `max_output_tokens` (dev 2048: reasoning tokens count toward it, so too small a cap would truncate the reply and be misread as a brain failure), and `round_cap` (dev 10, the number of Red slots). The guard's method allowlist and size caps (D15) live in `red/red_guard.py`. Per agent (Stage 5.7): `caching` `off` (default) \| `on` (§6.10); `on` is refused for a provider with no priced cache lifetime (Gemini, for now). `run_match.py --blue-caching` / `--red-caching` and `tools/replay_blue.py --caching` override it for one run. These are recorded in `match.json` `blue_params` / `red_params`. Also `caps` for `red`, `blue`, `analyst` (all three fields required)
 and `match` (fields may be `null`). `run_match.py` refuses at preflight (exit 2) if
 either file is invalid.
 
@@ -1149,7 +1166,7 @@ without touching the match.
 ## 6.9 Replay manifest (D17) — `data/replays/<replay_id>/replay.json`
 
 `tools/replay_blue.py --match <frozen match> [--out <dir>] --engine scripted|claude
-[--rules-mode off|shadow|on] [--model M]` runs Blue and the full Judge on a **copy** of a
+[--rules-mode off|shadow|on] [--model M] [--caching off|on]` runs Blue and the full Judge on a **copy** of a
 frozen match's inputs (D17: Blue is a passive detector, so Blue on the frozen proxy log is
 equivalent to Blue live). It **never writes into the source**: the output folder must not
 exist or be empty, and must not be or lie inside any folder holding a `match.json` or
@@ -1164,14 +1181,72 @@ exist or be empty, and must not be or lie inside any folder holding a `match.jso
   the same `run_match.Ops` steps a live match uses; the Judge re-runs completely at the
   current `JUDGE_VERSION`. Verdicts and rounds keep the **source `match_id`** (the join and
   the D16 audit apply unchanged); a replay is identified by `replay_id` and its folder.
-- **`replay.json`** (`replay_manifest.schema.json`, `"0.1"`), written last: `replay_id`
+- **`replay.json`** (`replay_manifest.schema.json`, `"0.2"`; `"0.1"` before Stage 5.7,
+  frozen as `replay_manifest_v0_1`), written last: `replay_id`
   (same form as a timestamp match id), `started_at` / `finished_at`, `status` /
   `failed_step` (`judge_fact1` … `judge_rules`) / `error` (as §6.2), `judge_version`,
   `source {match_id, path, match_json_sha256, status, judge_version, blue_engine,
   red_engine, artifacts (the source's own list), copied}`, `blue_engine`, `blue_params`
-  (§6.2), `git`, `models {blue}`, `budget`, `price_table`, `cost` (this replay's Blue calls
+  (§6.2, incl. `caching` since 0.2), `git`, `models {blue}`, `budget`, `price_table`, `cost` (this replay's Blue calls
   only), `artifacts` (every other file in the replay folder). Exit codes as `run_match.py`
   (2 = refused, nothing written). `data/replays/` is git-ignored.
+
+## 6.10 Prompt caching (Stage 5.7, D18)
+
+A **cost setting, not a brain setting**: it never changes a prompt's text, version or hash,
+only what the provider bills. It is still **held constant within any comparison** and
+recorded in `blue_params.caching` / `red_params.caching` (§6.2). Default `off`: the
+request bytes are exactly those of Stages 5.4 / 5.6 (tested byte for byte).
+
+- **Blue (Anthropic).** One explicit breakpoint on the system block:
+  `system: [{type: text, text: <prompt>, cache_control: {type: ephemeral, ttl: "5m"}}]`.
+  Every Blue call is stateless (D14) with the same system prompt and output schema and one
+  proxy line as the user turn, so the system prompt (and everything the API renders
+  before it) is the cached prefix and only the line is uncached. Automatic caching is never
+  used: it would put the breakpoint on the unique user turn and pay the write premium on
+  bytes never read. TTL **5 minutes** (the only Anthropic write price in the table); Blue's
+  calls run seconds apart, and each read resets the timer. Prompt v1 (off) and v2
+  (shadow / on) are separate cache entries. A prefix below the model's minimum (512 tokens
+  for Haiku 5.5) is silently not cached: no error, zero reads and writes.
+- **Red (OpenAI).** `prompt_cache_options: {mode: explicit, ttl: "30m"}` and an explicit
+  breakpoint `prompt_cache_breakpoint: {mode: explicit}` (TTL inherited) at the end of
+  **every** user turn, kept on every earlier turn, so request N+1 is a byte-exact extension
+  of request N. The latest breakpoint writes the whole prompt; the previous one (written by
+  the previous call) is the read point: on call n the instructions and every turn through
+  user turn n−1 are read, the previous assistant reply and the new user turn are not. A
+  request writes at most 4 breakpoints and lookup covers the first 2 and the latest 50
+  (OpenAI prompt caching guide); Red has at most `round_cap` user turns. Each prefix must
+  reach OpenAI's minimum (1,024 visible tokens for GPT-5.6 and later), so early turns are
+  not cached. TTL **30 minutes**, set on the request, never on a breakpoint; a 12-hour
+  write is never requested, and if one is ever reported or requested it is
+  `unpriced_cache_write_tokens` (§6.3) and stops the match.
+- **Cost.** `stats/cost.py` prices reads at `cached_input` and writes at `cache_write`;
+  `cache_savings_usd` is net of the write premium and may be negative. The terminal summary
+  prints one line per agent: cost, calls, cache read / write tokens, net savings and the
+  uncached counterfactual (`usd + net savings`, the same calls without caching).
+
+## 6.11 The four-facts check (Stage 5 done-when) — `tools/four_facts.py`
+
+Pure file reads, writes nothing; printed at the end of every non-failed `run_match.py`
+summary and used by Stage 5.7 Gate 3.
+
+| Fact | Artifact | Computed when every row has |
+|---|---|---|
+| 1 landed | `rounds.jsonl` | `landed` |
+| 2 detected | `rounds.jsonl` | `detected` |
+| 3 rule replay | `rule_results.jsonl` | `replay_fires` |
+| 4b rule fixture FPs | `rule_results.jsonl` | `fixture_fires` |
+| 4a verdict-level FPs | `benign_results.jsonl` | `false_positive` |
+
+Every row is validated against its schema version. Outcomes (designer, Stage 5.7):
+**PASS**: all four facts computed, every artifact valid and non-empty. **N/A (no rules)**:
+facts 1, 2 and 4a pass and there is no rule to score: `rule_results.jsonl` exists, is valid
+and is empty because Blue stored no rule, or the match has no rule invention (rules mode
+off, scripted Blue: no rule artifacts by design). A legitimate outcome, not a failure.
+**FAIL**: a required artifact is missing, invalid or empty (`rounds.jsonl`,
+`benign_results.jsonl`, and `rule_results.jsonl` in rules mode shadow / on), or a row lacks
+its fact. Exit codes 0 / 3 / 1. **Stage 5 is done when at least one Gate 3 match**
+(`--red ai --blue claude`, rules on) **reaches PASS.**
 
 ---
 
@@ -1238,6 +1313,7 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Match manifest | `data/runs/<match_id>/match.json` | Orchestrator | Dashboard, stage checks, `tools/replay_blue.py` (source hashes), humans | Red, Blue |
 | Replay manifest | `data/replays/<replay_id>/replay.json` | `tools/replay_blue.py` | Audit tool (source match id), stats, humans | Red, Blue |
 | API call log | `data/runs/<match_id>/api_calls.jsonl` | `agents/llm_client.py` (on behalf of Red, Blue, analyst) | `llm_client` (budget), `stats/cost.py`, orchestrator, Judge (`instrument_failure` cross-check, §4), Dashboard | Red, Blue (D6: Red sees only its HTTP responses; neither engine opens it, only the body does) |
+| Four-facts result | (printed; no file) | `tools/four_facts.py` from rounds, benign results, rule results (§6.11) | Orchestrator summary, Stage 5.7 Gate 3, humans | — |
 | Benign set | `benign/benign_set.json` | Designer (verified by `tools/verify_benign_set.py`) | Orchestrator, stage checks | **Blue** |
 | Benign requests | `data/runs/<match_id>/benign_requests.jsonl` | Benign sender (orchestrator) | Judge (fact 4a), Dashboard | **Blue** |
 | Benign results | `data/runs/<match_id>/benign_results.jsonl` | Judge (fact 4a) | Stats, Dashboard | Red, **Blue** |

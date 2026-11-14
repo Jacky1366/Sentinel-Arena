@@ -68,7 +68,7 @@ def test_on_hot_loads_and_the_judge_scores_the_rules_in_the_match(dirs):
     code, d, out = go(ops, dirs, "on")
     assert code == 0, out
     m = assert_finalized(dirs[0], d)
-    assert m["schema_version"] == "0.6"
+    assert m["schema_version"] == "0.7"
     assert m["blue_params"]["rules"] == {"mode": "on", "max_rules": 10}
     assert m["blue_params"]["prompt_version"] == "2"
     assert m["blue_params"] == claude_engine.blue_params(CONFIG, "fake-small", 1, "on")
