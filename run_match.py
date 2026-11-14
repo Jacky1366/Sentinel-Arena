@@ -323,7 +323,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         raise
     started_at = match_ops.utc_now()
     out(f"match {match_id} -> {_display_path(match_dir)}")
-    out(f"seed {seed} ({seed_source}): {len(attacks)} Red + {len(benign_ids)} benign slots")
+    out(f"seed {seed} ({seed_source}): {n_red} Red + {len(benign_ids)} benign slots")
 
     failed_step: str | None = None
     error: str | None = None

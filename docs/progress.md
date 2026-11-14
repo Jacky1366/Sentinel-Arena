@@ -24,7 +24,7 @@ file artifacts defined in a data contract.
 | 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
 | 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch, D16 label audit | Nov 13–19 (Stage 5) | Done (Nov 13; Gates 1–2 passed + first label audit; merged) |
 | 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); merged |
-| 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Built + tested on the fake provider (Nov 14); Gates 1–3 wait for the designer's GO; branch `stage5.7-caching-ai-vs-ai` |
+| 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Gates 1, 2, 2b, 3 run (Nov 14); Stage 5 done-when met (3/3 AI-vs-AI matches four facts PASS); D16 audit of the Gate 3 rounds pending; branch `stage5.7-caching-ai-vs-ai` |
 
 Currently ~4 days ahead of plan. Next milestone: Assignment 3 (Nov 26).
 
@@ -391,6 +391,14 @@ notes). Gates 1–3 (real calls) run only after the designer's GO, one at a time
     needs cross-match rule memory (Stage 6).
   - Comparing "rules on + caching" with "rules off without caching" would change two
     variables at once (designer correction); the fair comparison is the cached row.
+- **Gate 3 (Nov 14, $0.008852): the first AI-vs-AI matches.** Three live matches,
+  `--red ai --blue claude`, Blue rules on, caching on for both, seed 5202:
+  `20261114T072114Z-1a3a`, `…072400Z-a58a`, `…072621Z-a41b` (`data/runs/`, git-ignored
+  until the designer's audit). **All three reach four facts PASS: the Stage 5 done-when is
+  met.** Raw detection 9/9, 8/9 and 10/10; FP 0/17 in all three; 1 round landed (match 2,
+  round 3, CWE-89 login tautology). Audited numbers wait for the D16 label audit
+  (scaffolded in `data/audits/`; sheet `docs/audits/stage5_7_gate3_20261114T072114Z-1a3a.md`).
+  Caching saved Red about 42% and Blue about 70% (net, same calls priced uncached).
 - **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass against
   the live stack (Nov 14).
 

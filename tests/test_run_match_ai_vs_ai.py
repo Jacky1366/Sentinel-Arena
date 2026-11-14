@@ -107,6 +107,7 @@ def test_ai_vs_ai_with_caching_on_for_both(dirs):
     assert "  red " in out and "  blue " in out and "net savings" in out
     # the Stage 5 done-when: all four facts computed
     assert "four facts: PASS" in out
+    assert "2 Red + 17 benign slots" in out  # AI Red's round_cap, not the payload file's 7
 
 
 def test_caching_defaults_to_config_and_can_differ_per_agent(dirs):
