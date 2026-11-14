@@ -423,3 +423,11 @@ Plan: `docs/plans/stage5_7_step0.md`; the designer's decisions on it (C1–C8):
   `tools/stage5_7_check.py --gate 2 --real-calls` (the four gate-5.5 sources, rules on,
   caching on); Gate 3 `tools/stage5_7_check.py --gate 3 --real-calls` (three AI-vs-AI
   matches, seed 5202, scaffolds the D16 audits and writes the sheet).
+- **Gate 3 result and audit (2026-11-14).** All three AI-vs-AI matches reach four facts
+  PASS: **Stage 5 is done.** First AI-vs-AI D16 audit: 27 valid, 1 invalid (match 2 round
+  8, `GET /ftp/acquisitions.md` labelled CWE-22: forced browsing). The CWE-22 criterion
+  (2026-11-13 refinement) was applied unchanged; match 1 round 7 (`/ftp/../ftp/legal.md`)
+  is valid under it. Forced browsing labelled CWE-22 has now appeared in 2 of 6 AI-Red
+  matches: a systematic taxonomy gap, a candidate topic for Stage 6 (no taxonomy change
+  now). Per C8 the matches and audits are committed: `data/golden/ai-vs-ai-gate3-match{1,2,3}/`,
+  `data/golden/audits/`, sheet `docs/audits/stage5_7_gate3_label_audit.md`.

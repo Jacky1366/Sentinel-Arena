@@ -154,6 +154,7 @@ data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
 data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
 data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gate 2; held-out candidate set)
+data/golden/ai-vs-ai-gate3-match{1,2,3}/  first AI-vs-AI matches, audited (5.7 Gate 3; four facts PASS; never rewritten)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
@@ -203,6 +204,7 @@ tests/test_four_facts.py    the four-facts check: PASS / N/A (no rules) / FAIL
 tests/test_run_match_ai_vs_ai.py  --red ai --blue claude with caching flags, four facts, gate tools offline
 tests/test_gate_5_5_evidence.py  committed gate replays: hashes, source links, Judge re-scores identically
 tests/test_gate_5_7_evidence.py  committed Gate 2/2b replays: hashes, sources, verdicts = gate-5.5, re-score, 2x2
+tests/test_gate_5_7_gate3_evidence.py  committed Gate 3 AI-vs-AI matches: hashes, config, re-score, four facts PASS, audits, cost
 ```
 
 ## How to run the stack
@@ -250,10 +252,12 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
-- Stage 5.7 (prompt caching per agent, D18; first AI-vs-AI matches; four-facts check):
-  built and tested on the fake provider (Nov 14), branch `stage5.7-caching-ai-vs-ai`;
-  Gates 1–3 (`tools/stage5_7_gate1.py`, `tools/stage5_7_check.py --gate 2|3`) each wait for
-  the designer's GO.
+- **Stage 5 is done (Nov 14):** all three Stage 5.7 Gate 3 AI-vs-AI matches reach four
+  facts PASS. Stage 5.7 (prompt caching per agent, D18; first AI-vs-AI matches; four-facts
+  check): done, branch `stage5.7-caching-ai-vs-ai` (not merged yet); Gates 1–3 passed;
+  evidence in `data/golden/replays/gate-5.7/` (Gates 2/2b) and
+  `data/golden/ai-vs-ai-gate3-match{1,2,3}/` + `data/golden/audits/` (Gate 3, first AI-vs-AI
+  label audit: 27 valid, 1 invalid).
 - Stage 5.5 (Blue rule invention, modes off / shadow / on; hot-load; replay mode D17):
   built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`; the
   gate (`tools/stage5_5_check.py --real-calls`, 12 replays) run and accepted Nov 13 ($0.057):

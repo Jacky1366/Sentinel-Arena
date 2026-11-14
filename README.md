@@ -48,9 +48,12 @@ first real calls verified (Gates 1–2; about $0.003 per match). Stage 5.6 done:
 designer). Stage 5.5 done: Blue rule invention (`--blue-rules-mode off|shadow|on`,
 rules hot-loaded so a firing rule answers without an AI call) and replay mode
 (`tools/replay_blue.py`: Blue + Judge re-run on a frozen match); gate accepted (12
-replays, evidence in `data/golden/replays/gate-5.5/`). Stage 5.7 built: prompt caching per agent (`--blue-caching` / `--red-caching`, off by
-default), AI vs AI (`--red ai --blue claude`) and the four-facts check (`tools/four_facts.py`);
-its gates wait for the designer's GO. The dashboard is not implemented yet. See
+replays, evidence in `data/golden/replays/gate-5.5/`). Stage 5.7 done: prompt caching per
+agent (`--blue-caching` / `--red-caching`, off by default), AI vs AI (`--red ai --blue
+claude`) and the four-facts check (`tools/four_facts.py`); Gates 1–3 passed, and the first
+three AI-vs-AI matches, with the designer's label audit, are committed in
+`data/golden/ai-vs-ai-gate3-match{1,2,3}/`. **Stage 5 is done:** all three reach four facts
+PASS. The dashboard is not implemented yet. See
 [`docs/progress.md`](docs/progress.md) and
 [`docs/stage5_decisions.md`](docs/stage5_decisions.md).
 

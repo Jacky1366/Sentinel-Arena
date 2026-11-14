@@ -1249,7 +1249,8 @@ off, scripted Blue: no rule artifacts by design). A legitimate outcome, not a fa
 **FAIL**: a required artifact is missing, invalid or empty (`rounds.jsonl`,
 `benign_results.jsonl`, and `rule_results.jsonl` in rules mode shadow / on), or a row lacks
 its fact. Exit codes 0 / 3 / 1. **Stage 5 is done when at least one Gate 3 match**
-(`--red ai --blue claude`, rules on) **reaches PASS.**
+(`--red ai --blue claude`, rules on) **reaches PASS.** *Result (2026-11-14):* all three
+Gate 3 matches reach PASS (`data/golden/ai-vs-ai-gate3-match{1,2,3}/`); Stage 5 is done.
 
 ---
 

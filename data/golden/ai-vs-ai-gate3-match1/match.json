@@ -1,0 +1,303 @@
+{
+  "schema_version": "0.7",
+  "match_id": "20261114T072114Z-1a3a",
+  "started_at": "2026-11-14T07:21:14.179Z",
+  "finished_at": "2026-11-14T07:23:59.956Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.6.0",
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "2",
+    "system_prompt_sha256": "cf440507f4463f38dc4aefba40ec7cb3736c654fff71c9aacd700d6eeb614027",
+    "rules": {
+      "mode": "on",
+      "max_rules": 10
+    },
+    "caching": {
+      "mode": "on",
+      "ttl": "5m"
+    },
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "red_engine": "ai",
+  "red_params": {
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "round_cap": 10,
+    "prompt_version": "1",
+    "system_prompt_sha256": "dbb15c865572556f0d1a066421d0c94a4c8d8a88e830838cc8109d023c2da830",
+    "caching": {
+      "mode": "on",
+      "ttl": "30m"
+    },
+    "sdk": {
+      "package": "openai",
+      "version": "3.41.0"
+    },
+    "request": {
+      "max_output_tokens": 2048,
+      "reasoning_effort": "low",
+      "output_format": "json_schema",
+      "store": false,
+      "temperature": null,
+      "temperature_note": "not set; run-to-run variation is expected"
+    },
+    "feedback_body_chars": 500,
+    "guard": {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "max_path_chars": 2048,
+      "max_body_chars": 4096
+    }
+  },
+  "red_source": null,
+  "git": {
+    "commit": "be635929d0aaad7af1bb2946632ca59a136efa38",
+    "dirty": false
+  },
+  "traffic": {
+    "seed": 5202,
+    "seed_source": "cli",
+    "benign_set": {
+      "path": "benign/benign_set.json",
+      "sha256": "1ea7c40c9c16423016bd1c25e8f89107c3e2312df630e5103d20de0a6f493d59",
+      "set_version": "1"
+    },
+    "schedule": [
+      "benign:n01",
+      "benign:n02",
+      "benign:n03",
+      "benign:n04",
+      "benign:n05",
+      "red:1",
+      "benign:n06",
+      "red:2",
+      "benign:n07",
+      "benign:n08",
+      "red:3",
+      "benign:n09",
+      "red:4",
+      "red:5",
+      "benign:n10",
+      "red:6",
+      "red:7",
+      "benign:n11",
+      "red:8",
+      "benign:h01",
+      "red:9",
+      "red:10",
+      "benign:h02",
+      "benign:h03",
+      "benign:h04",
+      "benign:h05",
+      "benign:h06"
+    ]
+  },
+  "images": {
+    "juice_shop": {
+      "image": "bkimminich/juice-shop:v20.3.0",
+      "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+      "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+    },
+    "nginx": {
+      "image": "nginx:1.30.6-alpine",
+      "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+      "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+    }
+  },
+  "models": {
+    "red": {
+      "provider": "openai",
+      "model": "gpt-6-luna"
+    },
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    },
+    "analyst": null
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "2745024540ffe2c9ea838dde7a11a5320408c772536a08a12547b6e482f21e23",
+    "as_of": "2026-11-12"
+  },
+  "cost": {
+    "total_usd": 0.003489,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.004942,
+    "attempts": 35,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 4370,
+      "cached_input": 56257,
+      "cache_write": 4863,
+      "output": 3764
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.001942,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003834,
+        "attempts": 25,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2517,
+          "cached_input": 43104,
+          "cache_write": 1796,
+          "output": 2069
+        }
+      },
+      "red": {
+        "usd": 0.001548,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.001107,
+        "attempts": 10,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1853,
+          "cached_input": 13153,
+          "cache_write": 3067,
+          "output": 1695
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.001942,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003834,
+        "attempts": 25,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2517,
+          "cached_input": 43104,
+          "cache_write": 1796,
+          "output": 2069
+        }
+      },
+      "gpt-6-luna": {
+        "usd": 0.001548,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.001107,
+        "attempts": 10,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1853,
+          "cached_input": 13153,
+          "cache_write": 3067,
+          "output": 1695
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "95175a418431bbd2dc67a0815c6928753bc0480260cca3eacfe0595f82e5d764",
+      "bytes": 243
+    },
+    "api_calls.jsonl": {
+      "sha256": "d71b4249cf5f35e7bbd9c921eca4c8400738ba15f859654b6631d307795f128c",
+      "bytes": 20050
+    },
+    "benign_requests.jsonl": {
+      "sha256": "8800688d7590d5c3f143029101636eb4ea66ab57b2a7e278644b878c1f337606",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "e4e5cbc1dcf242183999e7fb3f2d7729dec92636fa7ef4173bc11c9f41844bf8",
+      "bytes": 4258
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "8f08b974c2041521b785afe02ce74d65e0f0670b5260025cc2fda3cc409b7428",
+      "bytes": 4647
+    },
+    "landed.jsonl": {
+      "sha256": "a8e234cee0f5a60e3f78172661590f7ec9076f5ec673cdfb983fa724d881bad1",
+      "bytes": 1911
+    },
+    "proxy.jsonl": {
+      "sha256": "80b9b38ca6c4a95f9bbca0c949dd477962721f3569ae444da002d6bed63c12be",
+      "bytes": 5656
+    },
+    "red_attacks.jsonl": {
+      "sha256": "c006cb0d7bfe349f167298eae7bcaff62c42e0b57fe78bf9b50a136d31b65718",
+      "bytes": 4487
+    },
+    "red_unsent.jsonl": {
+      "sha256": "831c90ff23ce3157ad3c6225af58f3ed62eb658baad7d51ef554063caf09695f",
+      "bytes": 477
+    },
+    "rounds.jsonl": {
+      "sha256": "95910432515655512c3042e2f2913762c85b156ece927d36a3556ef48afba258",
+      "bytes": 2903
+    },
+    "rule_rejections.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rule_results.jsonl": {
+      "sha256": "c74a0af5428d33e17b2b4b4fcc01abea97fda548e2ed3fab184dd4a7aa5047ac",
+      "bytes": 3576
+    },
+    "rules.jsonl": {
+      "sha256": "1be9c5a2472ba2a1fed883cf2ab6c63060a09b5006afde7595fcbf4ad3c75c80",
+      "bytes": 3117
+    },
+    "verdicts.jsonl": {
+      "sha256": "8dea834ade3836f03a184e9e9a6f60c9b0b586cc982da9131c5badb503dcc222",
+      "bytes": 9945
+    }
+  }
+}
