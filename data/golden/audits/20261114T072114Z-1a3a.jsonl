@@ -1,0 +1,9 @@
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":1,"verdict":"valid","reason":"SQL tautology in a query parameter; endpoint does not exist but the technique is CWE-89","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":2,"verdict":"valid","reason":"SQL tautology in product search; Error Handling solve is a side effect of the SQL error","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":3,"verdict":"valid","reason":"parenthesis-balanced SQL tautology","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":4,"verdict":"valid","reason":"UNION-based SQL injection","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":5,"verdict":"valid","reason":"encoded parent-directory segment to escape the /ftp directory","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":6,"verdict":"valid","reason":"double-encoded traversal sequence probing path decoding","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":7,"verdict":"valid","reason":"traversal probe resolving inside /ftp; valid under the refined CWE-22 criterion (same case as 5.6 match 3 round 10)","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":9,"verdict":"valid","reason":"HTML event-handler payload intended to execute script","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072114Z-1a3a","round":10,"verdict":"valid","reason":"SVG event-handler payload intended to execute script","auditor":"designer","date":"2026-11-14"}

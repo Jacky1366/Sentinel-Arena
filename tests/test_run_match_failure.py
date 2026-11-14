@@ -451,7 +451,7 @@ def test_freeze_raises_without_any_log(tmp_path):
 def test_scripted_match_manifest_v0_4_zero_cost(dirs):
     code, match_dir, out = go(FakeOps(dirs[0]), dirs)
     m = manifest_of(match_dir)
-    assert code == 0 and m["schema_version"] == "0.6"
+    assert code == 0 and m["schema_version"] == "0.7"
     assert m["blue_engine"] == "scripted" and m["blue_params"] is None
     assert m["red_engine"] == "scripted" and m["red_params"] is None
     assert m["red_source"]["path"] and m["models"] == {"red": None, "blue": None, "analyst": None}
@@ -543,7 +543,7 @@ def test_benign_traffic_scored_and_recorded(dirs):
     code, match_dir, out = go(FakeOps(live, benign=BENIGN), dirs)
     assert code == 0, out
     m = manifest_of(match_dir)
-    assert m["schema_version"] == "0.6" and m["status"] == "completed"
+    assert m["schema_version"] == "0.7" and m["status"] == "completed"
     t = m["traffic"]
     assert t["seed_source"] == "generated" and 0 <= t["seed"] < 2**32
     assert t["benign_set"]["path"] == "benign/benign_set.json"

@@ -60,18 +60,21 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   rule_score.schema.json          rule scoring manifest
   match_rule.schema.json          one rules.jsonl line (a rule Blue invented in a match, 5.5)
   rule_rejection.schema.json      one rule_rejections.jsonl line (a rejected proposal + reasons)
-  replay_manifest.schema.json     replay.json (tools/replay_blue.py, D17)
+  replay_manifest.schema.json     replay.json (tools/replay_blue.py, D17), schema_version 0.2 (blue_params.caching)
+  replay_manifest_v0_1.schema.json frozen 0.1 replay schema (the committed gate-5.5 replays)
   benign_fixture.schema.json      one fact-4b fixture line
   round_record.schema.json        Judge output, schema_version 0.3 (verdict_source may be "rule")
   round_record_v0_2.schema.json   frozen 0.2 round-record schema
   round_record_v0_1.schema.json   frozen 0.1 round-record schema
-  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.6 (blue_params.rules, judge_rules)
+  match_manifest.schema.json      match.json (orchestrator manifest), schema_version 0.7 (caching in blue/red_params, bucket savings)
+  match_manifest_v0_6.schema.json frozen 0.6 manifest schema
   match_manifest_v0_5.schema.json frozen 0.5 manifest schema
   match_manifest_v0_1.schema.json frozen 0.1 manifest schema (validators dispatch on version)
   match_manifest_v0_2.schema.json frozen 0.2 manifest schema
   match_manifest_v0_3.schema.json frozen 0.3 manifest schema
   match_manifest_v0_4.schema.json frozen 0.4 manifest schema
-  api_call.schema.json            one api_calls.jsonl line (attempt or refusal)
+  api_call.schema.json            one api_calls.jsonl line, schema_version 0.2 (unpriced_cache_write_tokens, 5.7)
+  api_call_v0_1.schema.json       frozen 0.1 api_call schema
   prices.schema.json              config/prices.json
   benign_set.schema.json          benign/benign_set.json
   benign_request.schema.json      benign ground truth (Blue never reads)
@@ -84,13 +87,13 @@ config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
   prices.json           USD per million tokens per model (designer-maintained, dated)
-  llm.json              models per agent, timeouts/retries, required per-agent + match caps; agents.blue.rules (mode off|shadow|on, max_rules)
+  llm.json              models per agent, timeouts/retries, required per-agent + match caps; agents.blue.rules (mode off|shadow|on, max_rules); agents.<agent>.caching (off|on, 5.7)
 rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; governed by JUDGE_VERSION)
   normalize.py          THE request normalization (v2): raw + every decode step + '+'-decoding
   validator.py          rule validator: machine-readable reason per rejection; RE2 compile
   engine.py             pure rule engine: (validated rules, request) -> firing rule_ids
   hotload.py            hot-loaded rule set: only earlier-line rules fire; earliest wins tie-break (Blue + Judge)
-agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl
+agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl; prompt caching markers + unpriced cache lifetimes (5.7)
 agents/prompting.py     stable-prefix-first prompt builder + safe JSON parsing
 proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
 red/payloads.json       scripted-Red attack set (data, verified empirically)
@@ -140,6 +143,9 @@ tools/stage5_6_smoke.py       Gate 1 (5.6): ONE AI-Red generation, nothing sent 
 tools/stage5_6_check.py       Gate 2 (5.6): 3 seeded --red ai matches, prints every attack (--real-calls; GO only)
 tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source)
 tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/shadow/on, prints every rule (--real-calls; GO only)
+tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
+tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls + Red dry run, raw usage (--real-calls; GO only)
+tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
 dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
@@ -148,9 +154,11 @@ data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
 data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
 data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gate 2; held-out candidate set)
+data/golden/ai-vs-ai-gate3-match{1,2,3}/  first AI-vs-AI matches, audited (5.7 Gate 3; four facts PASS; never rewritten)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
+data/golden/replays/gate-5.7/  Stage 5.7 Gates 2/2b evidence: 8 cached Blue replays (rules on/off) + README (never rewritten)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -191,7 +199,12 @@ tests/test_blue_rules.py    rule invention: prompt v2, modes off/shadow/on, prop
 tests/test_rule_verdicts.py Judge rule-verdict cross-check, incl. tampered artifacts
 tests/test_run_match_rules.py  --blue-rules-mode wiring, judge_rules, match.json 0.6 (fake Ops + provider)
 tests/test_replay_blue.py   replay = live run, never writes the source, refusals, audits, gate tool offline
+tests/test_caching.py       caching off = pre-5.7 bytes, on = markers only, stable prefix, usage mapping, unpriced lifetimes
+tests/test_four_facts.py    the four-facts check: PASS / N/A (no rules) / FAIL
+tests/test_run_match_ai_vs_ai.py  --red ai --blue claude with caching flags, four facts, gate tools offline
 tests/test_gate_5_5_evidence.py  committed gate replays: hashes, source links, Judge re-scores identically
+tests/test_gate_5_7_evidence.py  committed Gate 2/2b replays: hashes, sources, verdicts = gate-5.5, re-score, 2x2
+tests/test_gate_5_7_gate3_evidence.py  committed Gate 3 AI-vs-AI matches: hashes, config, re-score, four facts PASS, audits, cost
 ```
 
 ## How to run the stack
@@ -239,6 +252,12 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   schemas and contract too. Tests catch drift.
 - `rules_file.schema.json` `$ref`s `rule.schema.json` by `$id`. Validators need a
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
+- **Stage 5 is done (Nov 14):** all three Stage 5.7 Gate 3 AI-vs-AI matches reach four
+  facts PASS. Stage 5.7 (prompt caching per agent, D18; first AI-vs-AI matches; four-facts
+  check): done, branch `stage5.7-caching-ai-vs-ai` (not merged yet); Gates 1–3 passed;
+  evidence in `data/golden/replays/gate-5.7/` (Gates 2/2b) and
+  `data/golden/ai-vs-ai-gate3-match{1,2,3}/` + `data/golden/audits/` (Gate 3, first AI-vs-AI
+  label audit: 27 valid, 1 invalid).
 - Stage 5.5 (Blue rule invention, modes off / shadow / on; hot-load; replay mode D17):
   built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`; the
   gate (`tools/stage5_5_check.py --real-calls`, 12 replays) run and accepted Nov 13 ($0.057):

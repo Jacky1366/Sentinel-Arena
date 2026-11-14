@@ -43,6 +43,14 @@ and an optional `request` block ({thinking, effort}) passed to the adapter, plus
 an optional per-call `output_schema` (structured outputs). They are part of the
 agent's configuration and are recorded in match.json (blue_params).
 
+Prompt caching (Stage 5.7, D18): `agents.<agent>.caching` is "off" (default) or
+"on". Off sends exactly the Stage 5.6 request bytes. On adds only cache markers:
+Anthropic caches the system block (one explicit breakpoint, 5-minute TTL); OpenAI
+uses explicit breakpoints at the end of every user turn (30-minute TTL, set on the
+request, never on a breakpoint). Cache writes at a TTL with no price in
+config/prices.json (Anthropic 1h, OpenAI 12h, or an unknown write breakdown) are
+recorded as `unpriced_cache_write_tokens`, which stops the match (unpriced_usage).
+
 SDKs are imported lazily, so tests need neither network nor keys. Pinned SDKs:
 Anthropic since Stage 5.4 (anthropic==2.3.0), OpenAI since 5.6 (openai==3.41.0,
 Responses API). For OpenAI, `effort` maps to reasoning effort; `thinking` is an
@@ -90,6 +98,10 @@ API_CALL_SCHEMA = Draft202012Validator(json.loads(
 THINKING = ("disabled", "adaptive")
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 RULES_MODES = ("off", "shadow", "on")  # agents.blue.rules.mode (Stage 5.5)
+CACHING_MODES = ("off", "on")  # agents.<agent>.caching (Stage 5.7)
+# The only cache-write lifetimes config/prices.json has a price for (cache_write).
+CACHE_TTL = {"anthropic": "5m", "openai": "30m",
+             "fake": "5m"}  # the test provider mimics Anthropic; gemini: no caching yet
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL is never read
 
 
@@ -140,12 +152,12 @@ def redact(text: str, keys: list[str] | None = None) -> str:
 def load_config(path: Path = CONFIG_PATH) -> dict:
     cfg = json.loads(path.read_text(encoding="utf-8"))
     for name in ("timeout_s", "max_retries", "backoff_base_s", "backoff_max_s",
-                 "max_output_tokens", "chars_per_token", "provider_caching", "caps", "agents"):
+                 "max_output_tokens", "chars_per_token", "caps", "agents"):
         if name not in cfg:
             raise ConfigError(f"{path.name}: missing {name!r}")
-    if cfg["provider_caching"] is not False:
-        raise ConfigError("provider_caching must stay false until the agent loop is stable "
-                          "(D11; enabled in Stage 5.7)")
+    if "provider_caching" in cfg:
+        raise ConfigError("provider_caching was replaced by agents.<agent>.caching "
+                          "(Stage 5.7, D18)")
     for agent in AGENTS:
         a = cfg["agents"].get(agent)
         if not isinstance(a, dict) or "model" not in a or "provider" not in a:
@@ -174,6 +186,11 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
             mr = rules.get("max_rules", 0)
             if isinstance(mr, bool) or not isinstance(mr, int) or mr < 0:
                 raise ConfigError("agents.blue.rules.max_rules must be a non-negative integer")
+        if a.get("caching", "off") not in CACHING_MODES:
+            raise ConfigError(f"agents.{agent}.caching must be one of {CACHING_MODES}")
+        if a.get("caching") == "on" and a["provider"] not in CACHE_TTL:
+            raise ConfigError(f"agents.{agent}.caching on: no priced cache lifetime for "
+                              f"provider {a['provider']!r}")
         req = a.get("request", {})
         if not isinstance(req, dict) or set(req) - {"thinking", "effort"}:
             raise ConfigError(f"agents.{agent}.request: only 'thinking' and 'effort' are allowed")
@@ -207,6 +224,33 @@ def agent_request(cfg: dict, agent: str) -> dict:
     return {"thinking": req.get("thinking"), "effort": req.get("effort")}
 
 
+def agent_caching(cfg: dict, agent: str) -> str:
+    """"off" | "on" (Stage 5.7). A cost setting, held constant within a comparison."""
+    return cfg["agents"][agent].get("caching", "off")
+
+
+def with_caching(cfg: dict, agent: str, mode: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.caching set (None: unchanged, the config
+    default). Used for --blue-caching / --red-caching / --caching overrides."""
+    if mode is None:
+        return cfg
+    if mode not in CACHING_MODES:
+        raise ConfigError(f"caching must be one of {CACHING_MODES}, not {mode!r}")
+    if mode == "on" and cfg["agents"][agent]["provider"] not in CACHE_TTL:
+        raise ConfigError(f"caching on: no priced cache lifetime for provider "
+                          f"{cfg['agents'][agent]['provider']!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["caching"] = mode
+    return out
+
+
+def caching_params(cfg: dict, agent: str) -> dict:
+    """{mode, ttl} for blue_params / red_params (ttl null iff caching is off)."""
+    mode = agent_caching(cfg, agent)
+    provider = cfg["agents"][agent]["provider"]
+    return {"mode": mode, "ttl": CACHE_TTL.get(provider) if mode == "on" else None}
+
+
 def caps_limits(cfg: dict) -> dict:
     return {s: {f: cfg["caps"][s][f] for f in CAP_FIELDS} for s in CAP_SCOPES}
 
@@ -221,6 +265,7 @@ class Usage:
     cached_input_tokens: int
     cache_write_tokens: int
     output_tokens: int
+    unpriced_cache_write_tokens: int = 0  # part of cache_write_tokens with no price
 
 
 @dataclass(frozen=True)
@@ -251,39 +296,63 @@ class Adapter(Protocol):
 
     def call(self, *, model: str, system: str, messages: list[dict],
              max_output_tokens: int, timeout: float, api_key: str | None,
-             request: dict, output_schema: dict | None) -> Reply: ...
+             request: dict, output_schema: dict | None, cache: bool = False) -> Reply: ...
 
 
 # Usage mappings. Common rule: input_tokens = full-price input only; the whole
 # prompt is input + cached_input + cache_write.
 # Anthropic: VERIFIED 2026-11-12 (Stage 5.4 Gate 1, designer checked the Console:
-#   885 input / 60 output) for UNCACHED, NON-THINKING calls only.
-#   STILL TO VERIFY: (a) that input_tokens excludes cache reads/writes (caching is
-#   off until 5.7, both cache fields were 0); (b) whether output_tokens includes
-#   thinking tokens (raw usage reports output_tokens_details.thinking_tokens; thinking
-#   was disabled, so 0).
-# OpenAI (Responses API): VERIFIED 2026-11-12 (Stage 5.6 Gate 1, designer checked the
-#   dashboard: 357 input / 114 output) for UNCACHED calls with ZERO reasoning tokens.
-#   STILL TO VERIFY: (a) that input_tokens includes cache reads/writes so subtracting
-#   both is right (caching is off until 5.7, both were 0); (b) that output_tokens
-#   includes reasoning tokens (effort low produced 0 on the Gate-1 turn).
+#   885 input / 60 output) for uncached calls; cache reads and writes VERIFIED
+#   2026-11-14 (Stage 5.7 Gate 1, designer checked the Console): input_tokens EXCLUDES
+#   cache reads / writes (105 input + 1796 written; then 99 input + 1796 read).
+#   STILL OPEN: whether output_tokens includes thinking tokens (raw usage reports
+#   output_tokens_details.thinking_tokens; thinking is disabled, so always 0 so far).
+# OpenAI (Responses API): VERIFIED 2026-11-12 (Stage 5.6 Gate 1: 357 input / 114
+#   output) for uncached calls; cache reads / writes and reasoning tokens VERIFIED
+#   2026-11-14 (Stage 5.7 Gate 1, designer checked the dashboard): input_tokens
+#   INCLUDES cache reads and writes (1161 = 3 + 1063 read + 95 written), so subtracting
+#   both is right; output_tokens INCLUDES reasoning tokens (225 of 914 over 10 turns).
 
-def anthropic_usage(u: Any) -> Usage:
-    """Anthropic input_tokens already EXCLUDES cache reads and cache writes."""
+def _int(v: Any) -> int:
+    return v if isinstance(v, int) and not isinstance(v, bool) else 0
+
+
+def _unpriced_breakdown(breakdown: Any, priced_key: str, write: int) -> int:
+    """Write tokens a provider's TTL breakdown attributes to any lifetime other than
+    the priced one (`priced_key`). An unknown, non-dict breakdown is all unpriced."""
+    if breakdown is None:
+        return 0
+    if not isinstance(breakdown, dict):
+        return write
+    return min(write, sum(_int(v) for k, v in breakdown.items() if k != priced_key))
+
+
+def anthropic_usage(u: Any, raw: dict | None = None) -> Usage:
+    """Anthropic input_tokens already EXCLUDES cache reads and cache writes. Writes
+    are split by TTL in usage.cache_creation; only the 5-minute write is priced."""
+    write = getattr(u, "cache_creation_input_tokens", None) or 0
+    raw = raw if raw is not None else {}
     return Usage(input_tokens=u.input_tokens,
                  cached_input_tokens=getattr(u, "cache_read_input_tokens", None) or 0,
-                 cache_write_tokens=getattr(u, "cache_creation_input_tokens", None) or 0,
-                 output_tokens=u.output_tokens)
+                 cache_write_tokens=write, output_tokens=u.output_tokens,
+                 unpriced_cache_write_tokens=_unpriced_breakdown(
+                     raw.get("cache_creation"), "ephemeral_5m_input_tokens", write))
 
 
-def openai_usage(u: Any) -> Usage:
+def openai_usage(u: Any, raw: dict | None = None, unpriced_ttl_sent: bool = False) -> Usage:
     """Responses API usage. input_tokens INCLUDES cached (and cache-write) tokens;
-    output_tokens INCLUDES reasoning tokens (billed as output)."""
+    output_tokens INCLUDES reasoning tokens (billed as output). Writes are split by
+    TTL in input_tokens_details.cache_write_tokens_details; only the 30-minute write
+    is priced. If the request itself asked for another TTL, every write is unpriced."""
     details = getattr(u, "input_tokens_details", None)
     cached = getattr(details, "cached_tokens", None) or 0
     write = getattr(details, "cache_write_tokens", None) or 0
+    raw_details = (raw or {}).get("input_tokens_details") or {}
+    unpriced = write if unpriced_ttl_sent else _unpriced_breakdown(
+        raw_details.get("cache_write_tokens_details"), "ttl_30m_tokens", write)
     return Usage(input_tokens=u.input_tokens - cached - write, cached_input_tokens=cached,
-                 cache_write_tokens=write, output_tokens=u.output_tokens)
+                 cache_write_tokens=write, output_tokens=u.output_tokens,
+                 unpriced_cache_write_tokens=unpriced)
 
 
 def anthropic_request_kwargs(request: dict, output_schema: dict | None) -> dict:
@@ -303,6 +372,17 @@ def anthropic_request_kwargs(request: dict, output_schema: dict | None) -> dict:
     return kw
 
 
+def anthropic_system(system: str, cache: bool) -> str | list[dict]:
+    """Caching off: the plain string (Stage 5.4 bytes). On: one text block with an
+    explicit 5-minute breakpoint, so the system prompt (and everything rendered
+    before it) is the cached prefix and the per-call user message is not. Automatic
+    caching is never used: it would mark the unique user message instead."""
+    if not cache:
+        return system
+    return [{"type": "text", "text": system,
+             "cache_control": {"type": "ephemeral", "ttl": CACHE_TTL["anthropic"]}}]
+
+
 class AnthropicAdapter:
     provider = "anthropic"
     needs_key = True
@@ -311,7 +391,7 @@ class AnthropicAdapter:
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema):
+             request, output_schema, cache=False):
         if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
             raise ConfigError("no API key passed")
         import anthropic  # lazy; pinned in requirements.txt (anthropic==2.3.0)
@@ -323,20 +403,22 @@ class AnthropicAdapter:
         client = anthropic.Anthropic(api_key=api_key, base_url=ANTHROPIC_BASE_URL,
                                      timeout=timeout, max_retries=0, open_telemetry=False,
                                      **extra)
-        resp = client.messages.create(model=model, system=system, messages=messages,
-                                      max_tokens=max_output_tokens,
+        resp = client.messages.create(model=model, system=anthropic_system(system, cache),
+                                      messages=messages, max_tokens=max_output_tokens,
                                       **anthropic_request_kwargs(request, output_schema))
         # Read by block type: thinking blocks (if any) are never the answer.
         text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
-        return Reply(text=text, usage=anthropic_usage(resp.usage),
-                     stop_reason=resp.stop_reason,
-                     raw_usage=resp.usage.model_dump(mode="json", exclude_none=True))
+        raw = resp.usage.model_dump(mode="json", exclude_none=True)
+        return Reply(text=text, usage=anthropic_usage(resp.usage, raw),
+                     stop_reason=resp.stop_reason, raw_usage=raw)
 
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"  # explicit: OPENAI_BASE_URL is never read
-# Disables OpenAI's implicit prompt-cache breakpoint (no explicit breakpoints are
-# sent), so no prompt caching happens until Stage 5.7 (D11).
+# Caching off: the implicit breakpoint is disabled and no explicit breakpoint is
+# sent, so nothing is cached (Stage 5.6 bytes). Caching on (Stage 5.7): explicit
+# mode with the 30-minute TTL on the request; breakpoints inherit it.
 OPENAI_PROMPT_CACHE = {"mode": "explicit"}
+OPENAI_PROMPT_CACHE_ON = {"mode": "explicit", "ttl": CACHE_TTL["openai"]}
 
 
 @contextmanager
@@ -351,18 +433,54 @@ def scrubbed_env(prefix: str):
         os.environ.update(saved)
 
 
-def openai_request_kwargs(request: dict, output_schema: dict | None) -> dict:
+def openai_request_kwargs(request: dict, output_schema: dict | None,
+                          cache: bool = False) -> dict:
     """Responses API fields for the agent's request settings + structured output.
     Sampling parameters are never sent; responses are never stored server-side."""
     if request.get("thinking") is not None:
         raise ConfigError("'thinking' is an Anthropic setting; use 'effort' for OpenAI")
-    kw: dict = {"store": False, "prompt_cache_options": dict(OPENAI_PROMPT_CACHE)}
+    kw: dict = {"store": False, "prompt_cache_options": dict(
+        OPENAI_PROMPT_CACHE_ON if cache else OPENAI_PROMPT_CACHE)}
     if request.get("effort") is not None:
         kw["reasoning"] = {"effort": request["effort"]}
     if output_schema is not None:
         kw["text"] = {"format": {"type": "json_schema", "name": "response",
                                  "schema": output_schema, "strict": True}}
     return kw
+
+
+def openai_input(messages: list[dict], cache: bool) -> list[dict]:
+    """Caching off: the messages unchanged (Stage 5.6 bytes). On: every user turn
+    becomes one input_text block ending in an explicit breakpoint (TTL inherited
+    from the request). Every earlier turn keeps its breakpoint, so request N+1 is a
+    byte-exact extension of request N: the previous breakpoint (written by the
+    previous call) is the read point, and the latest one writes what follows it (the
+    previous assistant reply + the new user turn, at the 30m write price); only a few
+    trailing tokens are full-price input (Stage 5.7 Gate 1: 3 per call). A request
+    writes at most its 4 latest breakpoints; lookup covers the first 2 and latest 50
+    (OpenAI prompt caching guide) - Red has at most round_cap user turns."""
+    if not cache:
+        return messages
+    out = []
+    for m in messages:
+        if m["role"] == "user":
+            out.append({"role": "user", "content": [
+                {"type": "input_text", "text": m["content"],
+                 "prompt_cache_breakpoint": {"mode": "explicit"}}]})
+        else:
+            out.append(m)
+    return out
+
+
+def openai_unpriced_ttl(kwargs: dict, items: list[dict]) -> bool:
+    """True if the request asks for any cache lifetime other than the priced one."""
+    ttls = {kwargs.get("prompt_cache_options", {}).get("ttl", CACHE_TTL["openai"])}
+    for m in items:
+        for c in m.get("content") if isinstance(m.get("content"), list) else []:
+            bp = c.get("prompt_cache_breakpoint")
+            if bp is not None:
+                ttls.add(bp.get("ttl", CACHE_TTL["openai"]))
+    return ttls != {CACHE_TTL["openai"]}
 
 
 def openai_reply_parts(resp: Any) -> tuple[str, str | None]:
@@ -397,10 +515,11 @@ class OpenAIAdapter:
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema):
+             request, output_schema, cache=False):
         if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
             raise ConfigError("no API key passed")
-        kwargs = openai_request_kwargs(request, output_schema)
+        kwargs = openai_request_kwargs(request, output_schema, cache)
+        items = openai_input(messages, cache)
         import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
         extra = {} if self.http_client_factory is None else \
             {"http_client": self.http_client_factory()}
@@ -410,11 +529,13 @@ class OpenAIAdapter:
         with scrubbed_env("OPENAI_"):
             client = openai.OpenAI(api_key=api_key, base_url=OPENAI_BASE_URL,
                                    timeout=timeout, max_retries=0, **extra)
-        resp = client.responses.create(model=model, instructions=system, input=messages,
+        resp = client.responses.create(model=model, instructions=system, input=items,
                                        max_output_tokens=max_output_tokens, **kwargs)
         text, stop = openai_reply_parts(resp)
-        return Reply(text=text, usage=openai_usage(resp.usage), stop_reason=stop,
-                     raw_usage=resp.usage.model_dump(mode="json", exclude_none=True))
+        raw = resp.usage.model_dump(mode="json", exclude_none=True)
+        return Reply(text=text, usage=openai_usage(resp.usage, raw,
+                                                   openai_unpriced_ttl(kwargs, items)),
+                     stop_reason=stop, raw_usage=raw)
 
 
 DEFAULT_ADAPTERS: dict[str, Adapter] = {"anthropic": AnthropicAdapter(),
@@ -547,7 +668,7 @@ class LLMClient:
 
     def _base(self, run_dir, match_id, agent, provider, model, round, first, last,
               attempt, prompt_sha) -> dict:
-        return {"schema_version": "0.1", "match_id": match_id, "timestamp": self.now(),
+        return {"schema_version": "0.2", "match_id": match_id, "timestamp": self.now(),
                 "agent": agent, "provider": provider, "model": model, "round": round,
                 "log_seq_first": first, "log_seq_last": last, "attempt": attempt,
                 "prompt_sha256": prompt_sha}
@@ -557,6 +678,7 @@ class LLMClient:
                               "http_status": None, "refusal": refusal, "stop_reason": None,
                               "input_tokens": 0,
                               "cached_input_tokens": 0, "cache_write_tokens": 0,
+                              "unpriced_cache_write_tokens": 0,
                               "output_tokens": 0, "latency_ms": 0})
         return Result(ok=False, error=f"refused by the body: {refusal['scope']} "
                                        f"{refusal['reason']}",
@@ -588,6 +710,7 @@ class LLMClient:
                               f"{agent} is configured for {provider}")
         max_out = agent_max_output_tokens(self.cfg, agent)
         request = agent_request(self.cfg, agent)
+        cache = agent_caching(self.cfg, agent) == "on"
         attempts_sent = 0
 
         for attempt in range(1, self.cfg["max_retries"] + 2):
@@ -620,7 +743,8 @@ class LLMClient:
                 reply = adapter.call(model=model, system=system, messages=messages,
                                      max_output_tokens=max_out,
                                      timeout=self.cfg["timeout_s"], api_key=key,
-                                     request=request, output_schema=output_schema)
+                                     request=request, output_schema=output_schema,
+                                     cache=cache)
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
                 latency = max(0, round_ms(self.clock() - t0))
                 kind, status, retry_after = classify(exc)
@@ -628,7 +752,9 @@ class LLMClient:
                                       "http_status": status, "refusal": None,
                                       "stop_reason": None,
                                       "input_tokens": None, "cached_input_tokens": None,
-                                      "cache_write_tokens": None, "output_tokens": None,
+                                      "cache_write_tokens": None,
+                                      "unpriced_cache_write_tokens": None,
+                                      "output_tokens": None,
                                       "latency_ms": latency})
                 error = self._redact(f"{type(exc).__name__}: {exc}")[:500]
                 if kind not in RETRYABLE or attempt > self.cfg["max_retries"]:
@@ -648,6 +774,8 @@ class LLMClient:
                                   "input_tokens": u.input_tokens,
                                   "cached_input_tokens": u.cached_input_tokens,
                                   "cache_write_tokens": u.cache_write_tokens,
+                                  "unpriced_cache_write_tokens":
+                                      u.unpriced_cache_write_tokens,
                                   "output_tokens": u.output_tokens, "latency_ms": latency})
             return Result(ok=True, text=reply.text, usage=u, attempts=attempts_sent,
                           stop_reason=reply.stop_reason, raw_usage=reply.raw_usage)

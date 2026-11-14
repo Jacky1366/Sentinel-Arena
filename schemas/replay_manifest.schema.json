@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/replay_manifest.schema.json",
   "title": "Replay manifest (contract 6.9, schema_version 0.1)",
-  "description": "data/replays/<replay_id>/replay.json (Stage 5.5, D17), written LAST by tools/replay_blue.py. A replay runs Blue and the full Judge on a COPY of a frozen match's inputs (proxy log, Red records, benign records, snapshots, Red unsent slots); it never writes into the source folder. source records the source match id, its match.json sha256 and every source artifact hash (from its match.json), and which files were copied (each verified against those hashes first). Verdicts and rounds keep the source match_id, so the source's D16 audit applies; a replay is identified by replay_id. status/failed_step/error/budget/cost follow match.json (contract 6.2); cost covers this replay's Blue calls only (Red's calls are never copied).",
+  "description": "data/replays/<replay_id>/replay.json (Stage 5.5, D17), written LAST by tools/replay_blue.py. A replay runs Blue and the full Judge on a COPY of a frozen match's inputs (proxy log, Red records, benign records, snapshots, Red unsent slots); it never writes into the source folder. source records the source match id, its match.json sha256 and every source artifact hash (from its match.json), and which files were copied (each verified against those hashes first). Verdicts and rounds keep the source match_id, so the source's D16 audit applies; a replay is identified by replay_id. status/failed_step/error/budget/cost follow match.json (contract 6.2); cost covers this replay's Blue calls only (Red's calls are never copied). Schema 0.2 (Stage 5.7): blue_params carry caching {mode, ttl}; every cost bucket carries cache_savings_usd (net, may be negative).",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,7 +26,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "0.1"
+      "const": "0.2"
     },
     "replay_id": {
       "type": "string",
@@ -172,7 +172,8 @@
             "system_prompt_sha256",
             "sdk",
             "request",
-            "rules"
+            "rules",
+            "caching"
           ],
           "properties": {
             "provider": {
@@ -296,6 +297,9 @@
                   "minimum": 0
                 }
               }
+            },
+            "caching": {
+              "$ref": "#/$defs/caching"
             }
           }
         }
@@ -683,7 +687,8 @@
         "attempts",
         "failed_attempts",
         "refused",
-        "tokens"
+        "tokens",
+        "cache_savings_usd"
       ],
       "properties": {
         "usd": {
@@ -706,6 +711,58 @@
         },
         "tokens": {
           "$ref": "#/$defs/tokens"
+        },
+        "cache_savings_usd": {
+          "type": "number",
+          "description": "net cache savings of this bucket's calls (may be negative: writes cost more than input)"
+        }
+      }
+    },
+    "caching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "ttl"
+      ],
+      "description": "Prompt caching (Stage 5.7, D18): a cost setting, held constant within any comparison. ttl is the cache-write lifetime used (Anthropic 5m, OpenAI 30m); null iff mode is off.",
+      "properties": {
+        "mode": {
+          "enum": [
+            "off",
+            "on"
+          ]
+        },
+        "ttl": {
+          "enum": [
+            null,
+            "5m",
+            "30m"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "off"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "ttl": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "ttl": {
+            "enum": [
+              "5m",
+              "30m"
+            ]
+          }
         }
       }
     }

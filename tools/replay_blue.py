@@ -121,7 +121,8 @@ def load_source(match_dir: Path) -> tuple[dict, dict[str, str]]:
 
 def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
            rules_mode: str | None = None, model: str | None = None,
-           ops: run_match.Ops | None = None, out_fn=print) -> tuple[int, Path | None]:
+           ops: run_match.Ops | None = None, out_fn=print,
+           caching: str | None = None) -> tuple[int, Path | None]:
     """Replay Blue + the Judge. Returns (exit code, replay dir or None if refused)."""
     ops = ops or run_match.Ops()
     try:
@@ -132,6 +133,9 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         out = out or REPLAYS / replay_id
         check_out_dir(out)
         config, prices, price_ref = ops.llm_setup()
+        if caching is not None and engine != "claude":
+            raise Refused("--caching needs --engine claude (caching is an AI-call setting)")
+        config = llm_client.with_caching(config, "blue", caching)
         if engine == "claude":
             blue_m = run_blue.blue_model(config, model)
             chunk = run_blue.blue_chunk_size(config)
@@ -181,7 +185,7 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
     stop = llm_client.stopped_by(calls, prices)
     status = "failed" if failed_step else "stopped" if stop is not None else "completed"
     manifest = {
-        "schema_version": "0.1", "replay_id": replay_id, "started_at": started,
+        "schema_version": "0.2", "replay_id": replay_id, "started_at": started,
         "finished_at": match_ops.utc_now(), "status": status, "failed_step": failed_step,
         "error": error, "judge_version": JUDGE_VERSION,
         "source": {"match_id": mid, "path": _rel(match_dir),
@@ -229,8 +233,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--rules-mode", choices=("off", "shadow", "on"), default=None,
                     help="claude: rule invention mode (default: config/llm.json)")
     ap.add_argument("--model", default=None, help="claude: Blue model id override")
+    ap.add_argument("--caching", choices=("off", "on"), default=None,
+                    help="claude: prompt caching (default: config/llm.json agents.blue.caching)")
     args = ap.parse_args(argv)
-    code, _ = replay(args.match, args.out, args.engine, args.rules_mode, args.model)
+    code, _ = replay(args.match, args.out, args.engine, args.rules_mode, args.model,
+                     caching=args.caching)
     return code
 
 

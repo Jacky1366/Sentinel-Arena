@@ -63,7 +63,8 @@ rules disagree on the CWE: the earliest hot-loaded rule wins.*
 are derived later from a dated price table.
 
 **D11 — Prompts are built stable-prefix-first from the start.** Provider-side prompt
-caching is enabled only after the agent loop is stable (Stage 5.7).
+caching is enabled only after the agent loop is stable (Stage 5.7). *Done in Stage 5.7
+(D18).*
 
 **D12 — Development uses the cheapest current-generation model per provider.**
 Stronger models are only for flagship tests and the golden run.
@@ -167,6 +168,16 @@ the source folder (golden folders stay byte-identical; tested). Verdicts keep th
 replay re-runs the Judge at the current `JUDGE_VERSION`. Limitation: the equivalence holds
 for Blue alone; anything that would let Blue's output reach Red (e.g. a future blocking
 defender) would break it. *Recorded 2026-11-13 (Stage 5.5).*
+
+**D18 — Prompt caching is a per-agent cost setting, off by default (Stage 5.7).**
+`agents.<agent>.caching` `off` | `on` replaces the global `provider_caching` switch.
+Caching never changes a prompt's text, version or hash, only what is billed, but it is
+still held constant within any comparison and recorded in `blue_params` / `red_params`.
+Only cache lifetimes the price table has a write price for are used (Anthropic 5 minutes,
+OpenAI 30 minutes); a write at any other lifetime is unpriced usage and stops the match.
+Blue caches its system prompt (one explicit breakpoint); Red caches its growing,
+append-only history (an explicit breakpoint at the end of every user turn, never moved).
+Prompt v1 is never padded to reach a provider's cache minimum.
 
 ## Implementation notes (Stage 5.1)
 
@@ -360,3 +371,63 @@ the designer's answers):
   line counts, type accuracy and FP rate (never a rule-path detection rate: 100% by
   construction), rules proposed / stored / rejected with reasons,
   facts 3 and 4b per rule, AI calls saved, cost, and every rule and rejection in full.
+
+## Implementation notes (Stage 5.7, D11, D16, D18)
+
+Plan: `docs/plans/stage5_7_step0.md`; the designer's decisions on it (C1–C8):
+- **C1:** prompt v1 is never padded. Whether it reaches Haiku 5.5's 512-token minimum is
+  measured by one extra v1 call at Gate 1 and recorded either way.
+- **C2:** Red's Gate 1 dry run was set at 5 turns. The OpenAI prompt caching guide puts
+  the minimum at 1,024 visible tokens per cached prefix (GPT-5.6 and later), and Red's
+  turns 1–5 are about 357–1,510 tokens (fewer with the short dry-run feedback), so 5 turns
+  show at most one read. The gate tool keeps the decided default of 5 turns and takes
+  `--red-turns N`; 10 turns (about $0.001 more) would show reads growing turn by turn.
+  The designer chooses at the GO.
+- **C3:** one per-agent switch; the global `provider_caching` key is removed (a config that
+  still has it is refused).
+- **C4:** `api_calls.jsonl` 0.2 adds `unpriced_cache_write_tokens`. Detected from the
+  provider's write breakdown (Anthropic `cache_creation.ephemeral_1h_input_tokens`; OpenAI
+  `input_tokens_details.cache_write_tokens_details.ttl_12h_tokens`, or any other lifetime)
+  and, for OpenAI, from the request itself (any lifetime other than 30m makes every write
+  of that call unpriced). The pinned OpenAI SDK does not model the breakdown, but keeps it
+  in the raw usage (tested).
+- **C5:** Gate 2's primary number is the same run priced as uncached (`usd + net
+  savings`); the comparison with the committed gate-5.5 cost is secondary (run-to-run
+  variation in rule-answered lines changes the call count).
+- **C6:** the Gate 3 seed fixes the benign schedule only; AI Red is not seeded.
+- **C7 (changed by the designer):** the four-facts check has three outcomes, PASS, N/A (no
+  rules) and FAIL (contract §6.11). Stage 5 is done when at least one Gate 3 match reaches
+  PASS.
+- **C8:** after the designer's audit, the three Gate 3 matches are committed as golden
+  evidence with their audits.
+- **Red breakpoints (designer's question).** OpenAI: "each request can create up to four
+  cache writes"; lookup covers the first 2 and the latest 50 explicit breakpoints (the
+  pinned SDK's docstring says the latest 80); neither source says that a request with more
+  than four markers is an error, and only the latest four are written. Markers are not
+  listed among the settings that break a prefix, but the docs do not say either way. The
+  scheme therefore never moves or removes a marker: every user turn keeps its breakpoint,
+  so every request is a byte-exact extension of the previous one; each call needs only one
+  new write, and older turns are read points. Red has at most `round_cap` (10) user turns,
+  within the lookup window. **Gate 1 confirmed it** (10 markers on turn 10 accepted; no
+  fallback needed). **Correction after Gate 1:** on call n the previous assistant reply and
+  the new user turn are not left uncached: they are *written* at the new breakpoint
+  (30-minute write price, 1.25× input), and only about 3 trailing tokens per call are
+  full-price input (turn 9: read 1,063, wrote 95; turn 10: read 1,158, wrote 102).
+- **Formats:** `api_calls.jsonl` 0.2, `match.json` 0.7, `replay.json` 0.2 (frozen
+  `api_call_v0_1`, `match_manifest_v0_6`, `replay_manifest_v0_1`). No Judge or `rules/`
+  change: `JUDGE_VERSION` 0.6.0. The fake test provider is given the Anthropic 5-minute
+  lifetime; Gemini has no priced cache lifetime, so `caching: on` is refused for it.
+- **Gates (each after the designer's GO, from a clean committed tree):** Gate 1
+  `tools/stage5_7_gate1.py --real-calls` (Blue: 2 v2 calls + 1 v1 call; Red: a dry run,
+  nothing sent; raw usage, api_calls lines and cost for the dashboard check); Gate 2
+  `tools/stage5_7_check.py --gate 2 --real-calls` (the four gate-5.5 sources, rules on,
+  caching on); Gate 3 `tools/stage5_7_check.py --gate 3 --real-calls` (three AI-vs-AI
+  matches, seed 5202, scaffolds the D16 audits and writes the sheet).
+- **Gate 3 result and audit (2026-11-14).** All three AI-vs-AI matches reach four facts
+  PASS: **Stage 5 is done.** First AI-vs-AI D16 audit: 27 valid, 1 invalid (match 2 round
+  8, `GET /ftp/acquisitions.md` labelled CWE-22: forced browsing). The CWE-22 criterion
+  (2026-11-13 refinement) was applied unchanged; match 1 round 7 (`/ftp/../ftp/legal.md`)
+  is valid under it. Forced browsing labelled CWE-22 has now appeared in 2 of 6 AI-Red
+  matches: a systematic taxonomy gap, a candidate topic for Stage 6 (no taxonomy change
+  now). Per C8 the matches and audits are committed: `data/golden/ai-vs-ai-gate3-match{1,2,3}/`,
+  `data/golden/audits/`, sheet `docs/audits/stage5_7_gate3_label_audit.md`.

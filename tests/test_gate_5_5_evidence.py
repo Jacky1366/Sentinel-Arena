@@ -23,7 +23,7 @@ SOURCES = ["ai-red-luna-gate2-match1", "ai-red-luna-gate2-match2", "ai-red-luna-
 MODES = ("off", "shadow", "on")
 FOLDERS = [f"{s}-{m}" for s in SOURCES for m in MODES]
 COMMIT = "072e9d72daa836ab936574aab3ac0d3af456fd76"
-SCHEMA = Draft202012Validator(json.loads((REPO / "schemas" / "replay_manifest.schema.json")
+SCHEMA = Draft202012Validator(json.loads((REPO / "schemas" / "replay_manifest_v0_1.schema.json")
                                          .read_text()))
 # Written by the Judge (offline steps); re-derived from the inputs + Blue's verdicts.
 JUDGED = ("landed.jsonl", "rounds.jsonl", "benign_results.jsonl", "anomalies.jsonl",

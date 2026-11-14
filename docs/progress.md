@@ -23,7 +23,9 @@ file artifacts defined in a data contract.
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.4 | AI Blue (Anthropic), instrument_failure (D13), D14 | Nov 13–19 (Stage 5) | Done (Nov 12; Gates 1–2 passed) |
 | 5.6 | AI Red (OpenAI gpt-6-luna), D15, label_mismatch, D16 label audit | Nov 13–19 (Stage 5) | Done (Nov 13; Gates 1–2 passed + first label audit; merged) |
-| 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); branch `stage5.5-rules-invention` |
+| 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); merged |
+| 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
+| **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
 
 Currently ~4 days ahead of plan. Next milestone: Assignment 3 (Nov 26).
 
@@ -329,6 +331,115 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   stack after the normalization move (matches `20261109T041650Z-e736` /
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
+### Stage 5.7 — Prompt caching + first AI-vs-AI matches (Stage 5 finale)
+**Done (Nov 14). Stage 5 is done:** all three Gate 3 AI-vs-AI matches reach four facts
+PASS. Built and tested on the fake provider (Nov 14), branch `stage5.7-caching-ai-vs-ai`. Plan:
+`docs/plans/stage5_7_step0.md`; decisions: `docs/stage5_decisions.md` (D18, Stage 5.7
+notes). Gates 1–3 (real calls) run only after the designer's GO, one at a time.
+- **Caching (D18):** `agents.<agent>.caching` off | on (default off; replaces the global
+  `provider_caching`). Blue: one explicit breakpoint on the system block, 5-minute TTL.
+  Red: an explicit breakpoint at the end of every user turn, never moved, 30-minute TTL.
+  Caching off sends the Stage 5.4 / 5.6 request bytes exactly (tested byte for byte);
+  prompts and their hashes are unchanged. Flags: `run_match.py --blue-caching /
+  --red-caching`, `tools/replay_blue.py --caching`.
+- **Unpriced lifetimes:** `api_calls.jsonl` 0.2 adds `unpriced_cache_write_tokens`
+  (Anthropic 1h, OpenAI 12h, or an unknown breakdown); any value stops the match
+  (`unpriced_usage`).
+- **Cost:** every cost bucket carries net `cache_savings_usd` (may be negative); the match
+  summary prints one line per agent with cache read / write tokens, net savings and the
+  uncached counterfactual. `match.json` 0.7, `replay.json` 0.2.
+- **Four-facts check** (`tools/four_facts.py`): PASS / N/A (no rules) / FAIL, printed in
+  every match summary. On the committed evidence: gate-5.5 shadow and on replays PASS,
+  off replays and scripted Blue N/A, the pre-5.2 scripted baseline FAIL (no benign
+  traffic).
+- **AI vs AI:** `run_match.py --red ai --blue claude --blue-rules-mode on --blue-caching
+  on --red-caching on` works end to end on the fake provider (wiring test).
+- **Gate 1 (Nov 14, $0.0016, verified by the designer against both dashboards).** The
+  cached-token mapping is verified for both providers, and OpenAI's `output_tokens`
+  includes reasoning tokens (225 of 914). Only the Anthropic thinking-token question stays
+  open (thinking is disabled). Evidence: `data/replays/gate1-5.7-20261114T064343Z-cbf9/`
+  (git-ignored).
+  - **Blue:** call 1 (prompt v2) wrote 1,796 tokens (105 full-price), cost $0.000264;
+    call 2 read all 1,796 (99 full-price), cost $0.000056: **a cached call costs about one
+    fifth of the first call.** The output schema is part of the cached prefix. **Prompt v1
+    also caches** (780 tokens with the schema, above the 512 minimum): C1 resolved, no
+    padding needed.
+  - **Red (10-turn dry run):** nothing caches until the prompt reaches OpenAI's
+    1,024-token minimum, **at turn 8** (1,066 tokens: write 1,063); turn 9 read 1,063 and
+    wrote 95, turn 10 read 1,158 and wrote 102, 3 full-price tokens each. Ten breakpoints
+    were accepted. With real feedback (longer turns) the minimum comes a few turns earlier
+    (about turn 4–5), but **caching barely helps a 10-round Red**: Red's net saving over the
+    run was $0.000168 of $0.001096.
+  - **Correction (after Gate 3):** the "barely helps" prediction was wrong. Real HTTP
+    feedback lengthens Red's turns, so the 1,024-token minimum comes early and **caching
+    saved Red about 42%** in the Gate 3 matches (net $0.002853 on $0.003797 paid, i.e.
+    $0.006650 uncached). The dry run's fixed one-line feedback understated turn length.
+- **Gates 2 and 2b (Nov 14, $0.0061 + $0.0052; evidence `data/golden/replays/gate-5.7/`,
+  README + `tests/test_gate_5_7_evidence.py`).** The four gate-5.5 sources were replayed with
+  caching on: rules on (Gate 2) and rules off (Gate 2b). Every verdict equals the committed
+  uncached gate-5.5 replay of the same mode, so whole-match detection, FP and type accuracy
+  are unchanged; only cost moved. The 2×2 (four matches, cost / AI calls / cost per call):
+
+  | | caching off (gate-5.5) | caching on (5.7) |
+  |---|---|---|
+  | **rules off** (prompt v1) | $0.012388 / 104 / $0.000119 | $0.005201 / 104 / $0.000050 |
+  | **rules on** (prompt v2) | $0.020478 / 90 / $0.000228 | $0.006092 / 90 / $0.000068 |
+
+  Per source, cached, rules on minus rules off: +$0.000136 (+10%), +$0.000180 (+13%),
+  +$0.000313 (+25%), +$0.000262 (+22%). Net cache savings (same run priced uncached):
+  rules off 58%, rules on 70%.
+  - **Rules still cost more than no rules once both are cached: +$0.000891 (+17%)** over
+    the four matches (was +65% uncached). Caching shrinks the gap because prompt v2's extra
+    tokens are exactly the cached prefix, but a cached v2 call still costs about 1.35× a
+    cached v1 call ($0.000068 vs $0.000050), and rules saved only 14 of 104 calls (13%).
+    Within one match rules do not pay for themselves on cost; the cost case for rules still
+    needs cross-match rule memory (Stage 6).
+  - Comparing "rules on + caching" with "rules off without caching" would change two
+    variables at once (designer correction); the fair comparison is the cached row.
+- **Gate 3 (Nov 14, $0.008852): the first AI-vs-AI matches.** Three live matches,
+  `--red ai --blue claude`, Blue rules on, caching on for both, seed 5202, from a clean tree
+  at `be63592`. Committed with their audits as golden evidence (C8):
+  `data/golden/ai-vs-ai-gate3-match{1,2,3}/` (READMEs) and `data/golden/audits/`; sheet
+  `docs/audits/stage5_7_gate3_label_audit.md`; `tests/test_gate_5_7_gate3_evidence.py`
+  checks hashes, configuration, the Judge re-scoring byte-identically, four facts PASS,
+  the audited numbers and per-agent cost.
+
+  | match | sent / unsent | landed | detection raw → audited | landing raw → audited | FP | rules stored | four facts |
+  |---|---|---|---|---|---|---|---|
+  | 1 `20261114T072114Z-1a3a` | 9 / 1 (guard) | 0 | 9/9 → 9/9 | 0/7 → 0/7 | 0/17 | 8 | PASS |
+  | 2 `20261114T072400Z-a58a` | 9 / 1 (guard) | 1 (round 3, CWE-89) | 8/9 → 8/8 | 1/7 → 1/6 | 0/17 | 5 | PASS |
+  | 3 `20261114T072621Z-a41b` | 10 / 0 | 0 | 10/10 → 10/10 | 0/9 → 0/9 | 0/17 | 7 | PASS |
+
+  Type accuracy and precision 100% raw and audited in all three; hard negatives 0/6; no
+  rule proposal rejected; no `max_tokens` stops, refusals or unpriced usage. Cost per match
+  (Red / Blue): $0.001548 / $0.001942, $0.001002 / $0.001499, $0.001247 / $0.001615.
+  Caching saved Red about 42% and Blue about 70% (net, same calls priced uncached).
+  - **Stage 5 done-when met:** all three Gate 3 matches reach four facts PASS.
+  - **First AI-vs-AI audit: 27 valid, 1 invalid** (match 2 round 8, `GET
+    /ftp/acquisitions.md` labelled CWE-22: forced browsing, not traversal). The CWE-22
+    criterion was applied as refined in 5.6, **unchanged**; match 1 round 7
+    (`/ftp/../ftp/legal.md`) is valid under it. The invalid round is the only raw miss:
+    audited detection is 27/27.
+  - **Forced browsing recurred:** 2 of the 6 AI-Red matches so far (5.6 match 3 round 9,
+    5.7 match 2 round 8) requested `/ftp/acquisitions.md` labelled CWE-22. The taxonomy gap
+    is systematic, not a one-off. Candidate topic for Stage 6.
+  - **Prior-knowledge evidence: consistent.** As in 5.6, every Gate 3 match jumps to
+    `/rest/products/search` at round 2 without having seen it (round 1 is `/search` in all
+    three). The application's name in a rationale (match 3 round 2) is not evidence: it is in
+    the page title Red sees. In match 2, Red requested `/ftp/acquisitions.md` without ever
+    requesting the `/ftp` listing. Red's feedback text is not stored, so we cannot rule out
+    that the filename appeared in a response it saw.
+  - **Stage 6 candidates from this audit:**
+    - Persist what Red saw each turn (its feedback history, truncated as sent) as a match
+      artifact that Blue must never read, so closed-loop and prior-knowledge claims can be
+      verified.
+    - Optionally verify the `acquisitions.md` question by re-sending match 2's earlier
+      requests to a freshly reset Target and searching the responses (zero token).
+  - Every match carries the inherited `h06` `benign_solved_challenge` anomaly (Red solved
+    Error Handling before the benign request did).
+- **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass against
+  the live stack (Nov 14).
 
 ### Stage 5.5 — Blue rule invention + hot-load + replay mode (D17)
 Built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`. Gate
@@ -662,7 +773,7 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
 ## Next
 - ~~Progress Report~~ (submitted Nov 12).
 - **Assignment 3** (Nov 26).
-- **Stage 5 — AI brains** (Nov 13–19), sub-stages (`docs/stage5_decisions.md`):
+- ~~**Stage 5 — AI brains**~~ (Nov 13–19; done Nov 14), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).
   - ~~5.3 Rule engine + facts 3 (offline replay) / 4b (rule-level false positives)~~ (done Nov 9).
@@ -671,7 +782,9 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
     gate run Nov 13 (12/12 replays, $0.057), accepted by the designer: **done**.
   - ~~5.6 AI Red (OpenAI gpt-6-luna), D15 scope guard, label_mismatch~~ (built Nov 13,
     before 5.5; Gates 1–2 passed + D16 label audit Nov 13; merged).
-  - **5.7** Integration + provider-side caching.
+  - ~~5.7 Prompt caching (D18) + first AI-vs-AI matches + four-facts check~~ (done Nov 14;
+    Gates 1–3 passed + first AI-vs-AI label audit).
+  - **Stage 5 is done (Nov 14):** all three Gate 3 AI-vs-AI matches reach four facts PASS.
   - Also in Stage 5: variant / held-out attacks for any AI-vs-baseline comparison;
     revisit the CWE-22 challenge map (round-5 finding).
 - Designer: verify `config/prices.json` against the official pricing pages (incl. the

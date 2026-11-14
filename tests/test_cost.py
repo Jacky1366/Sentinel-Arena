@@ -185,3 +185,52 @@ def test_summarize_sums_from_raw_tokens_never_rounds_per_call():
     assert s["total_usd"] == pytest.approx(0.0001)  # 1000 * 1e-7, summed raw then rounded
     assert s["by_model"]["gpt-6-luna"]["usd"] == pytest.approx(0.0001)
     assert s["attempts"] == 1000 and s["tokens"]["input"] == 1000
+
+
+# -- Stage 5.7: unpriced cache-write lifetimes, per-agent savings ------------------
+
+def test_unpriced_cache_write_tokens_are_left_out_and_stop_the_match():
+    tiered = HAIKU_LIKE
+    line = {**call("tiered", i=100, w=1000, o=10), "unpriced_cache_write_tokens": 800}
+    c = cost.call_cost(line, tiered)
+    # only the 200 priced (5-minute) write tokens are in usd and savings
+    assert c["usd"] == pytest.approx((100 * 0.10 + 200 * 0.125 + 10 * 0.50) / 1e6)
+    assert c["savings_usd"] == pytest.approx(-200 * (0.125 - 0.10) / 1e6)
+    assert c["unpriced_usage"] and c["lower_bound"]
+    s = cost.summarize([line], tiered)
+    assert s["unpriced_usage"] and s["lower_bound"]
+
+
+def test_v0_1_lines_without_the_field_read_as_zero():
+    line = call("tiered", i=100, w=1000, o=10)
+    assert "unpriced_cache_write_tokens" not in line
+    c = cost.call_cost(line, HAIKU_LIKE)
+    assert not c["unpriced_usage"] and not c["lower_bound"]
+
+
+def test_every_bucket_carries_net_cache_savings_which_may_be_negative():
+    calls = [call("tiered", agent="blue", i=100, w=1000, o=10),   # write only: negative
+             call("tiered", agent="red", i=100, c=5000, o=10)]    # read only: positive
+    s = cost.summarize(calls, HAIKU_LIKE)
+    blue, red = s["by_agent"]["blue"], s["by_agent"]["red"]
+    assert blue["cache_savings_usd"] == pytest.approx(-1000 * (0.125 - 0.10) / 1e6)
+    assert red["cache_savings_usd"] == pytest.approx(5000 * (0.10 - 0.01) / 1e6)
+    assert s["cache_savings_usd"] == pytest.approx(blue["cache_savings_usd"]
+                                                   + red["cache_savings_usd"])
+    assert s["by_model"]["tiered"]["cache_savings_usd"] == pytest.approx(s["cache_savings_usd"])
+
+
+def test_agent_lines_print_reads_writes_and_signed_net_savings():
+    calls = [call("tiered", agent="blue", i=100, w=1000, o=10),
+             call("tiered", agent="red", i=100, c=5000, o=10),
+             call("tiered", agent="red", refusal={"scope": "red", "reason": "max_usd"})]
+    lines = cost.format_agent_lines(cost.summarize(calls, HAIKU_LIKE))
+    assert len(lines) == 2
+    blue, red = lines
+    assert blue.split()[0] == "blue" and "write 1000 tok" in blue
+    assert "net savings -$0.000025" in blue  # negative, printed with its sign
+    assert red.split()[0] == "red" and "read 5000" in red and "net savings $0.000450" in red
+    s = cost.summarize(calls, HAIKU_LIKE)
+    uncached = s["by_agent"]["red"]["usd"] + s["by_agent"]["red"]["cache_savings_usd"]
+    assert f"uncached ${uncached:.6f}" in red
+    assert cost.format_agent_lines(cost.summarize([], HAIKU_LIKE)) == []

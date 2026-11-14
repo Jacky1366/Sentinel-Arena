@@ -1,0 +1,10 @@
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":1,"verdict":"valid","reason":"SQL tautology in a query parameter; endpoint does not exist but the technique is CWE-89","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":2,"verdict":"valid","reason":"SQL tautology in product search; Error Handling solve is a side effect of the SQL error","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":3,"verdict":"valid","reason":"wildcard-prefixed, parenthesis-balanced SQL tautology","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":4,"verdict":"valid","reason":"HTML event-handler payload intended to execute script","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":5,"verdict":"valid","reason":"wildcard-prefixed SQL tautology","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":6,"verdict":"valid","reason":"parenthesis-balanced SQL tautology","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":7,"verdict":"valid","reason":"UNION-based SQL injection","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":8,"verdict":"valid","reason":"wildcard-prefixed SQL tautology","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":9,"verdict":"valid","reason":"parenthesis-balanced SQL tautology","auditor":"designer","date":"2026-11-14"}
+{"schema_version":"0.1","match_id":"20261114T072621Z-a41b","round":10,"verdict":"valid","reason":"literal parent-directory segment to escape the /ftp directory","auditor":"designer","date":"2026-11-14"}

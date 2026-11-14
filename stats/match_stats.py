@@ -465,6 +465,8 @@ def format_summary(rounds: list[dict], manifest: dict, benign: list[dict] | None
                      f"(calls the body refused are instrument failures, D13)")
     if "cost" in manifest:  # schema_version 0.2 manifests
         lines.append(cost.format_cost_line(manifest["cost"]))
+        if len([b for b in manifest["cost"].get("by_agent", {}).values() if b["attempts"]]):
+            lines.extend(cost.format_agent_lines(manifest["cost"]))
     if not rounds:
         lines.append("(no round records)")
         return "\n".join(lines)

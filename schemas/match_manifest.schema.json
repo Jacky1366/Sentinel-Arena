@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/match_manifest.schema.json",
   "title": "Match manifest (schema_version 0.6; contract 6.2)",
-  "description": "data/runs/<match_id>/match.json, schema_version 0.6 (Stage 5.5 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. red_engine says who chose the attacks; red_source (the payload file) is non-null iff scripted, red_params and models.red iff ai. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3 / v0_4.schema.json. 0.6 (Stage 5.5): blue_params gains the required rules block {mode: off|shadow|on, max_rules} (rule invention, D9), and failed_step gains judge_rules (Judge facts 3 + 4b inside the match). 0.5 manifests are validated by match_manifest_v0_5.schema.json.",
+  "description": "data/runs/<match_id>/match.json, schema_version 0.6 (Stage 5.5 on): one JSON object written by the orchestrator (run_match.py) as the LAST file of every match, completed, failed or stopped (contract 6.2). failed_step and error are null iff status is not failed. stopped means a budget refusal or unpriced usage ended an agent's calls early; budget.stopped_by says which. artifacts lists every other file with its sha256 and size. traffic records the seed, the benign set and the planned schedule. blue_params records the AI Blue configuration (null for scripted Blue); models.blue is non-null iff blue_engine is claude. red_engine says who chose the attacks; red_source (the payload file) is non-null iff scripted, red_params and models.red iff ai. Older manifests are validated by match_manifest_v0_1 / v0_2 / v0_3 / v0_4.schema.json. 0.6 (Stage 5.5): blue_params gains the required rules block {mode: off|shadow|on, max_rules} (rule invention, D9), and failed_step gains judge_rules (Judge facts 3 + 4b inside the match). 0.5 manifests are validated by match_manifest_v0_5.schema.json. Schema 0.7 (Stage 5.7): blue_params and red_params carry caching {mode, ttl}; every cost bucket carries cache_savings_usd (net, may be negative). red_params.request.prompt_caching (free text) is removed.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -184,7 +184,8 @@
         "attempts",
         "failed_attempts",
         "refused",
-        "tokens"
+        "tokens",
+        "cache_savings_usd"
       ],
       "properties": {
         "usd": {
@@ -207,13 +208,65 @@
         },
         "tokens": {
           "$ref": "#/$defs/tokens"
+        },
+        "cache_savings_usd": {
+          "type": "number",
+          "description": "net cache savings of this bucket's calls (may be negative: writes cost more than input)"
+        }
+      }
+    },
+    "caching": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "ttl"
+      ],
+      "description": "Prompt caching (Stage 5.7, D18): a cost setting, held constant within any comparison. ttl is the cache-write lifetime used (Anthropic 5m, OpenAI 30m); null iff mode is off.",
+      "properties": {
+        "mode": {
+          "enum": [
+            "off",
+            "on"
+          ]
+        },
+        "ttl": {
+          "enum": [
+            null,
+            "5m",
+            "30m"
+          ]
+        }
+      },
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "off"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "ttl": {
+            "const": null
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "ttl": {
+            "enum": [
+              "5m",
+              "30m"
+            ]
+          }
         }
       }
     }
   },
   "properties": {
     "schema_version": {
-      "const": "0.6"
+      "const": "0.7"
     },
     "match_id": {
       "type": "string",
@@ -605,7 +658,8 @@
             "system_prompt_sha256",
             "sdk",
             "request",
-            "rules"
+            "rules",
+            "caching"
           ],
           "properties": {
             "provider": {
@@ -729,6 +783,9 @@
                   "minimum": 0
                 }
               }
+            },
+            "caching": {
+              "$ref": "#/$defs/caching"
             }
           }
         }
@@ -757,7 +814,8 @@
             "sdk",
             "request",
             "feedback_body_chars",
-            "guard"
+            "guard",
+            "caching"
           ],
           "properties": {
             "provider": {
@@ -816,7 +874,6 @@
                 "reasoning_effort",
                 "output_format",
                 "store",
-                "prompt_caching",
                 "temperature",
                 "temperature_note"
               ],
@@ -845,10 +902,6 @@
                 },
                 "store": {
                   "type": "boolean"
-                },
-                "prompt_caching": {
-                  "type": "string",
-                  "minLength": 1
                 },
                 "temperature": {
                   "type": [
@@ -893,6 +946,9 @@
                   "minimum": 0
                 }
               }
+            },
+            "caching": {
+              "$ref": "#/$defs/caching"
             }
           }
         }
