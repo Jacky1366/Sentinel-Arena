@@ -424,10 +424,12 @@ notes). Gates 1–3 (real calls) run only after the designer's GO, one at a time
   - **Forced browsing recurred:** 2 of the 6 AI-Red matches so far (5.6 match 3 round 9,
     5.7 match 2 round 8) requested `/ftp/acquisitions.md` labelled CWE-22. The taxonomy gap
     is systematic, not a one-off. Candidate topic for Stage 6.
-  - **Prior-knowledge evidence strengthened:** in match 2, Red requested
-    `/ftp/acquisitions.md` without ever requesting the `/ftp` listing. Red's feedback text is
-    not stored, so we cannot rule out that the filename appeared in a response it saw. Match 3
-    round 2's rationale names the application again ("Juice Shop's product-search API").
+  - **Prior-knowledge evidence: consistent.** As in 5.6, every Gate 3 match jumps to
+    `/rest/products/search` at round 2 without having seen it (round 1 is `/search` in all
+    three). The application's name in a rationale (match 3 round 2) is not evidence: it is in
+    the page title Red sees. In match 2, Red requested `/ftp/acquisitions.md` without ever
+    requesting the `/ftp` listing. Red's feedback text is not stored, so we cannot rule out
+    that the filename appeared in a response it saw.
   - **Stage 6 candidates from this audit:**
     - Persist what Red saw each turn (its feedback history, truncated as sent) as a match
       artifact that Blue must never read, so closed-loop and prior-knowledge claims can be
