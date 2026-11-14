@@ -1,7 +1,8 @@
 """Stage 5.7 Gates 2 and 3 (REAL, PAID calls; each only after the designer's GO).
 
     .venv/bin/python tools/stage5_7_check.py --gate 2               # plan only, calls nothing
-    .venv/bin/python tools/stage5_7_check.py --gate 2 --real-calls  # caching effect
+    .venv/bin/python tools/stage5_7_check.py --gate 2 --real-calls  # caching effect, rules on
+    .venv/bin/python tools/stage5_7_check.py --gate 2 --rules-mode off --real-calls  # Gate 2b
     .venv/bin/python tools/stage5_7_check.py --gate 3 --real-calls  # first AI-vs-AI matches
 
 Gate 2 (caching effect, D17 clean comparison): the four gate-5.5 sources replayed with
@@ -12,7 +13,9 @@ data/golden/replays/gate-5.5/*-on replays). Per source:
   SECONDARY  this run's cost vs the committed gate-5.5 "on" cost (mixes the caching
              effect with run-to-run variation: rule-answered lines, and so calls, differ);
   plus cost per AI call for both runs, cache read / write tokens, net savings.
-Output: data/replays/gate2-5.7-<id>/ (git-ignored).
+`--rules-mode off` (Gate 2b) does the same with rules mode off (prompt v1) against the
+committed *-off replays, completing the 2x2 (rules off/on x caching off/on).
+Output: data/replays/gate2-5.7-<id>/ (gate2b-5.7-<id>/ for rules off; git-ignored).
 
 Gate 3 (AI vs AI): three live matches, --red ai --blue claude, Blue rules on, caching on
 for both, the Stage 5.2 seed (fixes the benign schedule only; AI Red is not seeded).
@@ -78,16 +81,16 @@ def max_tokens_stops(d: Path) -> dict:
 
 # -- Gate 2 --------------------------------------------------------------------
 
-def gate2_report(rdir: Path, src: str, prices: dict) -> dict:
+def gate2_report(rdir: Path, src: str, prices: dict, mode: str = "on") -> dict:
     now = caching_numbers(jl(rdir / "api_calls.jsonl"), prices)
-    old_dir = GATE55 / f"{src}-on"
+    old_dir = GATE55 / f"{src}-{mode}"
     old = caching_numbers(jl(old_dir / "api_calls.jsonl"), prices)
     m = manifest_of(rdir)
     rules = len(jl(rdir / "rules.jsonl"))
     saved = sum(v.get("source") == "rule" for v in jl(rdir / "verdicts.jsonl"))
     ff = four_facts.check(rdir)
     per = (lambda n: n["usd"] / n["calls"] if n["calls"] else 0.0)
-    print(f"\n=== {src}  (rules on, caching on)  status {m['status']}  -> "
+    print(f"\n=== {src}  (rules {mode}, caching on)  status {m['status']}  -> "
           f"{replay_blue._rel(rdir)}")
     print(f"  PRIMARY   cost ${now['usd']:.6f}  vs same run uncached ${now['uncached']:.6f}"
           f"  -> net savings ${now['savings']:+.6f} "
@@ -95,7 +98,7 @@ def gate2_report(rdir: Path, src: str, prices: dict) -> dict:
     print(f"  cache     read {now['read']} tok  write {now['write']} tok  calls {now['calls']}"
           f"  rules stored {rules}  AI calls saved {saved}"
           f"{'  UNPRICED USAGE' if now['unpriced'] else ''}")
-    print(f"  SECONDARY committed gate-5.5 'on' cost ${old['usd']:.6f} ({old['calls']} calls)"
+    print(f"  SECONDARY committed gate-5.5 '{mode}' cost ${old['usd']:.6f} ({old['calls']} calls)"
           f"  -> difference ${now['usd'] - old['usd']:+.6f}")
     print(f"  per call  now ${per(now):.6f}  committed ${per(old):.6f}")
     print(f"  {four_facts.format_result(ff).splitlines()[0]}  max_tokens {max_tokens_stops(rdir)}")
@@ -103,21 +106,22 @@ def gate2_report(rdir: Path, src: str, prices: dict) -> dict:
             "old_calls": old["calls"], "saved": saved}
 
 
-def gate2(prices: dict) -> int:
+def gate2(prices: dict, mode: str = "on") -> int:
     gid = run_match.new_match_id()
-    root = replay_blue.REPLAYS / f"gate2-5.7-{gid}"
+    root = replay_blue.REPLAYS / f"{'gate2' if mode == 'on' else 'gate2b'}-5.7-{gid}"
     rows, ok = [], True
     for src in SOURCES:
-        code, rdir = replay_blue.replay(GOLDEN / src, root / f"{src}-on-cached",
-                                        engine="claude", rules_mode="on", caching="on",
+        code, rdir = replay_blue.replay(GOLDEN / src, root / f"{src}-{mode}-cached",
+                                        engine="claude", rules_mode=mode, caching="on",
                                         out_fn=lambda *_: None)
         if rdir is None:
             print(f"\n=== {src}: REFUSED (exit {code})")
             ok = False
             continue
         ok &= code in (0, 4)
-        rows.append(gate2_report(rdir, src, prices))
-    print("\n=== Gate 2 summary (PRIMARY = same run priced uncached)")
+        rows.append(gate2_report(rdir, src, prices, mode))
+    print(f"\n=== Gate 2{'' if mode == 'on' else 'b'} summary, rules {mode} (PRIMARY = same "
+          f"run priced uncached)")
     print(f"{'source':32} {'cost':>9} {'uncached':>9} {'net sav.':>9} {'read':>6} "
           f"{'write':>6} {'calls':>5} | {'5.5 cost':>9} {'calls':>5}")
     for r in rows:
@@ -202,13 +206,16 @@ def gate3(prices: dict) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--gate", type=int, choices=(2, 3), required=True)
+    ap.add_argument("--rules-mode", choices=("off", "on"), default="on",
+                    help="Gate 2 only: Blue rules mode (off = Gate 2b, the 2x2 control)")
     ap.add_argument("--real-calls", action="store_true",
                     help="actually run the gate (REAL, PAID calls; designer GO only)")
     args = ap.parse_args(argv)
     if args.gate == 2:
-        print(f"Stage 5.7 Gate 2: {len(SOURCES)} replays, claude Blue, rules on, caching on")
+        print(f"Stage 5.7 Gate 2{'' if args.rules_mode == 'on' else 'b'}: {len(SOURCES)} "
+              f"replays, claude Blue, rules {args.rules_mode}, caching on")
         for src in SOURCES:
-            print(f"  {src}  vs committed {GATE55.relative_to(REPO)}/{src}-on")
+            print(f"  {src}  vs committed {GATE55.relative_to(REPO)}/{src}-{args.rules_mode}")
     else:
         print(f"Stage 5.7 Gate 3: {RUNS} live matches, --red ai --blue claude, rules on, "
               f"caching on (both), seed {SEED}")
@@ -219,7 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         print("REFUSED: the git tree is dirty; commit first.")
         return 2
     prices = cost_stats.load_prices()
-    return gate2(prices) if args.gate == 2 else gate3(prices)
+    return gate2(prices, args.rules_mode) if args.gate == 2 else gate3(prices)
 
 
 if __name__ == "__main__":
