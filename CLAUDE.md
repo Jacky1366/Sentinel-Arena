@@ -150,6 +150,7 @@ data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 
 data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gate 2; held-out candidate set)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
+data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -190,6 +191,7 @@ tests/test_blue_rules.py    rule invention: prompt v2, modes off/shadow/on, prop
 tests/test_rule_verdicts.py Judge rule-verdict cross-check, incl. tampered artifacts
 tests/test_run_match_rules.py  --blue-rules-mode wiring, judge_rules, match.json 0.6 (fake Ops + provider)
 tests/test_replay_blue.py   replay = live run, never writes the source, refusals, audits, gate tool offline
+tests/test_gate_5_5_evidence.py  committed gate replays: hashes, source links, Judge re-scores identically
 ```
 
 ## How to run the stack
@@ -239,7 +241,8 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
 - Stage 5.5 (Blue rule invention, modes off / shadow / on; hot-load; replay mode D17):
   built and tested on the fake provider (Nov 13), branch `stage5.5-rules-invention`; the
-  gate (`tools/stage5_5_check.py --real-calls`, 12 replays) waits for the designer's GO.
+  gate (`tools/stage5_5_check.py --real-calls`, 12 replays) run and accepted Nov 13 ($0.057):
+  **done**; evidence in `data/golden/replays/gate-5.5/` (not merged yet).
   Stage 5.6 (AI Red, OpenAI): done, Gates 1–2 + first D16 label audit (Nov 13), merged.
   Stage 5.4 (AI Blue) is done (Gates passed Nov 12).
   Before that: Stages 1–4, 5.1, 5.2 and 5.3 are implemented (Target + proxy; scripted Red + Judge

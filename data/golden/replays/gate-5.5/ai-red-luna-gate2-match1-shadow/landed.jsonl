@@ -1,0 +1,10 @@
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 1, "request_id": "21f17cee-8cf6-410f-9a11-a44eb945ff76", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 2, "request_id": "69f53762-8954-418b-bbbf-97be6e878215", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": ["Error Handling"]}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 3, "request_id": "2be0f005-ee4f-4cd3-b946-43fab2b7f28a", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 4, "request_id": "5bd2afac-5a4f-4107-9151-ae601ec0d04c", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 5, "request_id": "46fb947e-241d-44e6-b9f2-683baedebe29", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 6, "request_id": "61a9515f-6cfc-463c-8dcf-d9db279c9bde", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 7, "request_id": "fb8a9644-4af7-4781-9aa7-c45dd84a9ba0", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 8, "request_id": "839f5e1d-ca45-483f-8668-53d10f0b52d4", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 9, "request_id": "a2800da1-6226-4674-9c71-7aeb2cb647e4", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261113T052633Z-77ac", "round": 10, "request_id": "99bc3bc2-5c80-41fd-8c9b-04d7c92410bf", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}

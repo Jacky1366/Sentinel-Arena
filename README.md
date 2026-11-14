@@ -45,10 +45,10 @@ next to an FP rate. Stage 5.3 done: the rule format, RE2 rule engine and Judge f
 3 / 4b. Stage 5.4 done: AI Blue (`run_match.py --blue claude`, Anthropic Haiku 5.5), with its
 first real calls verified (Gates 1–2; about $0.003 per match). Stage 5.6 done: AI Red
 (`run_match.py --red ai`, OpenAI gpt-6-luna; Gates 1–2 passed, labels audited by the
-designer). Stage 5.5 built: Blue rule invention (`--blue-rules-mode off|shadow|on`,
+designer). Stage 5.5 done: Blue rule invention (`--blue-rules-mode off|shadow|on`,
 rules hot-loaded so a firing rule answers without an AI call) and replay mode
-(`tools/replay_blue.py`: Blue + Judge re-run on a frozen match); its gate waits for the
-designer's GO. The dashboard is not implemented yet. See
+(`tools/replay_blue.py`: Blue + Judge re-run on a frozen match); gate accepted (12
+replays, evidence in `data/golden/replays/gate-5.5/`). The dashboard is not implemented yet. See
 [`docs/progress.md`](docs/progress.md) and
 [`docs/stage5_decisions.md`](docs/stage5_decisions.md).
 
