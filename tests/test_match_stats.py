@@ -215,7 +215,7 @@ def test_by_source_splits_rule_and_ai_paths():
     benign = [_benign("n01", "CWE-89", "rule"), _benign("n02", "benign", "ai"),
               _benign("n03", None, None, fp_reason="instrument_failure")]
     s = ms.by_source(rounds, benign)
-    assert s["rule"]["detection"].fmt() == "2/2 (100%)"
+    assert "detection" not in s["rule"]  # 100% by construction: never computed
     assert s["rule"]["type_accuracy"].fmt() == "1/2 (50%)"
     assert s["rule"]["fp"].fmt() == "1/1 (100%)"
     assert (s["rule"]["attack_lines"], s["rule"]["benign_lines"]) == (2, 1)
@@ -262,6 +262,8 @@ def test_rules_summary_counts_proposals_codes_conflicts_and_saved_calls():
     assert (r2["fired_attack_lines"], r2["replay_fires"]) == (1, None)
     text = "\n".join(ms.format_rules(s, ms.by_source(rounds, benign), "on"))
     assert "proposed 4" in text and "r-003 REJECTED" in text and "query contains/i" in text
+    rule_line = next(l for l in text.splitlines() if l.startswith("  rule path"))
+    assert "detection" not in rule_line.split("(no detection rate")[0]
 
 
 def test_summary_block_appears_only_when_rules_mode_is_not_off():

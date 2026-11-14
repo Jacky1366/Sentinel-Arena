@@ -10,7 +10,7 @@ memory is Stage 6). on vs shadow isolates the hot-load effect; shadow vs off iso
 the prompt change (v1 -> v2).
 
 Per replay it prints: raw and audited detection and FP rate, split by verdict source
-(rule vs AI); rules proposed / stored / rejected with every reason; facts 3 and 4b
+(rule path: line counts, type accuracy, FP rate; never a detection rate); rules proposed / stored / rejected with every reason; facts 3 and 4b
 per rule; AI calls saved; cost. Every invented rule and every rejected proposal is
 printed in full for the designer's review. Output goes to data/replays/<gate id>/
 (git-ignored); the golden folders are never written (checked by hash).
@@ -79,18 +79,22 @@ def report(rdir: Path) -> dict:
             print(f"  {view:8} incomplete audit (unaudited {s['unaudited']})")
             continue
         r, a = b["by_source"]["rule"], b["by_source"]["ai"]
-        print(f"  {view:8} detection {fmt(b['detection']):12} FP {fmt(b['fp']):12} "
-              f"type acc. {fmt(b['type_accuracy']):12}| rule path: det {fmt(r['detection'])} "
-              f"FP {fmt(r['fp'])} ({r['attack_lines']}+{r['benign_lines']} lines) | AI path: "
-              f"det {fmt(a['detection'])} FP {fmt(a['fp'])} "
-              f"({a['attack_lines']}+{a['benign_lines']} lines)")
+        print(f"  {view:8} whole match: detection {fmt(b['detection']):12} FP "
+              f"{fmt(b['fp']):12} type acc. {fmt(b['type_accuracy']):12}| rule path: "
+              f"{r['attack_lines']} attack + {r['benign_lines']} benign lines, type acc. "
+              f"{fmt(r['type_accuracy'])} FP {fmt(r['fp'])} | AI path: "
+              f"{a['attack_lines']} attack + {a['benign_lines']} benign lines")
     if s["audited_excludes_label_invalid"]:
         print(f"  audited excludes label-invalid rounds {s['audited_excludes_label_invalid']}")
-    nv = sum(r.get("detected_reason") == "no_verdict" for r in rounds) + \
-        sum(b["fp_reason"] == "no_verdict" for b in benign)
-    details = sorted({v["failure_detail"] for v in jl(rdir / "verdicts.jsonl")
-                      if v.get("failure_detail")})
-    print(f"  no-verdict lines {nv} {details or ''}")
+    verdicts = jl(rdir / "verdicts.jsonl")
+    nv = sum(v["verdict"] is None for v in verdicts)
+    details: dict[str, int] = {}
+    for v in verdicts:
+        if v.get("failure_detail"):
+            details[v["failure_detail"]] = details.get(v["failure_detail"], 0) + 1
+    hard = ms.compute_benign(rounds, benign)["fp_hard"].fmt() if benign else "—"
+    print(f"  FP hard negatives {hard}  no-verdict lines {nv}/{len(verdicts)} "
+          f"{details or ''}  max_tokens stops {details.get('max_tokens', 0)}")
     if mode != "off":
         print("\n".join(ms.format_rules(rules, ms.by_source(rounds, benign), mode)))
     for a in jl(rdir / "anomalies.jsonl"):
@@ -98,6 +102,8 @@ def report(rdir: Path) -> dict:
     return {"source": m["source"]["path"].split("/")[-1], "mode": mode, "status": m["status"],
             "raw_det": fmt(s["raw"]["detection"]), "raw_fp": fmt(s["raw"]["fp"]),
             "aud_det": fmt(s["audited"]["detection"]) if s["audited"] else "—",
+            "fp_hard": hard, "no_verdict": f"{nv}/{len(verdicts)}",
+            "calls": m["cost"]["attempts"], "max_tokens": details.get("max_tokens", 0),
             "proposed": rules["proposed"], "stored": rules["stored"],
             "saved": rules["ai_calls_saved"], "usd": m["cost"]["total_usd"]}
 
@@ -135,11 +141,13 @@ def main(argv: list[str] | None = None) -> int:
     unchanged = all(tree(GOLDEN / src) == before[src] for src in SOURCES)
     print("\n=== summary")
     print(f"{'source':32} {'mode':6} {'status':9} {'raw det':12} {'raw FP':12} "
-          f"{'audited det':12} prop stored saved  cost")
+          f"{'audited det':12} {'hard FP':10} {'no-verd':8} calls prop stored saved "
+          f"maxtok  cost")
     for r in rows:
         print(f"{r['source']:32} {r['mode']:6} {r['status']:9} {r['raw_det']:12} "
-              f"{r['raw_fp']:12} {r['aud_det']:12} {r['proposed']:>4} {r['stored']:>6} "
-              f"{r['saved']:>5}  ${r['usd']:.4f}")
+              f"{r['raw_fp']:12} {r['aud_det']:12} {r['fp_hard']:10} {r['no_verdict']:8} "
+              f"{r['calls']:>5} {r['proposed']:>4} {r['stored']:>6} {r['saved']:>5} "
+              f"{r['max_tokens']:>6}  ${r['usd']:.4f}")
     print(f"total cost ${sum(r['usd'] for r in rows):.4f}")
     print(f"golden folders unchanged: {'PASS' if unchanged else 'FAIL'}")
     ok &= unchanged

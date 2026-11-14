@@ -359,7 +359,9 @@ amendment, Stage 5.5 notes).
   a fake live match and its replay give byte-identical Judge outputs.
 - **D16 amended:** scripted Red labels are valid by construction; only AI labels are
   audited. `scripted-baseline-benign-match` now has a complete audited view.
-- **Stats:** detection / FP / type accuracy split by verdict source (rule vs AI); rules
+- **Stats:** split by verdict source (rule vs AI): line counts, type accuracy, FP rate;
+  no rule-path detection rate (100% by construction); modes compared on whole-match
+  numbers only. Rules
   proposed / stored / rejected with codes, cap hits, tie-break conflicts, AI calls saved;
   per rule the lines it fired on plus facts 3 and 4b.
 - **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass

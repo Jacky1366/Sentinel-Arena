@@ -353,7 +353,8 @@ def test_audit_summary_splits_by_verdict_source(tmp_path):
     d = write_match(tmp_path / "m", rounds=rounds)
     s = am.summary(d, audits=tmp_path / "a", golden=tmp_path / "g")
     split = s["raw"]["by_source"]
-    assert (split["rule"]["detection"]["num"], split["rule"]["attack_lines"]) == (1, 1)
+    assert "detection" not in split["rule"] and split["rule"]["attack_lines"] == 1
+    assert split["ai"]["detection"]["den"] == 1
     assert split["ai"]["attack_lines"] == 1
 
 

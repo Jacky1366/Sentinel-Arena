@@ -186,7 +186,9 @@ def summary(match_dir: Path, audits: Path | None = None, golden: Path | None = N
         return {"landing": _rate(s["landing"]), "detection": _rate(s["detection"]),
                 "type_accuracy": _rate(s["type_accuracy"]), "fp": _rate(b["fp"]),
                 "precision": _rate(b["precision"]),
-                "by_source": {p: {"detection": _rate(x["detection"]), "fp": _rate(x["fp"]),
+                "by_source": {p: {**({"detection": _rate(x["detection"])}
+                                     if "detection" in x else {}),
+                                  "fp": _rate(x["fp"]),
                                   "type_accuracy": _rate(x["type_accuracy"]),
                                   "attack_lines": x["attack_lines"],
                                   "benign_lines": x["benign_lines"]}

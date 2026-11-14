@@ -228,3 +228,4 @@ def test_gate_report_prints_numbers_and_every_rule(dirs, tmp_path, capsys):
     assert row["mode"] == "shadow" and row["proposed"] >= 2
     assert "rules mode shadow" in out and "REJECTED" in out and "regex_unsupported_feature" in out
     assert "rule path" in out and "AI path" in out and "raw" in out and "audited" in out
+    assert "whole match: detection" in out and "det " not in out

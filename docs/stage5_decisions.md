@@ -356,5 +356,7 @@ the designer's answers):
   --real-calls`, 12 replays: the 3 AI-Red golden matches plus
   `scripted-baseline-benign-match`, each in modes off, shadow and on, Haiku 5.5, every
   replay starting with zero rules (D7). Refuses on a dirty tree. Prints raw and audited
-  detection and FP rate split by source, rules proposed / stored / rejected with reasons,
+  whole-match detection and FP rate (the modes are compared on these), the rule path's
+  line counts, type accuracy and FP rate (never a rule-path detection rate: 100% by
+  construction), rules proposed / stored / rejected with reasons,
   facts 3 and 4b per rule, AI calls saved, cost, and every rule and rejection in full.

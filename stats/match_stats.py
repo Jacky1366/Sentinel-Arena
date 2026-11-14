@@ -44,9 +44,12 @@ Rule invention (Stage 5.5, rules mode shadow / on):
                    the AI path is every other line (incl. AI no_verdict lines).
                    Each path's rates use the denominators above (orphans and
                    instrument failures excluded as always). A rule only ever labels
-                   a line as an attack, so rule-path detection is 100% by
-                   construction whenever it is defined: read it with the rule
-                   path's FP rate and the line counts.
+                   a line as an attack, so rule-path detection would be 100% by
+                   construction: it is NEVER computed or printed. The rule path
+                   reports line counts, type accuracy and FP rate only. Modes
+                   (off / shadow / on) are compared on WHOLE-MATCH numbers, never
+                   on a path's rates (each path answers a different, self-selected
+                   set of lines).
   rules            proposed (= stored + rejected), rejection codes (one count per
                    code per rejection), cap hits (rule_cap_reached), tie-break
                    conflicts (rule verdicts whose fired rules name more than one
@@ -284,16 +287,19 @@ def _is_rule(row: dict) -> bool:
 
 
 def by_source(rounds: list[dict], benign: list[dict]) -> dict:
-    """{"rule": {...}, "ai": {...}}: detection, type accuracy and FP rate per verdict
-    path, plus how many attack / benign lines each path answered."""
+    """{"rule": {...}, "ai": {...}}: type accuracy and FP rate per verdict path, plus
+    how many attack / benign lines each path answered. Detection only for the AI path:
+    a rule only ever labels a line as an attack, so rule-path detection would be 100%
+    by construction and is never computed (compare modes on whole-match numbers)."""
     out = {}
     for path, keep in (("rule", _is_rule), ("ai", lambda r: not _is_rule(r))):
         rs = [r for r in rounds if keep(r)]
         bs = [b for b in benign if keep(b)]
-        out[path] = {"detection": detection_rate(rs), "type_accuracy": type_accuracy(rs),
-                     "fp": fp_rate(bs),
+        out[path] = {"type_accuracy": type_accuracy(rs), "fp": fp_rate(bs),
                      "attack_lines": sum(not _is_orphan(r) for r in rs),
                      "benign_lines": sum(b["fp_reason"] != "orphan" for b in bs)}
+        if path == "ai":
+            out[path]["detection"] = detection_rate(rs)
     return out
 
 
@@ -340,7 +346,8 @@ def rules_summary(rules: list[dict], rejections: list[dict], verdicts: list[dict
 def format_rules(summary: dict, split: dict, mode: str) -> list[str]:
     """The rule-invention block of the terminal summary."""
     def pair(p: dict) -> str:
-        return (f"detection {p['detection'].fmt():12} FP rate {p['fp'].fmt():12} "
+        det = f"detection {p['detection'].fmt():12} " if "detection" in p else ""
+        return (f"{det}FP rate {p['fp'].fmt():12} "
                 f"type acc. {p['type_accuracy'].fmt():12} lines {p['attack_lines']} attack "
                 f"+ {p['benign_lines']} benign")
     lines = ["", f"rules mode {mode}: proposed {summary['proposed']}  stored "
@@ -348,7 +355,8 @@ def format_rules(summary: dict, split: dict, mode: str) -> list[str]:
                  f"{summary['rejection_codes'] or ''}  cap hits {summary['cap_hits']}  "
                  f"AI calls saved {summary['ai_calls_saved']}  tie-break conflicts "
                  f"{len(summary['conflicts'])}{' ' + str(summary['conflicts']) if summary['conflicts'] else ''}",
-             f"  rule path  {pair(split['rule'])}",
+             f"  rule path  {pair(split['rule'])}  (no detection rate: 100% by "
+             f"construction)",
              f"  AI path    {pair(split['ai'])}"]
     for r in summary["rules"]:
         conds = " AND ".join(f"{c['field']} {c['op']}{'/i' if c['case_insensitive'] else ''} "

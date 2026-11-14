@@ -986,8 +986,12 @@ split by attack lines and benign lines (a defender whose safety layer declines t
 analyse attack traffic is a finding in itself; read from `verdicts.jsonl`
 `failure_detail`, audit only). **The detection rate is never printed without the FP
 rate next to it.** **Split by verdict source** (Stage 5.5, rules mode shadow / on):
-detection, type accuracy and FP rate for the rule path (`verdict_source "rule"`) and the
-AI path (every other line, incl. AI no-verdict lines), with the same exclusions; plus rules
+line counts, type accuracy and FP rate for the rule path (`verdict_source "rule"`) and the
+AI path (every other line, incl. AI no-verdict lines), with the same exclusions. **The
+rule path never gets a detection rate:** a rule only ever labels a line as an attack, so
+it would be 100% by construction. Modes off / shadow / on are compared on **whole-match**
+numbers only, never on per-path rates (each path answers a self-selected set of lines);
+plus rules
 proposed / stored / rejected (with rejection codes and cap hits), tie-break conflicts, AI
 calls saved (= rule-verdict lines) and, per rule, the attack and benign lines it fired on
 and its facts 3 and 4b. The FP denominator is the benign set only: Red's negative control (round 1, a
