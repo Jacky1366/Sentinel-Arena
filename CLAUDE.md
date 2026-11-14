@@ -157,6 +157,7 @@ data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gat
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
+data/golden/replays/gate-5.7/  Stage 5.7 Gates 2/2b evidence: 8 cached Blue replays (rules on/off) + README (never rewritten)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -201,6 +202,7 @@ tests/test_caching.py       caching off = pre-5.7 bytes, on = markers only, stab
 tests/test_four_facts.py    the four-facts check: PASS / N/A (no rules) / FAIL
 tests/test_run_match_ai_vs_ai.py  --red ai --blue claude with caching flags, four facts, gate tools offline
 tests/test_gate_5_5_evidence.py  committed gate replays: hashes, source links, Judge re-scores identically
+tests/test_gate_5_7_evidence.py  committed Gate 2/2b replays: hashes, sources, verdicts = gate-5.5, re-score, 2x2
 ```
 
 ## How to run the stack

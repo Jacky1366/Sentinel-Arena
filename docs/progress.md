@@ -369,6 +369,28 @@ notes). Gates 1–3 (real calls) run only after the designer's GO, one at a time
     were accepted. With real feedback (longer turns) the minimum comes a few turns earlier
     (about turn 4–5), but **caching barely helps a 10-round Red**: Red's net saving over the
     run was $0.000168 of $0.001096.
+- **Gates 2 and 2b (Nov 14, $0.0061 + $0.0052; evidence `data/golden/replays/gate-5.7/`,
+  README + `tests/test_gate_5_7_evidence.py`).** The four gate-5.5 sources were replayed with
+  caching on: rules on (Gate 2) and rules off (Gate 2b). Every verdict equals the committed
+  uncached gate-5.5 replay of the same mode, so whole-match detection, FP and type accuracy
+  are unchanged; only cost moved. The 2×2 (four matches, cost / AI calls / cost per call):
+
+  | | caching off (gate-5.5) | caching on (5.7) |
+  |---|---|---|
+  | **rules off** (prompt v1) | $0.012388 / 104 / $0.000119 | $0.005201 / 104 / $0.000050 |
+  | **rules on** (prompt v2) | $0.020478 / 90 / $0.000228 | $0.006092 / 90 / $0.000068 |
+
+  Per source, cached, rules on minus rules off: +$0.000136 (+10%), +$0.000180 (+13%),
+  +$0.000313 (+25%), +$0.000262 (+22%). Net cache savings (same run priced uncached):
+  rules off 58%, rules on 70%.
+  - **Rules still cost more than no rules once both are cached: +$0.000891 (+17%)** over
+    the four matches (was +65% uncached). Caching shrinks the gap because prompt v2's extra
+    tokens are exactly the cached prefix, but a cached v2 call still costs about 1.35× a
+    cached v1 call ($0.000068 vs $0.000050), and rules saved only 14 of 104 calls (13%).
+    Within one match rules do not pay for themselves on cost; the cost case for rules still
+    needs cross-match rule memory (Stage 6).
+  - Comparing "rules on + caching" with "rules off without caching" would change two
+    variables at once (designer correction); the fair comparison is the cached row.
 - **Checks:** full suite (fake provider) passes; stage 2, 3, 4 and 5.2 checks pass against
   the live stack (Nov 14).
 
