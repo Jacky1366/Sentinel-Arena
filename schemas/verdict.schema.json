@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/verdict.schema.json",
-  "title": "Blue verdict (contract 4, schema_version 0.3)",
-  "description": "One line of data/runs/<match_id>/verdicts.jsonl, exactly one per judged proxy line (Stage 5.4 on). Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round. Either a verdict (verdict + source) or the reason there is none (no_verdict_reason + failure_detail). no_verdict: the brain produced no usable answer (a miss on attacks). instrument_failure: the harness failed (body refusal or API failure after retries, D13); the Judge cross-checks it against api_calls.jsonl and excludes it from detection and FP stats. failure_detail is audit-only: the Judge reads only no_verdict_reason. 'reason' and 'rationale' are for humans only.  Stage 5.5 (0.3): source gains 'rule' (a hot-loaded rule fired, D9: no API call was made for the line), and fired_rule_ids (required) lists every rule that fired, in hot-load order; non-empty iff source is 'rule'. A rule verdict has no rationale. Written by claude Blue with rule invention in mode 'shadow' or 'on'; scripted Blue and mode 'off' keep writing 0.2. 0.2 / 0.1 verdicts are validated by verdict_v0_2 / verdict_v0_1.schema.json.",
+  "title": "Blue verdict (contract 4, schema_version 0.4)",
+  "description": "One line of data/runs/<match_id>/verdicts.jsonl, exactly one per judged proxy line (Stage 5.4 on). Written by Blue from the proxy log alone. 'log_seq' is Blue's own 1-based index into the proxy log, NOT the round. Either a verdict (verdict + source) or the reason there is none (no_verdict_reason + failure_detail). no_verdict: the brain produced no usable answer (a miss on attacks). instrument_failure: the harness failed (body refusal or API failure after retries, D13); the Judge cross-checks it against api_calls.jsonl and excludes it from detection and FP stats. failure_detail is audit-only: the Judge reads only no_verdict_reason. 'reason' and 'rationale' are for humans only.  Stage 5.5 (0.3): source gains 'rule' (a hot-loaded rule fired, D9: no API call was made for the line), and fired_rule_ids (required) lists every rule that fired, in hot-load order; non-empty iff source is 'rule'. A rule verdict has no rationale. Written by claude Blue with rule invention in mode 'shadow' or 'on'; scripted Blue and mode 'off' keep writing 0.2. Stage 6.1 (0.4, D22): written by claude Blue in rules mode 'on' when a rule library is loaded (D21; without a library mode on keeps writing 0.3). fired_rule_ids may mix library ids (lib-NNNN, preloaded, always listed first) and in-match ids (r-NNN). rule_origin (required) names where the tie-break winner came from: 'library' or 'match'; non-null iff source is 'rule'. source is unchanged: a library rule and an in-match rule are the same mechanism (rule engine, no API call). 0.3 / 0.2 / 0.1 verdicts are validated by verdict_v0_3 / verdict_v0_2 / verdict_v0_1.schema.json.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -15,11 +15,12 @@
     "no_verdict_reason",
     "failure_detail",
     "fired_rule_ids",
+    "rule_origin",
     "reason"
   ],
   "properties": {
     "schema_version": {
-      "const": "0.3"
+      "const": "0.4"
     },
     "match_id": {
       "type": "string",
@@ -77,8 +78,15 @@
       "uniqueItems": true,
       "items": {
         "type": "string",
-        "pattern": "^r-[0-9]{3,}$"
+        "pattern": "^(r-[0-9]{3,}|lib-[0-9]{4,})$"
       }
+    },
+    "rule_origin": {
+      "enum": [
+        "library",
+        "match",
+        null
+      ]
     },
     "rationale": {
       "type": "string",
@@ -227,6 +235,80 @@
         "properties": {
           "fired_rule_ids": {
             "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "comment": "rule_origin is set iff the verdict came from a rule; it names the tie-break winner (library rules precede in-match rules, so a 'match' winner means no library rule fired)",
+      "if": {
+        "properties": {
+          "source": {
+            "const": "rule"
+          }
+        },
+        "required": [
+          "source"
+        ]
+      },
+      "then": {
+        "properties": {
+          "rule_origin": {
+            "enum": [
+              "library",
+              "match"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "rule_origin": {
+            "const": null
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "rule_origin": {
+            "const": "library"
+          }
+        },
+        "required": [
+          "rule_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fired_rule_ids": {
+            "prefixItems": [
+              {
+                "pattern": "^lib-[0-9]{4,}$"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "rule_origin": {
+            "const": "match"
+          }
+        },
+        "required": [
+          "rule_origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "fired_rule_ids": {
+            "items": {
+              "pattern": "^r-[0-9]{3,}$"
+            }
           }
         }
       }

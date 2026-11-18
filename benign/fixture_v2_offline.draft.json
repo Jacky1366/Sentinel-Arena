@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1",
+  "set": "fixture_v2_offline",
+  "role": "train",
+  "_comment": "DRAFT for designer approval (Stage 6.1, M4). Drafted from the pre-registered categories in docs/plans/stage6_1_step0.md section 6, never scored against any rule. tools/build_holdout.py --capture sends each entry ONCE through the shared client to a freshly reset Target, OUTSIDE any match, copies method/path/query/body verbatim from the logged line, resets the Target, and writes the sealed file and its .meta.json. Never sent in a match; Blue never reads it. TRAIN data (D31): CWE-22 look-alikes, same categories as the holdout's, disjoint instances; read ONLY by retention criterion (b). Never part of Judge fact 4b output.",
+  "entries": [
+    {
+      "benign_id": "yh01",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "v3.1..v3.2 diff"
+      },
+      "note": "A version range with '..'."
+    },
+    {
+      "benign_id": "yh02",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "hmm..."
+      },
+      "note": "An ellipsis."
+    },
+    {
+      "benign_id": "yh03",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/assets/public/images/products/lemon_juice.jpg",
+      "note": "A deep asset path."
+    },
+    {
+      "benign_id": "yh04",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/ftp/minutes..2026.md",
+      "note": "A file name with a double dot."
+    },
+    {
+      "benign_id": "yh05",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "POST",
+      "endpoint": "/api/Feedbacks",
+      "json_body": {
+        "comment": "see ../ above, great taste",
+        "rating": 4
+      },
+      "note": "'../' in free review text."
+    },
+    {
+      "benign_id": "yh06",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "2..4 bottles"
+      },
+      "note": "A range written with '..'."
+    }
+  ]
+}

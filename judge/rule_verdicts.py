@@ -22,6 +22,14 @@ neutral code Blue uses (rules/hotload.py; the Judge never imports blue/):
 
 Without rules.jsonl and rule_rejections.jsonl (scripted Blue, rules mode off, every
 match before Stage 5.5) any rule verdict raises.
+
+Library (Stage 6.1, D21, D22): when the folder holds a library snapshot (library.json,
+copied there by the orchestrator / replay tool before Blue ran), it is loaded with the
+same read-only code Blue uses (rules/library.py) and its rules are PRELOADED into the
+re-run (live from line 1, first in the tie-break). Then every verdict must be 0.4 and
+its rule_origin must be the re-run's; and a library needs rules mode on (in-match rules
+hot_loaded, if there are any). Without a snapshot no row may be 0.4 or name a library
+rule.
 """
 
 from __future__ import annotations
@@ -33,7 +41,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
-from rules import engine, hotload, validator
+from rules import engine, hotload, library, validator
 
 REPO = Path(__file__).resolve().parent.parent
 RULES, REJECTIONS = "rules.jsonl", "rule_rejections.jsonl"
@@ -85,7 +93,17 @@ def check(run_dir: Path, verdicts: list[dict]) -> None:
     (each with source and fired_rule_ids)."""
     rules = load_rules(run_dir)
     rejections = load_rejections(run_dir)
-    if not rules and not rejections:
+    snapshot = run_dir / library.SNAPSHOT
+    lib = library.load(snapshot) if snapshot.is_file() else None
+    for v in verdicts:
+        v4 = v.get("schema_version") == "0.4"
+        if lib is None and (v4 or any(i.startswith("lib-") for i in v["fired_rule_ids"])):
+            raise ValueError(f"verdict log_seq {v['log_seq']} is a library-era (0.4) row, "
+                             f"but the folder has no {library.SNAPSHOT}")
+        if lib is not None and not v4:
+            raise ValueError(f"verdict log_seq {v['log_seq']} is schema "
+                             f"{v.get('schema_version')!r}: with a library every row is 0.4")
+    if not rules and not rejections and lib is None:
         for v in verdicts:
             if v["source"] == "rule" or v["fired_rule_ids"]:
                 raise ValueError(f"verdict log_seq {v['log_seq']} is a rule verdict, but the "
@@ -97,6 +115,11 @@ def check(run_dir: Path, verdicts: list[dict]) -> None:
     if len(hot) > 1:
         raise ValueError(f"{RULES} mixes hot_loaded true and false (one mode per match)")
     hot_loaded = hot == {True}
+    if lib is not None and hot == {False}:
+        raise ValueError(f"a library is loaded, but {RULES} is hot_loaded false (shadow): "
+                         f"a library needs rules mode on")
+    if lib is not None:
+        hot_loaded = True  # mode on (no in-match rule may have been stored)
 
     ids = [r["rule"]["rule_id"] for r in rules] + [r["rule_id"] for r in rejections]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
@@ -118,7 +141,7 @@ def check(run_dir: Path, verdicts: list[dict]) -> None:
                              f"(source {v['source']!r}); a proposal rides on an AI verdict")
 
     seen: set[str] = set()
-    hl = hotload.HotLoad()
+    hl = hotload.HotLoad(lib.entries if lib is not None else ())
     last = 0
     for r in rules:
         rule = r["rule"]
@@ -151,11 +174,13 @@ def check(run_dir: Path, verdicts: list[dict]) -> None:
         firing = hl.fire(engine.Request.from_log(line), seq)
         if firing.rule_ids:
             if v["source"] != "rule" or v["fired_rule_ids"] != firing.rule_ids \
-                    or v["verdict"] != firing.cwe:
+                    or v["verdict"] != firing.cwe \
+                    or v.get("rule_origin", "match") != firing.origin:
                 raise ValueError(f"verdict log_seq {seq}: hot-loaded rules "
-                                 f"{firing.rule_ids} fire (tie-break {firing.cwe}), but the "
-                                 f"row says source {v['source']!r}, fired "
-                                 f"{v['fired_rule_ids']}, verdict {v['verdict']!r}")
+                                 f"{firing.rule_ids} fire (tie-break {firing.cwe}, origin "
+                                 f"{firing.origin}), but the row says source "
+                                 f"{v['source']!r}, fired {v['fired_rule_ids']}, verdict "
+                                 f"{v['verdict']!r}, origin {v.get('rule_origin')!r}")
         elif v["source"] == "rule" or v["fired_rule_ids"]:
             raise ValueError(f"verdict log_seq {seq} claims rules {v['fired_rule_ids']} "
                              f"fired, but no hot-loaded rule fires on that line")

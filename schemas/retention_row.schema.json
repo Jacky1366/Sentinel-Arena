@@ -1,0 +1,246 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/retention_row.schema.json",
+  "title": "Retention row (contract 5.4, schema_version 0.1)",
+  "description": "One line of data/library/retention/<match_id>/retention.jsonl (Stage 6.1, M2, D23): the retention decision for one rule a TRAIN match stored, in rules.jsonl order, written by tools/promote_rules.py from judge/retention.py (pure). decision is 'retained' iff reasons is empty; every failing criterion is listed. Holds Red ground truth (source_label, facts 3/4b): Blue never reads it. Never deleted: a rejected rule's evidence stays here and in the match's own rules.jsonl.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "retention_version",
+    "match_id",
+    "rule_id",
+    "cwe",
+    "decision",
+    "library_id",
+    "reasons",
+    "canonical_sha256",
+    "duplicate_of",
+    "behavioural_duplicate_of",
+    "source_request_id",
+    "source_round",
+    "source_label",
+    "audit_verdict",
+    "replay_fires",
+    "replay_reason",
+    "cwe_matches_source",
+    "fixture_v1_hits",
+    "fixture_v2_hits",
+    "variants_generated",
+    "variants_counting",
+    "variants_blocked",
+    "base_seed",
+    "mutator_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "retention_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "rule_id": {
+      "type": "string",
+      "pattern": "^r-[0-9]{3,}$"
+    },
+    "cwe": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22"
+      ]
+    },
+    "decision": {
+      "enum": [
+        "retained",
+        "rejected"
+      ]
+    },
+    "library_id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^lib-[0-9]{4,}$"
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "detail"
+        ],
+        "properties": {
+          "code": {
+            "enum": [
+              "fact3_false",
+              "cwe_mismatch",
+              "fixture_hit",
+              "offline_fixture_hit",
+              "source_label_invalid",
+              "source_unaudited",
+              "no_counting_variant",
+              "no_variant_blocked",
+              "duplicate_exact",
+              "library_cap_reached"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "canonical_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "duplicate_of": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^lib-[0-9]{4,}$"
+    },
+    "behavioural_duplicate_of": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^lib-[0-9]{4,}$"
+    },
+    "source_request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "source_round": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "source_label": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22",
+        null
+      ]
+    },
+    "audit_verdict": {
+      "enum": [
+        "valid",
+        "invalid",
+        "unaudited",
+        null
+      ]
+    },
+    "replay_fires": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "replay_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cwe_matches_source": {
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "fixture_v1_hits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "fixture_v2_hits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variants_generated": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v-[0-9a-f]{12}$"
+      }
+    },
+    "variants_counting": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v-[0-9a-f]{12}$"
+      }
+    },
+    "variants_blocked": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v-[0-9a-f]{12}$"
+      }
+    },
+    "base_seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "mutator_version": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "decision": {
+            "const": "retained"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "reasons": {
+            "maxItems": 0
+          },
+          "library_id": {
+            "type": "string"
+          },
+          "duplicate_of": {
+            "const": null
+          },
+          "variants_blocked": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "reasons": {
+            "minItems": 1
+          },
+          "library_id": {
+            "const": null
+          }
+        }
+      }
+    }
+  ]
+}

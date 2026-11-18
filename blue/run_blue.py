@@ -16,6 +16,9 @@ Two engines write the same verdict format (contract §4, schema_version 0.2):
             agents.blue.rules.mode). shadow / on write verdicts 0.3 plus
             <run-dir>/rules.jsonl and <run-dir>/rule_rejections.jsonl; on adds rule
             verdicts (source "rule"). Blue never reads either file back.
+            Stage 6.1: --library <file> (mode on only) preloads a cross-match rule
+            library, READ-ONLY (rules/library.py has no write path); verdicts become 0.4
+            (rule_origin). The orchestrator passes the snapshot in the run folder.
 
 Usage:
     .venv/bin/python blue/run_blue.py --engine scripted --match-id m001 --run-dir data/runs/<match_id>
@@ -29,6 +32,7 @@ from pathlib import Path
 
 from agents import llm_client
 from blue import claude_engine, rule_invention, signatures
+from rules import library as rule_library
 
 REPO = Path(__file__).resolve().parent.parent
 LIVE = REPO / "data" / "runs" / "live"
@@ -108,11 +112,13 @@ def run(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
 
 def run_output(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
                client: llm_client.LLMClient | None = None, model: str | None = None,
-               unscored: bool = False, rules_mode: str | None = None
-               ) -> claude_engine.BlueOutput:
+               unscored: bool = False, rules_mode: str | None = None,
+               library: Path | None = None) -> claude_engine.BlueOutput:
     """Verdicts plus, for claude in rules mode shadow / on, the rules and rejections.
     rules_mode None = config agents.blue.rules.mode."""
     if engine == "scripted":
+        if library is not None:
+            raise ValueError("a rule library is a claude-engine feature (rules mode on)")
         if rules_mode not in (None, "off"):
             raise ValueError("rule invention is a claude-engine feature; scripted Blue "
                              "has no rules mode")
@@ -121,10 +127,12 @@ def run_output(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
         raise ValueError(f"unknown Blue engine {engine!r}")
     client = client or llm_client.LLMClient()
     rules = claude_engine.rules_config(client.cfg, rules_mode)
+    lib = rule_library.load(library) if library is not None else None
     return claude_engine.classify(proxy_log, match_id, client,
                                   blue_model(client.cfg, model), run_dir,
                                   chunk_size=blue_chunk_size(client.cfg), unscored=unscored,
-                                  rules_mode=rules["mode"], max_rules=rules["max_rules"])
+                                  rules_mode=rules["mode"], max_rules=rules["max_rules"],
+                                  library=lib)
 
 
 def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = None) -> int:
@@ -138,6 +146,9 @@ def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = No
     parser.add_argument("--rules-mode", choices=rule_invention.MODES, default=None,
                         help="claude engine: rule invention off | shadow | on (default: "
                              "config/llm.json agents.blue.rules.mode)")
+    parser.add_argument("--library", type=Path, default=None,
+                        help="claude engine, rules mode on: a rule library file to preload, "
+                             "read-only (Stage 6.1)")
     parser.add_argument("--match-id", default="m001")
     parser.add_argument("--run-dir", type=Path, default=LIVE,
                         help="run directory: reads <run-dir>/proxy.jsonl, writes "
@@ -152,7 +163,7 @@ def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = No
 
     output = run_output(args.engine, args.proxy_log, args.match_id, args.run_dir,
                         client=client, model=args.model, unscored=args.unscored,
-                        rules_mode=args.rules_mode)
+                        rules_mode=args.rules_mode, library=args.library)
     verdicts = output.verdicts
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as fh:

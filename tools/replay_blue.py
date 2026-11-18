@@ -25,6 +25,12 @@ Steps:
               Judge re-runs completely at the current JUDGE_VERSION
   5. replay.json written LAST (schemas/replay_manifest.schema.json)
 
+Library (Stage 6.1, S6-3): --library <file> (claude, rules mode on) preloads a rule
+library READ-ONLY: it is copied into the replay folder as library.json, which Blue and the
+Judge read. This tool has no way to write a library (it imports only the read-only
+rules/library.py), and a replay folder is never accepted as a library source, so rules
+invented while replaying test logs can never reach the library.
+
 Verdicts and rounds keep the SOURCE match_id, so the join works unchanged and the
 source's D16 audit applies (tools/audit_match.py reads replay.json source.match_id);
 a replay is identified by its replay_id and folder (default data/replays/<replay_id>/,
@@ -122,7 +128,8 @@ def load_source(match_dir: Path) -> tuple[dict, dict[str, str]]:
 def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
            rules_mode: str | None = None, model: str | None = None,
            ops: run_match.Ops | None = None, out_fn=print,
-           caching: str | None = None) -> tuple[int, Path | None]:
+           caching: str | None = None, library: Path | None = None
+           ) -> tuple[int, Path | None]:
     """Replay Blue + the Judge. Returns (exit code, replay dir or None if refused)."""
     ops = ops or run_match.Ops()
     try:
@@ -142,13 +149,18 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
             if chunk != 1:
                 raise Refused(f"agents.blue.chunk_size is {chunk}: scored runs are one line "
                               f"per call (D4)")
-            blue_params = claude_engine.blue_params(config, blue_m, chunk, rules_mode)
+            want = claude_engine.rules_config(config, rules_mode)["mode"]
+            lib = run_match.load_library(library, engine, want) if library else None
+            blue_params = claude_engine.blue_params(config, blue_m, chunk, rules_mode,
+                                                    lib.params() if lib else None)
             models = {"blue": {"provider": blue_params["provider"], "model": blue_m}}
             mode = blue_params["rules"]["mode"]
         else:
             if rules_mode not in (None, "off"):
                 raise Refused("--rules-mode needs --engine claude")
-            blue_m, blue_params, models, mode = None, None, {"blue": None}, None
+            if library is not None:
+                raise Refused("--library needs --engine claude (rules mode on)")
+            blue_m, blue_params, models, mode, lib = None, None, {"blue": None}, None, None
         git = ops.git_info()
     except (Refused, ValueError, OSError) as exc:
         out_fn(f"REFUSED: {llm_client.redact(str(exc))}")
@@ -159,10 +171,12 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         shutil.copyfile(match_dir / name, out / name)
         if run_match.sha256_file(out / name) != sha:  # never trust a copy unchecked
             raise OSError(f"copy of {name} does not match its source hash")
+    snapshot = run_match.snapshot_library(library, out, lib.sha256) if lib else None
     started = match_ops.utc_now()
     mid = source["match_id"]
     out_fn(f"replay {replay_id} of {mid} -> {_rel(out)}  blue={engine}"
-           f"{f' rules={mode}' if mode else ''}")
+           f"{f' rules={mode}' if mode else ''}"
+           f"{f' library=v{lib.library_version} ({len(lib)} rules)' if lib else ''}")
 
     failed_step = error = None
     step = STEPS[0]
@@ -170,7 +184,8 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         ops.judge_fact1(out)
         step = "blue"
         if engine == "claude":
-            ops.blue(out, mid, engine, ops.blue_client(config, prices), blue_m, mode)
+            extra = {"library": snapshot} if snapshot is not None else {}
+            ops.blue(out, mid, engine, ops.blue_client(config, prices), blue_m, mode, **extra)
         else:
             ops.blue(out, mid, engine)
         for step in STEPS[2:]:
@@ -185,7 +200,7 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
     stop = llm_client.stopped_by(calls, prices)
     status = "failed" if failed_step else "stopped" if stop is not None else "completed"
     manifest = {
-        "schema_version": "0.2", "replay_id": replay_id, "started_at": started,
+        "schema_version": "0.3", "replay_id": replay_id, "started_at": started,
         "finished_at": match_ops.utc_now(), "status": status, "failed_step": failed_step,
         "error": error, "judge_version": JUDGE_VERSION,
         "source": {"match_id": mid, "path": _rel(match_dir),
@@ -235,9 +250,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default=None, help="claude: Blue model id override")
     ap.add_argument("--caching", choices=("off", "on"), default=None,
                     help="claude: prompt caching (default: config/llm.json agents.blue.caching)")
+    ap.add_argument("--library", type=Path, default=None,
+                    help="claude, rules mode on: preload this rule library, read-only "
+                         "(Stage 6.1; copied into the replay folder as library.json)")
     args = ap.parse_args(argv)
     code, _ = replay(args.match, args.out, args.engine, args.rules_mode, args.model,
-                     caching=args.caching)
+                     caching=args.caching, library=args.library)
     return code
 
 

@@ -23,6 +23,12 @@ Modes (config agents.blue.rules.mode; designer decision, Stage 5.5):
   shadow  proposals validated, recorded and scored, NEVER hot-loaded
   on      proposals hot-loaded: a later line a rule matches gets a rule verdict
           and no API call (D9)
+
+Library (Stage 6.1, D21): in mode on, a loaded cross-match library (rules/library.py,
+read-only) is PRELOADED into the hot-load set: its rules fire from line 1 and come first
+in the tie-break. They are never stored in rules.jsonl, never count toward max_rules (an
+in-match cap), and the AI never sees them. A library needs mode on (shadow never applies
+rules, so a library there would be meaningless and is refused).
 """
 
 from __future__ import annotations
@@ -33,7 +39,7 @@ from pathlib import Path
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
-from rules import engine, hotload, validator
+from rules import engine, hotload, library as library_mod, validator
 
 MODES = ("off", "shadow", "on")
 DEFAULT_MAX_RULES = 10
@@ -63,13 +69,17 @@ def _check(v: Draft202012Validator, row: dict) -> None:
 class RuleBook:
     """Every proposal of one match, in order. Holds the hot-loaded set in mode 'on'."""
 
-    def __init__(self, match_id: str, mode: str, max_rules: int = DEFAULT_MAX_RULES):
+    def __init__(self, match_id: str, mode: str, max_rules: int = DEFAULT_MAX_RULES,
+                 library: library_mod.Library | None = None):
         if mode not in ("shadow", "on"):
             raise ValueError(f"RuleBook needs mode 'shadow' or 'on', not {mode!r}")
+        if library is not None and mode != "on":
+            raise ValueError(f"a rule library needs rules mode 'on', not {mode!r}")
         if isinstance(max_rules, bool) or not isinstance(max_rules, int) or max_rules < 0:
             raise ValueError("max_rules must be a non-negative integer")
         self.match_id, self.mode, self.max_rules = match_id, mode, max_rules
-        self.hot = hotload.HotLoad()
+        self.library = library
+        self.hot = hotload.HotLoad(library.entries if library is not None else ())
         self.rules: list[dict] = []        # rules.jsonl rows
         self.rejections: list[dict] = []   # rule_rejections.jsonl rows
         self._seen: set[str] = set()

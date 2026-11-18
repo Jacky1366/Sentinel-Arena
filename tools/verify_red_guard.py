@@ -1,6 +1,8 @@
 """Verify the AI-Red above_root guard against the real nginx (Stage 5.6).
 
-The guard (red/red_guard.py) must mirror nginx limitation #1: a path that resolves
+The guard (red/red_guard.py) must mirror nginx limitation #1, through the single
+predicate rules/paths.py `above_root` (Stage 6.1, D32: also used by the Judge's variant
+mutator, so this probe verifies both): a path that resolves
 above the web root is rejected by nginx before it is logged (empty request_id, stray
 -> invisible to Blue and the Judge), so Red must never send it. This tool sends a
 small set of probe paths -- literal and percent-encoded, inside and above the root --
@@ -31,6 +33,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 from red import red_guard  # noqa: E402
+from rules import paths  # noqa: E402
 from runner import arena_client, match_ops  # noqa: E402
 
 # (path, expected: "logged" inside the root, or "rejected" above it). All are valid
@@ -78,16 +81,16 @@ def run(settle: float = 1.0) -> list[dict]:
             error = f"{type(exc).__name__}: {exc}"
         results.append({"path": path, "expected": expected, "request_id": rid,
                         "guard_ok": g.ok, "guard_reason": g.reason, "status": status,
-                        "error": error})
+                        "error": error, "above_root": paths.above_root(path)})
     time.sleep(settle)  # let nginx flush
     logged = _logged_ids(live_log)
     for r in results:
         r["logged"] = r["request_id"] in logged
         if r["expected"] == "logged":
-            r["match"] = r["guard_ok"] and r["logged"]
+            r["match"] = r["guard_ok"] and r["logged"] and not r["above_root"]
         else:  # nginx rejects before logging -> guard must block with above_root
             r["match"] = (not r["logged"]) and (not r["guard_ok"]) \
-                and r["guard_reason"] == "above_root"
+                and r["guard_reason"] == "above_root" and r["above_root"]
     return results
 
 

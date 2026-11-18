@@ -39,3 +39,8 @@ data/audits/*
 # --- Blue replays (D17): output of tools/replay_blue.py, never committed by default ---
 data/replays/*
 !data/replays/.gitkeep
+
+# --- Rule library (Stage 6.1): promoted versions and retention evidence stay local until
+# committed as gate evidence; the empty library v0000 is committed ---
+data/library/*
+!data/library/rule_library_v0000.json
