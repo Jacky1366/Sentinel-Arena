@@ -322,4 +322,4 @@ D19, S6-1, S6-2 and S6-3 as decided. Then:
   is loaded".
 - `created_match` is required in library entries.
 - §6.7 limitation 1 is updated on seal.
-- The course-related lines in `docs/progress.md` are removed in the 6.1a wrap-up.
+- Unrelated external schedule lines in `docs/progress.md` are removed in the 6.1a wrap-up.

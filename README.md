@@ -20,8 +20,8 @@ Components never call each other; they exchange JSON/JSONL files defined in
       │ red_attacks.jsonl                    │ proxy.jsonl           │ /api/Challenges
       │ (ground truth)                       ▼                       │ (before/after)
       │                               ┌──────────────┐               │
-      │                               │     Blue     │◀── rules.json │
-      │                               │     (AI)     │──▶ (next match)
+      │                               │     Blue     │◀── library    │
+      │                               │     (AI)     │   (read-only) 
       │                               └──────┬───────┘               │
       │                                      │ verdicts.jsonl        │
       ▼                                      ▼                       ▼

@@ -159,6 +159,26 @@ the same bucket field. Frozen: `api_call_v0_1`, `match_manifest_v0_6`,
 FAIL. No Judge or `rules/` change: `JUDGE_VERSION` stays 0.6.0; prompts, prompt versions and
 their hashes are unchanged.*
 
+*Revised 2026-11-17 (Stage 6.1a, `docs/stage6_decisions.md` D20–D32): **cross-match rule
+memory**. New artifact **rule library** `data/library/rule_library_vNNNN.json` (§5.3,
+`rule_library.schema.json`): immutable versioned files, written ONLY by
+`tools/promote_rules.py` from TRAIN matches (S6-3, D26), read-only everywhere else; it
+**supersedes the cross-match role of `rules.json`** (D20; `rules_file.schema.json` stays the
+input of `tools/score_rules.py`). New retention evidence (§5.4): `variants.jsonl`
+(`variant.schema.json`), `retention.jsonl` (`retention_row.schema.json`), `retention.json`
+(`retention_manifest.schema.json`). New offline benign data and a test-set registry (§6.12):
+`benign/holdout_v1.jsonl` (TEST), `benign/fixture_v2_offline.jsonl` (TRAIN, D31), their
+drafts (`benign_offline_draft.schema.json`), `benign_holdout.schema.json`,
+`config/test_set.json` (`test_set.schema.json`). **Verdicts move to `"0.4"`** when a library
+is loaded (§4: `rule_origin`; library ids `lib-NNNN` in `fired_rule_ids`); **`match.json` to
+`"0.8"`** (§6.2: `purpose`, `blue_params.library`, the `library.json` snapshot, `failed_step`
+`library`); **`replay.json` to `"0.3"`** (§6.9: `blue_params.library`). Frozen:
+`verdict_v0_3`, `match_manifest_v0_7`, `replay_manifest_v0_2`. `rules/hotload.py` preloads
+library rules and the above-root predicate moved to `rules/paths.py` (D32): **`JUDGE_VERSION`
+0.7.0**. Unchanged: rounds, benign results, `api_calls`, `rule_result`, `rule`,
+`match_rule`, `rule_rejection`, the prompts and their hashes, normalization v2. D30: a
+train match is audited (§6.8) only on the source rounds of its candidate rules.*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`) controls ordering.
@@ -420,8 +440,10 @@ never read this file.**
 
 ## 4. Blue verdict — `data/runs/<match_id>/verdicts.jsonl`
 
-`schema_version "0.3"` when claude Blue runs in rules mode `shadow` or `on` (Stage 5.5);
-`"0.2"` for scripted Blue and rules mode `off`, exactly as in Stage 5.4 (frozen
+`schema_version "0.4"` when claude Blue runs in rules mode `on` **with a rule library
+loaded** (Stage 6.1, §5.3; also with the empty library v0000); `"0.3"` in rules mode `shadow`
+or `on` without a library (Stage 5.5, frozen `verdict_v0_3.schema.json`); `"0.2"` for
+scripted Blue and rules mode `off`, exactly as in Stage 5.4 (frozen
 `verdict_v0_2.schema.json`); 0.1 verdicts, e.g. the older golden folders, are validated by
 the frozen `verdict_v0_1.schema.json`. Readers dispatch on `schema_version`. **Exactly
 one row per judged proxy line**: either a verdict, or the reason there is none.
@@ -440,13 +462,14 @@ one row per judged proxy line**: either a verdict, or the reason there is none.
 
 | Field | Type | Rationale |
 |---|---|---|
-| `schema_version` | `"0.3"` \| `"0.2"` | Versioning (see above). |
+| `schema_version` | `"0.4"` \| `"0.3"` \| `"0.2"` | Versioning (see above). |
 | `match_id` | string | Provenance. Supplied to Blue as a parameter; the proxy log does not carry it. |
 | `log_seq` | int ≥ 1 | Blue's own 1-based index into the proxy log it read. **Not** the round: the Judge joins on `request_id` only and takes `round` from Red. Named distinctly so the two orderings are never confused. |
 | `request_id` | uuid4 | Join key back to the proxy line Blue judged. |
 | `verdict` | taxonomy enum (4 values) \| null | Blue's classification. With `no_verdict_reason`, the only fields the Judge scores. |
 | `source` | `"signature"` \| `"ai"` \| `"rule"` \| null | What produced the verdict: scripted signatures, the AI, or (0.3, rules mode `on`) a hot-loaded Blue rule, in which case no API call was made for the line (D9). **`null` iff `verdict` is `null`.** |
-| `fired_rule_ids` | array of `r-NNN` (0.3 only, required) | Every hot-loaded rule that fired on the line, in hot-load order. **Non-empty iff `source` is `"rule"`**; the verdict is the CWE of the first (tie-break, §5.2). A rule verdict has no `rationale`; its `reason` is `"rule r-NNN fired"`. |
+| `fired_rule_ids` | array of `r-NNN` / `lib-NNNN` (0.3 and 0.4, required) | Every hot-loaded rule that fired on the line, in hot-load order: library rules (`lib-NNNN`, 0.4 only) first, then in-match rules (`r-NNN`). **Non-empty iff `source` is `"rule"`**; the verdict is the CWE of the first (tie-break, §5.2). A rule verdict has no `rationale`; its `reason` is `"rule <id> fired"`. |
+| `rule_origin` | `"library"` \| `"match"` \| null (0.4 only, required) | Where the tie-break winner came from (D22): a library rule (§5.3) or a rule invented in this match. **Non-null iff `source` is `"rule"`.** `"match"` means no library rule fired (library rules come first). `source` is not split: both are the same mechanism (rule engine, no call). Rule coverage (M6) = rule verdicts, split by `rule_origin`. |
 | `no_verdict_reason` | `null` \| `"no_verdict"` \| `"instrument_failure"` | **Non-null iff `verdict` is `null`.** `no_verdict`: the brain gave no usable answer (an invalid, incomplete or refused reply); counted as a miss on attacks, excluded from the FP rate. `instrument_failure`: the harness failed — the body refused the call, or the API failed after its retries (D13); excluded from detection and FP stats, like an orphan. |
 | `failure_detail` | `null` \| see below | **Audit only; the Judge never reads it.** Non-null iff `verdict` is `null`. With `no_verdict`: `invalid_json`, `invalid_shape`, `missing_index`, `duplicate_index`, `unknown_index`, `unknown_label`, `model_refusal` (the model's safety layer declined, `stop_reason: "refusal"`), `max_tokens` (the reply was cut off). With `instrument_failure`: `refused_by_body`, `api_error`. |
 | `rationale` | string ≤ 200 chars, optional | The AI's one-sentence reason, cut to 200 characters when stored. Only on AI verdicts. **For humans only.** |
@@ -479,6 +502,10 @@ rule the validator rejects, mixes `hot_loaded` values, is out of creation order,
 stored or rejected proposal does not sit on an AI verdict for the same request with the
 same label; or if rule ids repeat across `rules.jsonl` and `rule_rejections.jsonl`. With no
 rule artifacts, any rule verdict raises. This is what makes the exemption above safe.
+**With a library** (Stage 6.1) the cross-check loads the folder's `library.json` snapshot
+with the same read-only code Blue uses and preloads its rules into the re-run; then every
+row must be 0.4 with the re-run's `rule_origin`, and a library needs rules mode `on`.
+Without a snapshot, a 0.4 row or a `lib-NNNN` id raises.
 
 ### 4.1 What AI Blue sees (D14)
 
@@ -502,14 +529,19 @@ without consulting the model; and an output section in which each verdict may ca
 optional `rule` (`{conditions: [...]}`, only when the label is not `benign`). The output
 schema v2 is v1 plus that optional `rule`. The prompt is identical in shadow and on: the
 model is never told which mode it runs in. The model never sees existing rules, rule ids,
-request ids, statuses or Judge output (D8, D14).
+request ids, statuses or Judge output (D8, D14). **A rule library changes nothing here**
+(D21): library rules are never shown to the model; the prompt and every message are
+byte-identical with and without a library (tested).
 
 ---
 
-## 5. Rules — `rules.json` (cross-match memory)
+## 5. Rules — the rule format; `rules.json`
 
 A rule is **declarative data, never code** (D3). Blue writes rules from 5.5; Stage
-5.3 builds the machinery that judges them. The file is a versioned wrapper:
+5.3 builds the machinery that judges them. **Cross-match memory is the rule library (§5.3,
+D20), which supersedes the cross-match role first planned for `rules.json`.** `rules.json`
+(below) stays the input format of `tools/score_rules.py` (hand-written rules scored against
+a frozen match). The file is a versioned wrapper:
 
 ```json
 {
@@ -538,7 +570,7 @@ Schemas: `rules_file.schema.json` (whole file) and `rule.schema.json` (one rule)
 | condition `case_insensitive` | bool | `contains` / `equals` compare lowercased; `regex` uses RE2's case folding. |
 | `source_request_id` | uuid4 | The attack the rule was written for. In 5.5 the body fills it in from Blue's local index (D8); the AI never writes it. Fact 3 replays the rule against this request. |
 | `created_at_log_seq` | int ≥ 1 | Blue's log index when the rule was created (hot-load applies it to later lines only, D4). |
-| `created_match` | match_id (optional) | Provenance for cross-match comparison. Optional now; Stage 6 decides whether it becomes required. |
+| `created_match` | match_id (optional) | Provenance for cross-match comparison. Optional in a rule; **required in a library entry** (D20, §5.3). |
 | `note` | string (optional) | For humans; never scored. |
 
 Individual rules do **not** carry `schema_version` or `match_id`.
@@ -617,8 +649,100 @@ on (both files, possibly empty); never in mode off or by scripted Blue.
 | | `reasons` | ≥ 1 `{code, detail}`: the validator's codes (§5) plus `rule_cap_reached` (a valid rule over `max_rules`); a proposal with keys other than `conditions`, or that is not an object, is `schema_error`. |
 
 **Blue never reads either file back** within a match (the rules live in memory; the files
-are records), and never reads `rule_results.jsonl` (§6.7). Cross-match memory (`rules.json`,
-§5) stays Stage 6 (D7): every match and every replay starts with zero rules.
+are records), and never reads `rule_results.jsonl` (§6.7). Every match and every replay
+starts with zero in-match rules; **unless a rule library is loaded** (§5.3), it starts with
+no rules at all.
+
+### 5.3 Rule library — `data/library/rule_library_vNNNN.json` (Stage 6.1, D20, D21, D26)
+
+Blue's **cross-match** rule memory. Schema `rule_library.schema.json`, `"0.1"`.
+
+- **Immutable versions.** Every promotion writes a NEW file, version = parent + 1, with an
+  exclusive create; no file is ever overwritten or deleted. `rule_library_v0000.json` is
+  the empty library (committed). Every load names one file; its sha256 is recorded.
+- **One writer.** `library/writer.py`, imported only by `tools/promote_rules.py` (§5.4).
+  Everything that runs in a match or a replay reads libraries through the read-only
+  `rules/library.py`, which has no write path (tested: import graph + AST). The writer also
+  refuses any match in `config/test_set.json` and any location under `data/golden/`.
+- **No Red ground truth in the library.** Entries carry provenance, never the source label,
+  facts 3 / 4b or variant results (those live in the retention log, §5.4), so Blue's body may
+  read a library. **The AI never sees it** (D21, §4.1).
+
+```json
+{"schema_version":"0.1","library_version":2,
+ "parent":{"path":"data/library/rule_library_v0001.json","sha256":"<64 hex>","library_version":1},
+ "created_at":"…","judge_version":"0.7.0","normalization_version":"2",
+ "mutator_version":"1","retention_version":"1",
+ "fixtures":[{"path":"benign/fixture_v1.jsonl","sha256":"…"},
+             {"path":"benign/fixture_v2_offline.jsonl","sha256":"…"}],
+ "promoted_matches":["<train match_id>","<train match_id>"],
+ "entries":[{"library_id":"lib-0001","canonical_sha256":"<64 hex>",
+   "rule":{ …a rule (§5), created_match required… },
+   "promoted_from":{"match_id":"<train match_id>","rule_id":"r-003"},
+   "promoted_in_version":1,
+   "retention_ref":{"path":"data/library/retention/<match_id>/retention.jsonl","line":3}}]}
+```
+
+| Field | Rule |
+|---|---|
+| `library_version` / `parent` | 0 = empty, no parent; else the parent's path, sha256 and version. |
+| `promoted_matches` | Every train match promoted into this lineage, ascending `match_id`, including matches that contributed no rule. A match is never promoted twice. |
+| `entries[].library_id` | `lib-0001`, `lib-0002`, … in promotion order (never collides with `r-NNN`). Entry order = hot-load tie-break order. At most 50 entries. |
+| `entries[].canonical_sha256` | sha256 of the canonical form (D25): `cwe` + conditions sorted by `(field, op, pattern, case_insensitive)`; `contains` / `equals` patterns lowercased when `case_insensitive` (the engine lowercases them anyway); a `regex` pattern is **never** rewritten. Unique in a library: an exact duplicate never enters. |
+| `entries[].rule` | A rule (§5), valid by the validator, `created_match` = `promoted_from.match_id`. Its `rule_id` is the in-match id (ids repeat across matches; the library id is the key). |
+
+**Load semantics (D21).** `run_match.py --library F` / `tools/replay_blue.py --library F`
+(claude Blue, rules mode `on` only) copy F into the run folder as **`library.json`** (hash
+verified), which is all Blue and the Judge read. Library rules are **preloaded** into
+`rules/hotload.py`: live from line 1, **first in the tie-break** (library order, then
+in-match rules in creation order). In-match invention is unchanged; `max_rules` counts
+in-match rules only; library rules are never written to `rules.jsonl`. A line a library
+rule answers makes no AI call and so carries no proposal. An empty library (v0000) is a
+loaded library (verdicts 0.4, snapshot present), never the absence of one.
+
+### 5.4 Retention — `data/library/retention/<match_id>/` (Stage 6.1, M2, M3, D23–D25, D30, D31)
+
+`tools/promote_rules.py --match <train match> --library <parent>` (zero tokens) is the ONLY
+path into the library. It refuses (exit 2, nothing written) unless the folder is a frozen
+**match** (a replay is never a source) with manifest `"0.8"`+, `purpose: "train"`, status
+`completed`, a clean tree, every file it reads matching its `match.json` hash; not listed in
+`config/test_set.json` nor under `data/golden/`; every sealed file of §6.12 present with its
+hash on disk **and at the match's recorded commit** (pre-registration, D27); the D16 audit of
+the candidate source rounds complete (D30); the parent loads, this match is not in its
+lineage, and promotion is in ascending `match_id` order. Decisions are pure
+(`judge/retention.py`), per rule in `rules.jsonl` order; **every failing criterion is
+recorded**:
+
+| Criterion | Reason code when it fails |
+|---|---|
+| (a) fact 3: `replay_fires` true; `cwe_matches_source` true | `fact3_false`; `cwe_mismatch` |
+| (b) 0 hits on `fixture_v1` (fact 4b); 0 hits on `fixture_v2_offline` (D31) | `fixture_hit`; `offline_fixture_hit` |
+| (c) the source round audited `valid` (scripted labels are valid by construction) | `source_label_invalid`; `source_unaudited` |
+| (d) ≥ 1 counting variant, and the rule ALONE fires on ≥ 1 of them | `no_counting_variant` (a mutator gap); `no_variant_blocked` (too narrow) |
+| (e) canonical form not in the library nor retained earlier in this promotion | `duplicate_exact` (+ `duplicate_of`) |
+| (f) library under its cap (checked only for a rule passing (a)–(e)) | `library_cap_reached` |
+
+`behavioural_duplicate_of` (D25) is **advisory**: the first library entry that fires on
+exactly the same non-empty set of the retention corpus (the match's judged proxy lines, both
+fixtures and every variant of this promotion). It never rejects.
+
+**Variants** (`judge/variants.py`, pure, seeded, `MUTATOR_VERSION "1"`, S6-2): per source
+request, seed = sha256(version | base seed | match_id | request_id); each applicable
+transformation once, at most 12; never sent. A variant **counts** only if it is none of:
+`normalizer_probe` (E1, E2, T1, T2: re-encoding only), `non_equivalent` (T4 backslash, T7
+overlong UTF-8), `above_root` (`rules/paths.py`, D32: nginx would log it as stray),
+`normalizer_neutralized` (for every field, forms(variant) ⊇ forms(source): every rule
+firing on the source fires on it by construction), `encoding_only` (the fully decoded request
+equals the source's; **D24 amendment, proposed 2026-11-17, pending the designer**). The
+transformation list and what normalization v2 does to each are in
+`docs/plans/stage6_1_step0.md` §4 and `judge/variants.py`.
+
+Outputs, under `data/library/retention/<match_id>/` (never in the match folder):
+`variants.jsonl` (every variant, counting or not, with its reason), `retention.jsonl` (one
+row per candidate: decision, reasons, library id, facts, audit verdict, fixture hits, variant
+ids generated / counting / blocked, seed), the new library file, and `retention.json`
+LAST (inputs and their hashes, the seal, outputs, versions, a summary). These hold Red
+ground truth: **Blue never reads them.** A rejected rule's evidence is never deleted.
 
 ---
 
@@ -763,12 +887,13 @@ alarm that the measurement harness misbehaved, not an acceptable outcome.
 
 Written by the **orchestrator** (`run_match.py`) as the **last** file of **every**
 match, completed, failed or stopped. One JSON object (not JSONL). Schema:
-`schemas/match_manifest.schema.json` (`schema_version "0.6"`, Stage 5.5 on).
-Manifests written earlier are `"0.1"`–`"0.5"` and are validated by the matching
-frozen schema (`match_manifest_v0_1`…`v0_5`); validators dispatch on `schema_version`
+`schemas/match_manifest.schema.json` (`schema_version "0.8"`, Stage 6.1 on).
+Manifests written earlier are `"0.1"`–`"0.7"` and are validated by the matching
+frozen schema (`match_manifest_v0_1`…`v0_7`); validators dispatch on `schema_version`
 (`run_match.validate_manifest`). 0.4 added `blue_params` (AI Blue); 0.5 added
-`red_engine`, `red_params` and made `red_source` nullable (AI Red); 0.6 adds
-`blue_params.rules` and the `failed_step` `judge_rules`.
+`red_engine`, `red_params` and made `red_source` nullable (AI Red); 0.6 added
+`blue_params.rules` and the `failed_step` `judge_rules`; 0.7 added caching; **0.8 adds
+`purpose`, `blue_params.library` and the `failed_step` `library`** (Stage 6.1).
 
 ```json
 {"schema_version":"0.6","match_id":"20261109T153012Z-a1b2",
@@ -816,17 +941,18 @@ frozen schema (`match_manifest_v0_1`…`v0_5`); validators dispatch on `schema_v
 
 | Field | Type | Rationale |
 |---|---|---|
-| `schema_version` | `"0.7"` | Versioning (`"0.1"` before Stage 5.1 … `"0.5"` in Stage 5.6, `"0.6"` in Stage 5.5, see above). |
+| `schema_version` | `"0.8"` | Versioning (`"0.1"` before Stage 5.1 … `"0.7"` in Stage 5.7, see above). |
+| `purpose` | `"dev"` \| `"train"` | (0.8) `run_match.py --purpose`, default `dev`. **Only a `train` match can feed the rule library** (§5.4, D26); `--purpose train` is refused on a dirty tree. Test data is never produced by `run_match.py`: it is the committed golden matches and the sealed holdout (§6.12). |
 | `match_id` | match_id (§0) | Equals the directory name; self-describing when copied out. |
 | `started_at` / `finished_at` | UTC ISO 8601 | Wall-clock span of the match. |
 | `status` | `"completed"` \| `"failed"` \| `"stopped"` | `failed`: a step raised. `stopped`: every step ran, but the AI body refused a call or saw usage it cannot price (`budget.stopped_by`). `completed`: neither. A failure wins over a stop. |
-| `failed_step` | `null` \| `reset` \| `rotate` \| `traffic` \| `freeze` \| `judge_fact1` \| `blue` \| `judge_rounds` \| `judge_benign` \| `judge_red` \| `judge_rules` | Where it failed (`judge_rules`: facts 3 + 4b for the match's rules, Stage 5.5) (`traffic` was `red` in 0.2; `traffic` also drives AI Red). **`null` iff `status != "failed"`.** |
+| `failed_step` | `null` \| `library` \| `reset` \| `rotate` \| `traffic` \| `freeze` \| `judge_fact1` \| `blue` \| `judge_rounds` \| `judge_benign` \| `judge_red` \| `judge_rules` | Where it failed (`library`: copying the rule library snapshot, Stage 6.1; `judge_rules`: facts 3 + 4b for the match's rules, Stage 5.5) (`traffic` was `red` in 0.2; `traffic` also drives AI Red). **`null` iff `status != "failed"`.** |
 | `error` | `null` \| string | Exception text (key values redacted), plus any finalize problem. **`null` iff `status != "failed"`.** |
 | `judge_version` | semver string | `judge.JUDGE_VERSION` that scored `rounds.jsonl`. Bumped on any Judge logic change, so results scored by older logic are identifiable. |
 | `blue_engine` | `"scripted"` \| `"claude"` | Which Blue engine produced `verdicts.jsonl` (`run_match.py --blue`). |
 | `red_engine` | `"scripted"` \| `"ai"` | Which Red chose the attacks (`run_match.py --red`). |
 | `red_params` | `null` \| object | **The AI Red configuration; `null` iff `red_engine` is `scripted`.** `{provider, model, round_cap, prompt_version, system_prompt_sha256, caching: {mode, ttl}, sdk: null \| {package, version}, request: {max_output_tokens, reasoning_effort, output_format, store, temperature, temperature_note}, feedback_body_chars, guard: {methods, max_path_chars, max_body_chars}}`. `temperature` is `null` (not set; run-to-run variation is expected and wanted for attack variety). `store` is `false`. `caching` (Stage 5.7, §6.10): `mode` `off` \| `on`, `ttl` the cache-write lifetime used (`"30m"` for OpenAI), `null` iff `mode` is `off` (0.6 had a free-text `request.prompt_caching`). All of it must be held constant within any comparison. `sdk` is `null` for the fake provider (tests). |
-| `blue_params` | `null` \| object | **The AI Blue configuration; `null` iff `blue_engine` is `scripted`.** `{provider, model, chunk_size, prompt_version, system_prompt_sha256, rules: {mode, max_rules}, caching: {mode, ttl}, sdk: null \| {package, version}, request: {max_output_tokens, thinking, effort, output_format, temperature, temperature_note}}`. `rules.mode` is `off` \| `shadow` \| `on` (§5.2); `caching` as for Red (`ttl` `"5m"` for Anthropic; §6.10); `prompt_version` / `system_prompt_sha256` are those of the prompt the mode sends (`"1"` for off, `"2"` for shadow and on). `temperature` is `null` with a note: Haiku 5.5 and API version `2026-10-21` reject sampling parameters, so run-to-run variation is measured, not suppressed. Thinking, effort, output format and the output-token cap are part of the Blue configuration and **must be held constant within any comparison**. `sdk` is `null` for the fake provider (tests). |
+| `blue_params` | `null` \| object | **The AI Blue configuration; `null` iff `blue_engine` is `scripted`.** `{provider, model, chunk_size, prompt_version, system_prompt_sha256, rules: {mode, max_rules}, caching: {mode, ttl}, sdk: null \| {package, version}, request: {max_output_tokens, thinking, effort, output_format, temperature, temperature_note}}`. `rules.mode` is `off` \| `shadow` \| `on` (§5.2); `caching` as for Red (`ttl` `"5m"` for Anthropic; §6.10); `prompt_version` / `system_prompt_sha256` are those of the prompt the mode sends (`"1"` for off, `"2"` for shadow and on). `library` (0.8): the rule library loaded read-only, `{path, sha256, library_version, entries}`, or `null` (§5.3; its snapshot is `library.json` in the match folder, hashed in `artifacts`). `temperature` is `null` with a note: Haiku 5.5 and API version `2026-10-21` reject sampling parameters, so run-to-run variation is measured, not suppressed. Thinking, effort, output format and the output-token cap are part of the Blue configuration and **must be held constant within any comparison**. `sdk` is `null` for the fake provider (tests). |
 | `red_source` | `null` \| `{path, sha256}` | The scripted payload file fired (`null` for AI Red, which has no payload file; the prompt is pinned by `red_params`). **`null` iff `red_engine` is `ai`.** |
 | `git` | `{commit, dirty}` | Code provenance. `dirty` counts untracked files too. A committed reference run (the scripted baseline run, and later the golden run) must say `false`. |
 | `traffic` | `{seed, seed_source, benign_set, schedule}` | `seed`: 0..2³²−1; `seed_source`: `cli` (`--seed`) or `generated`. `benign_set`: `{path, sha256, set_version}`. `schedule`: the **planned** slot order from the seed, `red:<round>` / `benign:<benign_id>` (§2.1). Same seed + same set + same payloads → same schedule. |
@@ -1095,8 +1221,11 @@ written; results are deterministic.
 
 **Limitations.** (1) The fixture is **not held out**: it is the same 17 requests
 D1 layer 1 sends in every match, so an AI Blue (5.5) will have seen these exact
-lines and could write rules that avoid them. A second, never-sent benign set is
-planned before Stage 6. (2) Decoding is content-type agnostic: a literal `%27`
+lines and could write rules that avoid them. Stage 6.1 adds a never-sent holdout set
+(`benign/holdout_v1.jsonl`, TEST data, §6.12) for offline scoring only, and a small never-sent
+TRAIN fixture of CWE-22 look-alikes (`benign/fixture_v2_offline.jsonl`, D31) read only by
+retention (§5.4). *Status 2026-11-17: both drafted; captured and sealed at Gate 0 (this
+line is updated on seal).* (2) Decoding is content-type agnostic: a literal `%27`
 inside a JSON value also yields a form containing `'`. (3) Additive forms can add
 false positives as well as detections: the hand rule `union\s+\w+` hits benign
 `h01` only through the `+`-decoded form `union jack`.
@@ -1128,6 +1257,11 @@ without touching the match.
   audited numbers equal the raw ones (`tools/audit_match.py` and `stats/match_stats.py`).
 - **Replays** (§6.9) are audited through their source match: the audit tool reads the
   match id from `replay.json` `source.match_id`, so the source's audit file applies.
+- **Train matches are audited where the library needs it** (D30, Stage 6.1): for a match
+  with `purpose: "train"`, scaffold, validate and sheet cover exactly the **source rounds of
+  candidate rules** (the AI-labeled rounds whose request produced a rule in `rules.jsonl`),
+  not every round. `tools/promote_rules.py` requires every one of them decided (§5.4). The
+  audited whole-match view of a train match stays incomplete by design.
 - **Format** (`schemas/match_audit.schema.json`, `"0.1"`), one line per AI-labeled round
   in `rounds.jsonl` (sent attacks only; unsent slots are not rounds):
 
@@ -1166,7 +1300,7 @@ without touching the match.
 ## 6.9 Replay manifest (D17) — `data/replays/<replay_id>/replay.json`
 
 `tools/replay_blue.py --match <frozen match> [--out <dir>] --engine scripted|claude
-[--rules-mode off|shadow|on] [--model M] [--caching off|on]` runs Blue and the full Judge on a **copy** of a
+[--rules-mode off|shadow|on] [--model M] [--caching off|on] [--library F]` runs Blue and the full Judge on a **copy** of a
 frozen match's inputs (D17: Blue is a passive detector, so Blue on the frozen proxy log is
 equivalent to Blue live). It **never writes into the source**: the output folder must not
 exist or be empty, and must not be or lie inside any folder holding a `match.json` or
@@ -1181,8 +1315,13 @@ exist or be empty, and must not be or lie inside any folder holding a `match.jso
   the same `run_match.Ops` steps a live match uses; the Judge re-runs completely at the
   current `JUDGE_VERSION`. Verdicts and rounds keep the **source `match_id`** (the join and
   the D16 audit apply unchanged); a replay is identified by `replay_id` and its folder.
-- **`replay.json`** (`replay_manifest.schema.json`, `"0.2"`; `"0.1"` before Stage 5.7,
-  frozen as `replay_manifest_v0_1`), written last: `replay_id`
+- **Library (Stage 6.1, S6-3).** `--library F` (claude, rules mode on) loads a rule library
+  **read-only**: it is copied into the replay folder as `library.json`. The tool cannot write
+  a library (it imports only `rules/library.py`), and a replay folder is never a library
+  source (§5.4), so rules invented while replaying test logs can never reach the library.
+- **`replay.json`** (`replay_manifest.schema.json`, `"0.3"` since Stage 6.1 with
+  `blue_params.library`; `"0.2"` before, frozen as `replay_manifest_v0_2`; `"0.1"` before
+  Stage 5.7, frozen as `replay_manifest_v0_1`), written last: `replay_id`
   (same form as a timestamp match id), `started_at` / `finished_at`, `status` /
   `failed_step` (`judge_fact1` … `judge_rules`) / `error` (as §6.2), `judge_version`,
   `source {match_id, path, match_json_sha256, status, judge_version, blue_engine,
@@ -1252,6 +1391,35 @@ its fact. Exit codes 0 / 3 / 1. **Stage 5 is done when at least one Gate 3 match
 (`--red ai --blue claude`, rules on) **reaches PASS.** *Result (2026-11-14):* all three
 Gate 3 matches reach PASS (`data/golden/ai-vs-ai-gate3-match{1,2,3}/`); Stage 5 is done.
 
+## 6.12 Offline benign data and the test set (Stage 6.1, M4, S6-1, D27, D31)
+
+Two never-sent benign files, captured together by `tools/build_holdout.py`:
+
+| File | Role | Size | Read by |
+|---|---|---|---|
+| `benign/holdout_v1.jsonl` | **TEST** (S6-1) | 40: 12 normal; 28 hard negatives (9 CWE-89, 9 CWE-79, 10 CWE-22 look-alikes) | offline scoring of library rules only (`tools/stage6_1_check.py`); **never** retention or any selection code |
+| `benign/fixture_v2_offline.jsonl` | TRAIN (D31) | 6 CWE-22 look-alikes (same categories, disjoint instances) | retention criterion (b) only (§5.4); never part of Judge fact 4b output |
+
+- **Drafts** (`benign/*.draft.json`, `benign_offline_draft.schema.json`): designer-approved
+  entries in the `benign_set.json` request format plus `look_alike`, drafted from
+  pre-registered categories (`docs/plans/stage6_1_step0.md` §6) and never scored against any
+  rule before sealing. Ids `xn01…` / `xh01…` (holdout), `yh01…` (fixture v2).
+- **Capture** (`--capture`, zero tokens, Gate 0): each entry is sent ONCE through the shared
+  client to a freshly reset Target, **outside any match** (holding the match lock), and
+  `method/path/query/body` are copied **verbatim** from the logged line
+  (`benign_holdout.schema.json`: plus `benign_id`, `category`, `look_alike`); then the
+  Target is reset. Exclusive creates: a sealed file is never overwritten. Each file gets a
+  `.meta.json` (sha256, sealed date, counts, draft sha256, capture provenance).
+- **Seal and pre-registration (D27).** Both sha256 are recorded in `config/test_set.json` and
+  committed in ONE commit before the first train match; `tools/promote_rules.py` refuses any
+  train match whose recorded commit does not contain them with those hashes.
+  `tools/build_holdout.py --check` detects drift.
+- **Test-set registry** `config/test_set.json` (`test_set.schema.json`): `match_ids` = the 6
+  audited AI-Red golden matches (3 Stage 5.6 Gate 2, 3 Stage 5.7 Gate 3) and `sealed` = the
+  two files above with their hashes (`null` until sealed). Test data never feeds the library:
+  the promote tool and the writer refuse these matches, and a test fails if any library file
+  names one.
+
 ---
 
 ## 7. Challenge map — `config/challenge_map.json`
@@ -1307,7 +1475,14 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Challenge snapshots | `data/runs/<match_id>/challenge_snapshots.jsonl` | Measurement runner | Judge | **Blue** |
 | Landed fact | `data/runs/<match_id>/landed.jsonl` | Judge (Stage 2) | Judge (Stage 3 join) | Red, Blue, Dashboard |
 | Verdicts | `data/runs/<match_id>/verdicts.jsonl` | Blue | Judge, stats (`failure_detail` counts), Dashboard | Red |
-| Rules | `rules.json` | Blue (match N) | Blue (match N+1), Judge (replay), Dashboard | Red |
+| Rules (hand-written) | `rules.json` | Designer / tests | `tools/score_rules.py` | Red, Blue |
+| Rule library | `data/library/rule_library_vNNNN.json` | `tools/promote_rules.py` (via `library/writer.py`; train matches only, §5.4) | Blue's body (preloaded rules, never shown to the AI), Judge (rule-verdict cross-check), `tools/stage6_1_check.py`, Dashboard | Red; the AI (D21) |
+| Library snapshot | `data/runs/<match_id>/library.json`, `data/replays/<id>/library.json` | Orchestrator / `tools/replay_blue.py` (a verified copy) | Blue's body, Judge | Red; the AI |
+| Variants | `data/library/retention/<match_id>/variants.jsonl` | `tools/promote_rules.py` (`judge/variants.py`) | Retention, humans | Red, **Blue** (source label) |
+| Retention log | `data/library/retention/<match_id>/retention.jsonl`, `retention.json` | `tools/promote_rules.py` (`judge/retention.py`) | Humans, Dashboard | Red, **Blue** (ground truth) |
+| Holdout benign set | `benign/holdout_v1.jsonl` (+ `.meta.json`, draft) | `tools/build_holdout.py` (outside any match) | `tools/stage6_1_check.py` (offline scoring only) | **Blue**, retention / selection code (S6-1) |
+| Offline fixture v2 | `benign/fixture_v2_offline.jsonl` (+ `.meta.json`, draft) | `tools/build_holdout.py` | Retention criterion (b) only | **Blue** |
+| Test-set registry | `config/test_set.json` | Designer (`build_holdout.py` fills the hashes) | `tools/promote_rules.py`, `library/writer.py`, tests | — |
 | Match rules | `data/runs/<match_id>/rules.jsonl` | Blue's body (rule invention, §5.2) | Judge (rule-verdict cross-check, facts 3 + 4b), stats, Dashboard | Red; Blue never reads it back |
 | Rule rejections | `data/runs/<match_id>/rule_rejections.jsonl` | Blue's body (§5.2) | Judge (id + provenance cross-check), stats, humans | Red; Blue never reads it back |
 | Rule results | `<score dir>/rule_results.jsonl`, `data/runs/<match_id>/rule_results.jsonl` | Judge (`tools/score_rules.py`; the `judge_rules` step) | Stage 6 retention code, Dashboard, humans | Red, **Blue** (`source_label` is ground truth) |
