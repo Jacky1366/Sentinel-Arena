@@ -229,3 +229,45 @@ def test_gate_report_prints_numbers_and_every_rule(dirs, tmp_path, capsys):
     assert "rules mode shadow" in out and "REJECTED" in out and "regex_unsupported_feature" in out
     assert "rule path" in out and "AI path" in out and "raw" in out and "audited" in out
     assert "whole match: detection" in out and "det " not in out
+
+
+# ---- Stage 6.1: a library is loaded READ-ONLY (S6-3) ------------------------------
+
+GATE3 = REPO / "data" / "golden" / "ai-vs-ai-gate3-match1"
+
+
+def _lib(tmp_path):
+    from test_rule_library import make_library, rule
+    return make_library(tmp_path / "lib", ("20261120T010000Z-aaaa",
+                                           [rule(1, cwe="CWE-22", pattern="../", field="path",
+                                                 ci=False)]))[-1]
+
+
+def test_replay_of_test_data_with_a_library_never_writes_it_back(tmp_path):
+    """A golden (test) match replayed with a library and rule invention on: the library
+    file is byte-identical afterwards, no new library version appears, the golden folder
+    is untouched; the rules invented while replaying stay in the replay folder only."""
+    lib = _lib(tmp_path)
+    lib_dir_before = tree(lib.parent)
+    golden_before = tree(GATE3)
+    live = tmp_path / "live"
+    live.mkdir()
+    code, rdir, out = do_replay(GATE3, tmp_path / "replay", RulesOps(live, answer=broad),
+                                engine="claude", rules_mode="on", library=lib)
+    assert code == 0, out
+    assert tree(lib.parent) == lib_dir_before
+    assert tree(GATE3) == golden_before
+    m = json.loads((rdir / "replay.json").read_text())
+    assert SCHEMA.is_valid(m) and m["schema_version"] == "0.3"
+    assert m["blue_params"]["library"]["sha256"] == hashlib.sha256(lib.read_bytes()).hexdigest()
+    assert (rdir / "library.json").read_bytes() == lib.read_bytes()
+    v = [json.loads(l) for l in (rdir / "verdicts.jsonl").read_text().splitlines()]
+    assert {r["schema_version"] for r in v} == {"0.4"}
+    assert any(r["rule_origin"] == "library" for r in v)
+    assert (rdir / "rules.jsonl").read_text()  # invented rules stay in the replay folder
+
+
+def test_replay_library_needs_claude(tmp_path):
+    code, rdir, out = do_replay(GATE3, tmp_path / "replay", FakeOps(tmp_path), engine="scripted",
+                                library=_lib(tmp_path))
+    assert code == 2 and rdir is None and "--library needs --engine claude" in out

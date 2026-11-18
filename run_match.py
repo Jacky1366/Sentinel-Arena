@@ -325,7 +325,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             lib = load_library(library, engine, mode) if library is not None else None
             blue_params = claude_engine.blue_params(
                 llm_config, model, chunk, blue_rules_mode,
-                lib.params() if lib else None)  # ValueError: bad mode
+                lib.params() if lib is not None else None)  # ValueError: bad mode
             rules_mode = blue_params["rules"]["mode"]
             models = {**red_models, "blue": {"provider": blue_params["provider"],
                                              "model": model}, "analyst": None}

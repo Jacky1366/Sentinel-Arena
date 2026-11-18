@@ -59,6 +59,13 @@ SCHEMA_NAMES = [
     "replay_manifest",
     "replay_manifest_v0_2",
     "replay_manifest_v0_1",
+    "rule_library",
+    "variant",
+    "retention_row",
+    "retention_manifest",
+    "benign_holdout",
+    "benign_offline_draft",
+    "test_set",
 ]
 
 
@@ -401,6 +408,62 @@ def _drop(key):
         return r
     return f
 
+
+# Stage 6.1: rule library, variants, retention, offline benign data, test-set registry.
+LIB_RULE = {**RULE, "created_match": BID_MATCH}
+VALID["rule_library"] = {
+    "schema_version": "0.1", "library_version": 1,
+    "parent": {"path": "data/library/rule_library_v0000.json", "sha256": SHA,
+               "library_version": 0},
+    "created_at": "2026-11-20T00:00:00.000Z", "judge_version": "0.7.0",
+    "normalization_version": "2", "mutator_version": "1", "retention_version": "1",
+    "fixtures": [{"path": "benign/fixture_v1.jsonl", "sha256": SHA}],
+    "promoted_matches": [BID_MATCH],
+    "entries": [{"library_id": "lib-0001", "canonical_sha256": SHA, "rule": LIB_RULE,
+                 "promoted_from": {"match_id": BID_MATCH, "rule_id": RULE["rule_id"]},
+                 "promoted_in_version": 1,
+                 "retention_ref": {"path": "data/library/retention/x/retention.jsonl",
+                                   "line": 1}}]}
+VALID["variant"] = {
+    "schema_version": "0.1", "mutator_version": "1", "base_seed": 0,
+    "source_match_id": BID_MATCH, "source_request_id": RID, "cwe": "CWE-89",
+    "variant_id": "v-0123456789ab", "transformation": "S1",
+    "request": {"method": "GET", "path": "/rest/products/search", "query": "q=x", "body": ""},
+    "neutralized": False, "encoding_only": False, "counting": True, "exclusion_reason": None}
+VALID["retention_row"] = {
+    "schema_version": "0.1", "retention_version": "1", "match_id": BID_MATCH,
+    "rule_id": "r-001", "cwe": "CWE-89", "decision": "retained", "library_id": "lib-0001",
+    "reasons": [], "canonical_sha256": SHA, "duplicate_of": None,
+    "behavioural_duplicate_of": None, "source_request_id": RID, "source_round": 3,
+    "source_label": "CWE-89", "audit_verdict": "valid", "replay_fires": True,
+    "replay_reason": None, "cwe_matches_source": True, "fixture_v1_hits": [],
+    "fixture_v2_hits": [], "variants_generated": ["v-0123456789ab"],
+    "variants_counting": ["v-0123456789ab"], "variants_blocked": ["v-0123456789ab"],
+    "base_seed": 0, "mutator_version": "1"}
+FILE = {"path": "x", "sha256": SHA}
+VALID["retention_manifest"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "promoted_at": "2026-11-20T00:00:00Z",
+    "judge_version": "0.7.0", "normalization_version": "2", "mutator_version": "1",
+    "retention_version": "1", "base_seed": 0,
+    "match": {"path": "data/runs/x", "match_json_sha256": SHA, "purpose": "train",
+              "git_commit": "f" * 40},
+    "audit": FILE, "parent_library": {"path": "p", "sha256": SHA, "library_version": 0},
+    "fixtures": [FILE], "seal": [FILE],
+    "outputs": {"variants": FILE, "retention": FILE,
+                "library": {"path": "l", "library_version": 1}},
+    "summary": {"candidates": 1, "retained": 1, "rejected": 0, "reasons": {},
+                "variants": 1, "counting_variants": 1}}
+VALID["benign_holdout"] = {"benign_id": "xh19", "category": "hard_negative",
+                           "look_alike": "CWE-22", "method": "GET",
+                           "path": "/rest/products/search", "query": "q=v1..v2", "body": ""}
+VALID["benign_offline_draft"] = {
+    "schema_version": "0.1", "set": "holdout_v1", "role": "test", "_comment": "draft",
+    "entries": [{"benign_id": "xn01", "category": "normal", "look_alike": None,
+                 "method": "GET", "endpoint": "/rest/products/search",
+                 "query_params": {"q": "apple"}, "note": "search"}]}
+VALID["test_set"] = {"schema_version": "0.1", "_comment": "x", "match_ids": [BID_MATCH],
+                     "sealed": [{"path": "benign/holdout_v1.jsonl", "role": "test",
+                                 "sha256": None}]}
 
 INVALID = {
     "red_attack_v0_1": [
@@ -1007,6 +1070,59 @@ INVALID = {
         ("api key field", _set("api_key", "x")),
         ("missing schema_version", _drop("schema_version")),
         ("bad match_id", _set("match_id", "x")),
+    ],
+    "rule_library": [
+        ("library id malformed", lambda r: {**r, "entries": [{**r["entries"][0],
+                                                              "library_id": "lib-1"}]}),
+        ("rule without created_match",
+         lambda r: {**r, "entries": [{**r["entries"][0], "rule": {
+             k: v for k, v in LIB_RULE.items() if k != "created_match"}}]}),
+        ("no promoted_matches", _drop("promoted_matches")),
+        ("more than 50 entries", lambda r: {**r, "entries": r["entries"] * 51}),
+        ("benign cwe rule", lambda r: {**r, "entries": [{**r["entries"][0], "rule": {
+            **LIB_RULE, "cwe": "benign"}}]}),
+    ],
+    "variant": [
+        ("counting with a reason", _set("exclusion_reason", "encoding_only")),
+        ("counting but neutralized", _set("neutralized", True)),
+        ("unknown transformation", _set("transformation", "Z9")),
+        ("not counting without a reason", _set("counting", False)),
+        ("benign cwe", _set("cwe", "benign")),
+    ],
+    "retention_row": [
+        ("retained with a reason",
+         _set("reasons", [{"code": "fixture_hit", "detail": "x"}])),
+        ("rejected with a library id", lambda r: {**r, "decision": "rejected",
+                                                  "reasons": [{"code": "fixture_hit",
+                                                               "detail": "x"}]}),
+        ("retained without a blocked variant", _set("variants_blocked", [])),
+        ("unknown reason code", lambda r: {**r, "decision": "rejected", "library_id": None,
+                                           "reasons": [{"code": "too_broad", "detail": ""}]}),
+        ("retained duplicate", _set("duplicate_of", "lib-0001")),
+    ],
+    "retention_manifest": [
+        ("purpose dev", lambda r: {**r, "match": {**r["match"], "purpose": "dev"}}),
+        ("missing seal", _drop("seal")),
+        ("output library version 0", lambda r: {**r, "outputs": {
+            **r["outputs"], "library": {"path": "l", "library_version": 0}}}),
+    ],
+    "benign_holdout": [
+        ("normal with a look-alike", lambda r: {**r, "benign_id": "xn01",
+                                                "category": "normal"}),
+        ("fixture v1 id", _set("benign_id", "h01")),
+        ("hard negative without a look-alike", _set("look_alike", None)),
+    ],
+    "benign_offline_draft": [
+        ("holdout with a train role", _set("role", "train")),
+        ("fixture id in the holdout", lambda r: {**r, "entries": [{
+            **r["entries"][0], "benign_id": "yh01", "category": "hard_negative",
+            "look_alike": "CWE-22"}]}),
+        ("PUT method", lambda r: {**r, "entries": [{**r["entries"][0], "method": "PUT"}]}),
+    ],
+    "test_set": [
+        ("no match ids", _set("match_ids", [])),
+        ("bad sha", _set("sealed", [{"path": "x", "role": "test", "sha256": "abc"}])),
+        ("unknown role", _set("sealed", [{"path": "x", "role": "dev", "sha256": None}])),
     ],
     "prices": [
         ("negative price",

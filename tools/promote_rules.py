@@ -194,6 +194,8 @@ def promote(match_dir: Path, library_path: Path, base_seed: int = 0,
             if pending:
                 raise Refused(f"{_rel(apath)}: rounds {pending} are unaudited (D30)")
         by_round = {a["round"]: a["verdict"] for a in audit}
+        # Scripted Red labels are designer-written ground truth: valid by construction (D16).
+        by_round.update({r: "valid" for r in audit_match.scripted_rounds(match_dir)})
         offline = load_offline_fixture()
         fixture_v1, fx1_sha = rule_facts.load_fixture()
     except (Refused, ValueError, OSError, KeyError) as exc:

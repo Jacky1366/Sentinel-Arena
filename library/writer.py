@@ -22,6 +22,12 @@ from rules import normalize
 REPO = Path(__file__).resolve().parent.parent
 LIBRARY_DIR = REPO / "data" / "library"
 GOLDEN = REPO / "data" / "golden"
+TEST_SET = REPO / "config" / "test_set.json"
+
+
+def test_match_ids() -> set[str]:
+    """The test (scoring) matches that may never feed a library (S6-1)."""
+    return set(json.loads(TEST_SET.read_text(encoding="utf-8"))["match_ids"])
 
 
 def file_name(version: int) -> str:
@@ -51,6 +57,9 @@ def next_doc(parent_doc: dict, parent_path: str, parent_sha256: str, match_id: s
     {rule, promoted_from, retention_ref}) as new entries with the next library ids. The
     promoted match is appended to promoted_matches (even with no retained rule)."""
     version = parent_doc["library_version"] + 1
+    if match_id in test_match_ids():  # defence in depth: tools/promote_rules.py refuses first
+        raise ValueError(f"match {match_id} is test data (config/test_set.json): it never "
+                         f"feeds the library (S6-1)")
     if match_id in parent_doc["promoted_matches"]:
         raise ValueError(f"match {match_id} was already promoted into this lineage")
     if parent_doc["promoted_matches"] and match_id < parent_doc["promoted_matches"][-1]:

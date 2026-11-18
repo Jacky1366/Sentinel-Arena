@@ -129,6 +129,12 @@ def check_sealed() -> list[str]:
     return problems
 
 
+def git_commit() -> str:
+    import subprocess
+    return subprocess.run(["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parent,
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
 def _read_live(rids: set[str]) -> dict[str, dict]:
     live = match_ops.LIVE / "proxy.jsonl"
     out = {}
@@ -172,9 +178,7 @@ def capture(settle: float = 1.0, out=print) -> int:
                if rid not in logged]
     if missing:
         raise RuntimeError(f"not logged (stray or lost): {missing}; nothing written")
-    git = {"commit": __import__("subprocess").run(
-        ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True, text=True,
-        check=True).stdout.strip()}
+    git = {"commit": git_commit()}
     ts = json.loads(TEST_SET.read_text(encoding="utf-8"))
     for name in SETS:
         lines = [line_of(e, logged[rid]) for e, rid, _ in sent[name]]

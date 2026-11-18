@@ -75,6 +75,11 @@ class Library:
     def __len__(self) -> int:
         return len(self.entries)
 
+    def __bool__(self) -> bool:
+        """A loaded library is always "present", even with no entries (v0000 is a real,
+        explicitly loaded library, not the absence of one: M5's empty arm, D29)."""
+        return True
+
     def params(self) -> dict:
         """The provenance block recorded in match.json / replay.json blue_params.library."""
         return {"path": self.path, "sha256": self.sha256,

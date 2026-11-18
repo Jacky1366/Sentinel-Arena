@@ -152,7 +152,7 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
             want = claude_engine.rules_config(config, rules_mode)["mode"]
             lib = run_match.load_library(library, engine, want) if library else None
             blue_params = claude_engine.blue_params(config, blue_m, chunk, rules_mode,
-                                                    lib.params() if lib else None)
+                                                    lib.params() if lib is not None else None)
             models = {"blue": {"provider": blue_params["provider"], "model": blue_m}}
             mode = blue_params["rules"]["mode"]
         else:
@@ -171,12 +171,13 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         shutil.copyfile(match_dir / name, out / name)
         if run_match.sha256_file(out / name) != sha:  # never trust a copy unchecked
             raise OSError(f"copy of {name} does not match its source hash")
-    snapshot = run_match.snapshot_library(library, out, lib.sha256) if lib else None
+    snapshot = run_match.snapshot_library(library, out, lib.sha256) if lib is not None \
+        else None
     started = match_ops.utc_now()
     mid = source["match_id"]
     out_fn(f"replay {replay_id} of {mid} -> {_rel(out)}  blue={engine}"
            f"{f' rules={mode}' if mode else ''}"
-           f"{f' library=v{lib.library_version} ({len(lib)} rules)' if lib else ''}")
+           f"{f' library=v{lib.library_version} ({len(lib)} rules)' if lib is not None else ''}")
 
     failed_step = error = None
     step = STEPS[0]
