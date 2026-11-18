@@ -29,6 +29,8 @@
     "variants_generated",
     "variants_counting",
     "variants_blocked",
+    "variants_encoding",
+    "variants_encoding_blocked",
     "base_seed",
     "mutator_version"
   ],
@@ -88,6 +90,7 @@
               "source_unaudited",
               "no_counting_variant",
               "no_variant_blocked",
+              "encoding_fragile",
               "duplicate_exact",
               "library_cap_reached"
             ]
@@ -190,6 +193,24 @@
       }
     },
     "variants_blocked": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v-[0-9a-f]{12}$"
+      }
+    },
+    "variants_encoding": {
+      "description": "criterion (d'), D24 amendment: the applicable encoding_only variants (exclusion_reason encoding_only) of the source",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^v-[0-9a-f]{12}$"
+      }
+    },
+    "variants_encoding_blocked": {
+      "description": "the encoding_only variants the rule ALONE fires on; a retained rule blocks all of variants_encoding",
       "type": "array",
       "uniqueItems": true,
       "items": {

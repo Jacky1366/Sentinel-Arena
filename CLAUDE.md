@@ -40,7 +40,7 @@ docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
-docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D32 (+ proposed D24 amendment)
+docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D32 (+ D24 amendment, criterion d′)
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
@@ -288,8 +288,13 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
 - **Stage 6.1a (Nov 17):** rule library, retention, variant mutator, offline benign drafts,
   M5 tooling, built on the fake provider; branch `stage6.1a-rule-library`. Gate 0 (holdout
-  capture + seal) pending the designer's GO; D24 `encoding_only` amendment pending review.
+  capture + seal) pending the designer's GO; D24 amendment approved Nov 18 (`encoding_only`
+  excluded from (d); new criterion (d′) `encoding_fragile`).
   Plan `docs/plans/stage6_1_step0.md`, decisions `docs/stage6_decisions.md`.
+- **Never run anything on `data/golden/` or on any test-set data (`config/test_set.json`
+  matches, the sealed holdout) without the designer's explicit GO, including read-only
+  debugging.** Several committed tests and gate tools read golden folders; run those only
+  after a GO (designer rule, 2026-11-18).
 - Only `tools/promote_rules.py` may write a rule library (D26); never import `library/` from
   match, replay, Blue or Judge code (tests/test_train_test_wall.py). Never use golden or
   holdout data to select or tune rules (S6-1).

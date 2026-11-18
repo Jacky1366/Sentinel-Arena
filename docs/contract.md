@@ -179,6 +179,12 @@ library rules and the above-root predicate moved to `rules/paths.py` (D32): **`J
 `match_rule`, `rule_rejection`, the prompts and their hashes, normalization v2. D30: a
 train match is audited (§6.8) only on the source rounds of its candidate rules.*
 
+*Revised 2026-11-18 (Stage 6.1a, designer decision on the D24 amendment): `encoding_only`
+variants never count for criterion (d), and a new criterion **(d′)** requires a retained rule
+to block every applicable `encoding_only` variant of its source (reason `encoding_fragile`).
+`retention_row.schema.json` (still `"0.1"`; no retention file existed yet) adds
+`variants_encoding` and `variants_encoding_blocked` (§5.4).*
+
 This document is the **source of truth** for every artifact exchanged between
 components. Components never call each other; they only read and write the files
 below. The orchestrator (`run_match.py`) controls ordering.
@@ -719,6 +725,7 @@ recorded**:
 | (b) 0 hits on `fixture_v1` (fact 4b); 0 hits on `fixture_v2_offline` (D31) | `fixture_hit`; `offline_fixture_hit` |
 | (c) the source round audited `valid` (scripted labels are valid by construction) | `source_label_invalid`; `source_unaudited` |
 | (d) ≥ 1 counting variant, and the rule ALONE fires on ≥ 1 of them | `no_counting_variant` (a mutator gap); `no_variant_blocked` (too narrow) |
+| (d′) the rule ALONE fires on **every** applicable `encoding_only` variant of its source (vacuously true when there is none; D24 amendment) | `encoding_fragile` (anchored to one raw encoding) |
 | (e) canonical form not in the library nor retained earlier in this promotion | `duplicate_exact` (+ `duplicate_of`) |
 | (f) library under its cap (checked only for a rule passing (a)–(e)) | `library_cap_reached` |
 
@@ -733,14 +740,16 @@ transformation once, at most 12; never sent. A variant **counts** only if it is 
 overlong UTF-8), `above_root` (`rules/paths.py`, D32: nginx would log it as stray),
 `normalizer_neutralized` (for every field, forms(variant) ⊇ forms(source): every rule
 firing on the source fires on it by construction), `encoding_only` (the fully decoded request
-equals the source's; **D24 amendment, proposed 2026-11-17, pending the designer**). The
+equals the source's; **D24 amendment, approved 2026-11-18**: such a variant never counts for
+(d), but it is what (d′) checks). The
 transformation list and what normalization v2 does to each are in
 `docs/plans/stage6_1_step0.md` §4 and `judge/variants.py`.
 
 Outputs, under `data/library/retention/<match_id>/` (never in the match folder):
 `variants.jsonl` (every variant, counting or not, with its reason), `retention.jsonl` (one
 row per candidate: decision, reasons, library id, facts, audit verdict, fixture hits, variant
-ids generated / counting / blocked, seed), the new library file, and `retention.json`
+ids generated / counting / blocked, the `encoding_only` variant ids and those blocked
+(`variants_encoding`, `variants_encoding_blocked`, (d′)), seed), the new library file, and `retention.json`
 LAST (inputs and their hashes, the seal, outputs, versions, a summary). These hold Red
 ground truth: **Blue never reads them.** A rejected rule's evidence is never deleted.
 

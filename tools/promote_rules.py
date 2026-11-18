@@ -278,7 +278,8 @@ def promote(match_dir: Path, library_path: Path, base_seed: int = 0,
     for r in rows:
         why = ", ".join(x["code"] for x in r["reasons"]) or ""
         out(f"{r['rule_id']} {r['cwe']:7} {r['decision']:8} {r['library_id'] or '':9} "
-            f"variants {len(r['variants_blocked'])}/{len(r['variants_counting'])} blocked  {why}"
+            f"variants {len(r['variants_blocked'])}/{len(r['variants_counting'])} blocked  "
+            f"encoding {len(r['variants_encoding_blocked'])}/{len(r['variants_encoding'])}  {why}"
             + (f"  (behaves like {r['behavioural_duplicate_of']})"
                if r["behavioural_duplicate_of"] else ""))
     s = manifest["summary"]

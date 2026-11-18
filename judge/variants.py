@@ -29,12 +29,13 @@ A variant also never counts when it is:
                      Target (T4 backslash separator, T7 overlong UTF-8): recorded only
   above_root         its path climbs above the web root (rules/paths.py, D32): nginx
                      would log it as stray, so it can never appear in a real log
-  encoding_only      (D24 amendment, proposed 2026-11-17, pending the designer) the
-                     FULLY decoded request equals the source's (path fully unquoted;
-                     query and body fully unquote_plus-ed): the variant differs only in
-                     how it is encoded (E3, E4, E5, T1r). Any rule that matches decoded
-                     forms blocks it through the normalizer, so counting it would make
-                     criterion (d) true for almost every rule; recorded, never counted
+  encoding_only      (D24 amendment, approved 2026-11-18) the FULLY decoded request
+                     equals the source's (path fully unquoted; query and body fully
+                     unquote_plus-ed): the variant differs only in how it is encoded
+                     (E3, E4, E5, T1r). Any rule that matches decoded forms blocks it
+                     through the normalizer, so counting it would make criterion (d) true
+                     for almost every rule; never counted for (d). Criterion (d') in
+                     judge/retention.py requires a rule to block ALL of them instead
 
 "Blocks a variant" (judge/retention.py): the rule, validated and evaluated ALONE (no
 hot-load), fires on at least one variant whose `counting` is true.

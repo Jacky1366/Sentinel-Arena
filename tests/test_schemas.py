@@ -439,6 +439,7 @@ VALID["retention_row"] = {
     "replay_reason": None, "cwe_matches_source": True, "fixture_v1_hits": [],
     "fixture_v2_hits": [], "variants_generated": ["v-0123456789ab"],
     "variants_counting": ["v-0123456789ab"], "variants_blocked": ["v-0123456789ab"],
+    "variants_encoding": ["v-ba9876543210"], "variants_encoding_blocked": ["v-ba9876543210"],
     "base_seed": 0, "mutator_version": "1"}
 FILE = {"path": "x", "sha256": SHA}
 VALID["retention_manifest"] = {
@@ -1099,6 +1100,9 @@ INVALID = {
         ("unknown reason code", lambda r: {**r, "decision": "rejected", "library_id": None,
                                            "reasons": [{"code": "too_broad", "detail": ""}]}),
         ("retained duplicate", _set("duplicate_of", "lib-0001")),
+        ("no variants_encoding", lambda r: {k: v for k, v in r.items()
+                                            if k != "variants_encoding"}),
+        ("bad encoding variant id", _set("variants_encoding_blocked", ["v-xyz"])),
     ],
     "retention_manifest": [
         ("purpose dev", lambda r: {**r, "match": {**r["match"], "purpose": "dev"}}),

@@ -378,16 +378,17 @@ change to `data/golden/`.
 - **Tests.** 1,588 passing. New: library, hot-load, Blue, Judge cross-check, variants,
   retention, promotion, the train/test wall (incl. a leak test that fails if any library
   names a test match), holdout capture (mocked), offline gates.
-- **For the designer.**
-  - **Proposed D24 amendment (`encoding_only`).** Under the approved superset rule,
-    encoding-only variants count, and any rule that matches decoded forms blocks them
-    through the normalizer, so criterion (d) would almost always pass. Implemented as an
-    exclusion, pending your decision.
-  - **X1 changed.** It is a whole self-firing vector swap (a handler-only swap is not an
+- **Designer decisions (Nov 18).**
+  - **D24 amendment approved.** `encoding_only` variants never count for (d). New
+    criterion **(d′)**: a rule must block every applicable `encoding_only` variant of its
+    source, else `encoding_fragile` (catches rules anchored to one raw encoding).
+  - **X1 approved.** It is a whole self-firing vector swap (a handler-only swap is not an
     equivalent attack).
-  - **Disclosure.** The mutator was sanity-checked once, offline and read-only, on the
-    golden Gate 3 rules (TEST data). That surfaced three bugs and the D24 point; nothing
+  - **Disclosure accepted.** The mutator was sanity-checked once, offline and read-only, on
+    the golden Gate 3 rules (TEST data). That surfaced three bugs and the D24 point; nothing
     was selected or tuned with it.
+  - **Standing rule.** Nothing runs on `data/golden/` or any test-set data without the
+    designer's explicit GO, including read-only debugging (CLAUDE.md).
 - **An empty library is a loaded library** (bug found by the offline Gate 2 test and
   fixed). M5's empty arm loads v0000 and writes 0.4 verdicts like the library arm.
 - **Cleanup.** Unrelated external schedule lines removed from this file (designer-approved).
@@ -835,7 +836,7 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
 ## Next
 - **Stage 6** (issue #5; decisions `docs/stage6_decisions.md`):
   - **6.1a** body built on the fake provider (Nov 17). Next: designer review of the
-    holdout / fixture-v2 drafts and of the proposed D24 amendment (`encoding_only`), then
+    holdout / fixture-v2 drafts (D24 amendment approved Nov 18, criterion (d′) added), then
     Gate 0 (zero-token capture + seal + commit), then wrap-up and PR.
   - **6.1b** Gate 1 (5 train matches, ≈ $0.015) and Gate 2 (M5, 6 replays, ≈ $0.010),
     each after a separate GO from a clean committed tree.

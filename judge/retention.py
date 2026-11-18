@@ -14,6 +14,9 @@ the rule library. Every failing criterion is recorded, not just the first:
                                        missing / unaudited -> source_unaudited
   (d) variants      >= 1 counting variant (judge/variants.py)  else no_counting_variant
                     the rule, ALONE, fires on >= 1 of them      else no_variant_blocked
+  (d')  encoding    the rule, ALONE, fires on EVERY applicable encoding_only variant of
+                    its source (exclusion_reason "encoding_only"; vacuously true when
+                    there is none)                               else encoding_fragile
   (e) dedup (D25)   canonical form not already in the library, nor retained earlier in
                     this promotion                              else duplicate_exact
   (f) cap           only for a rule that passes (a)-(e): the library has room
@@ -21,6 +24,16 @@ the rule library. Every failing criterion is recorded, not just the first:
 
 `no_counting_variant` (the mutator found nothing to vary: a mutator gap) is kept apart
 from `no_variant_blocked` (the rule is too narrow).
+
+Why (d') (D24 amendment, designer decision 2026-11-18). An encoding_only variant has the
+same fully decoded request as its source, so it cannot show that a rule generalises: it is
+never counted for (d). It can show the opposite. A rule that tests a decoded form fires on
+the variant iff it fires on the source, because that decoded form is among the variant's
+forms too; such a rule passes (d') by construction. A rule anchored to one raw spelling
+(e.g. case-sensitive raw `..%2f`) fails on a variant that spells the same bytes another
+way, although the server reads both identically. So (d') rejects exactly the rules whose
+match depends on one encoding of the attack. The argument is about the normalizer and the
+rule language only, not about any data.
 
 Behavioural duplicates (D25) are ADVISORY: `behavioural_duplicate_of` names the first
 library entry (or earlier retained rule) that fires on exactly the same, non-empty set of
@@ -41,7 +54,8 @@ from rules import engine, library as rule_library, validator
 RETENTION_VERSION = "1"
 REASONS = ("fact3_false", "cwe_mismatch", "fixture_hit", "offline_fixture_hit",
            "source_label_invalid", "source_unaudited", "no_counting_variant",
-           "no_variant_blocked", "duplicate_exact", "library_cap_reached")
+           "no_variant_blocked", "encoding_fragile", "duplicate_exact",
+           "library_cap_reached")
 
 
 @dataclass
@@ -112,6 +126,14 @@ def decide(match_id: str, candidates: list[Candidate], library: rule_library.Lib
         elif not blocked:
             reasons.append(_reason("no_variant_blocked", f"fires on 0 of {len(counting)} "
                                    f"counting variants"))
+        encoding = [x for x in c.variants if x.exclusion_reason == "encoding_only"]
+        enc_blocked = [x.variant_id for x in encoding
+                       if engine.fires(v, engine.forms(engine.Request.from_log(x.request)))]
+        if len(enc_blocked) < len(encoding):
+            missed = [f"{x.transformation} {x.variant_id}" for x in encoding
+                      if x.variant_id not in enc_blocked]
+            reasons.append(_reason("encoding_fragile", f"fires on {len(enc_blocked)} of "
+                                   f"{len(encoding)} encoding_only variants; misses {missed}"))
         canon = rule_library.canonical_sha256(rule)
         dup_of = canon_ids.get(canon)
         if dup_of is not None:
@@ -142,5 +164,7 @@ def decide(match_id: str, candidates: list[Candidate], library: rule_library.Lib
             "variants_generated": [x.variant_id for x in c.variants],
             "variants_counting": [x.variant_id for x in counting],
             "variants_blocked": blocked,
+            "variants_encoding": [x.variant_id for x in encoding],
+            "variants_encoding_blocked": enc_blocked,
             "base_seed": base_seed, "mutator_version": variants_mod.MUTATOR_VERSION})
     return rows

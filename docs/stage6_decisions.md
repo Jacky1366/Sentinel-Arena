@@ -59,7 +59,8 @@ splitting it would make every existing `source == "rule"` reader miss library ve
 
 **D23 — Retention criteria** (pure code, `judge/retention.py`): (a) fact 3 fires and the CWE
 matches the source; (b) zero hits on `fixture_v1` and on `fixture_v2_offline`; (c) the
-source round is audited valid; (d) the rule blocks at least one counting variant; (e) not an
+source round is audited valid; (d) the rule blocks at least one counting variant; (d′) the
+rule blocks every applicable `encoding_only` variant (D24 amendment, 2026-11-18); (e) not an
 exact duplicate; (f) the library has room. Every failing criterion is recorded with its own
 code; raw evidence is never deleted.
 
@@ -67,13 +68,25 @@ code; raw evidence is never deleted.
 non-equivalent transformation, a path above the web root and a normalizer-neutralized
 variant (forms(variant) ⊇ forms(source)) never count. "Blocks a variant": the rule alone
 fires on at least one counting variant.
-*Amendment, PROPOSED 2026-11-17 during 6.1a, pending the designer:* also exclude
-**encoding-only** variants (the fully decoded request equals the source's: E3 hex case, E4
-decode one level, E5 `+`/`%20`, T1r). Reason: under the superset rule alone these count,
-and every rule that matches decoded forms blocks them through the normalizer, so criterion
-(d) would be true for almost every rule and would test the normalizer, not the rule.
-Implemented as exclusion reason `encoding_only` (recorded, never counted); reverting is one
-line in `judge/variants.py` `classify`.
+*Amendment, proposed 2026-11-17 during 6.1a, APPROVED by the designer 2026-11-18 with an
+addition:*
+- **Exclusion.** **Encoding-only** variants (the fully decoded request equals the source's:
+  E3 hex case, E4 decode one level, E5 `+`/`%20`, T1r) never count for (d). Exclusion reason
+  `encoding_only`, recorded.
+- **Criterion (d′)** (designer addition): a rule must block **all** applicable
+  `encoding_only` variants of its source, else reason `encoding_fragile`. It is vacuously
+  true when the source has none. "Applicable" means exclusion reason `encoding_only`;
+  probes, non-equivalent, above-root and neutralized variants are not inputs.
+- **Rationale, a logical argument independent of any data.**
+  - An encoding-only variant has the same fully decoded request as its source, and the
+    server reads both identically. So it cannot show that a rule generalises.
+  - It can show that a rule is fragile. A rule that tests a decoded form fires on the
+    variant iff it fires on the source, because that decoded form is among the variant's
+    forms too. Such a rule passes (d′) by construction.
+  - A rule anchored to one raw spelling (for example case-sensitive raw `..%2f`) misses a
+    variant that spells the same bytes another way. (d′) rejects exactly the rules whose
+    match depends on one encoding of the attack.
+  - The argument uses only the normalizer and the rule language.
 
 **D25 — Dedup.** Exact duplicates (same canonical form) are rejected. Behavioural duplicates
 (the same non-empty firing set over the retention corpus) are an advisory flag only
@@ -118,6 +131,11 @@ hard negative, so without it retention cannot catch an over-broad traversal rule
 the single definition, imported by `red/red_guard.py` and `judge/variants.py`; `judge/` never
 imports `red/` (tested). `tools/verify_red_guard.py` checks that definition against the real
 nginx. Behaviour unchanged.
+
+**Standing rule (designer, 2026-11-18).** Nothing is run on `data/golden/` or on any
+test-set data (the matches in `config/test_set.json`, the sealed holdout) without the
+designer's explicit GO. This includes read-only debugging, and committed tests or tools
+whose inputs include those folders.
 
 ## Implementation notes (Stage 6.1a, 2026-11-17)
 
