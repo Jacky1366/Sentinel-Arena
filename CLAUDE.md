@@ -100,7 +100,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
 config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
-  test_set.json         TEST data registry (S6-1): the 6 audited AI-Red golden match ids + the 9 Stage 6.3 eval ids (Gate B, B-deepseek, B-evasion), test_purposes [eval], sealed offline benign hashes
+  test_set.json         TEST data registry (S6-1): the 6 audited AI-Red golden match ids + the 12 Stage 6.3 eval ids (Gate B, B-deepseek, B-evasion, B-freeplay), test_purposes [eval], sealed offline benign hashes
   prices.json           USD per million tokens per model (designer-maintained, dated)
   llm.json              models per agent, timeouts/retries, required per-agent + match caps; agents.blue.rules (mode off|shadow|on, max_rules); agents.<agent>.caching (off|on, 5.7)
 rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; governed by JUDGE_VERSION)
@@ -194,6 +194,8 @@ data/golden/train-6.1b-gate1-match{1..5}/  Stage 6.1b Gate 1 TRAIN matches (purp
 data/golden/eval-6.3-gateB-match{1,2,3}/  Stage 6.3 Gate B EVAL matches (TEST data, D35; Luna high Red vs Haiku + v5; full audits in data/golden/audits/)
 data/golden/eval-6.3-gateB-deepseek-match{1,2,3}/  Stage 6.3 Gate B-deepseek EVAL matches (TEST data; deepseek-v4-pro max Red vs Haiku + v5; full audits)
 data/golden/eval-6.3-gateB-evasion-match{1,2,3}/  Stage 6.3 Gate B-evasion EVAL matches (TEST data; D40: + Red prompt v2 evasion directive; full audits)
+data/golden/eval-6.3-gateB-freeplay-match{1,2,3}/  Stage 6.3 Gate B-freeplay EVAL matches (TEST data; D41 exploratory: Red prompt v3 any-attack; binary audits)
+data/golden/incidents/     archived failed / instrument-failure runs (never deleted, never in test_set.json)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
