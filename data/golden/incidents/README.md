@@ -24,3 +24,19 @@ in `config/test_set.json` and nothing here is scored.
   (`20261119T172128Z-c145.transcript.log`) is the surviving record of its artifacts and
   api_calls. The designer's correction (2026-11-19): failed runs are archived and marked,
   never deleted (now a CLAUDE.md rule).
+
+## 20261119T173532Z-e624 — Stage 6.3 Gate B-freeplay, run 2 (strict-valid schema; preserved)
+
+- The re-run after the strict-schema fix (`fdb6659`), seed 6331, started 2026-11-19T17:35:32Z
+  (off-peak). All 10 `deepseek-v4-pro` prompt-v3 Red calls AGAIN returned HTTP 400 before
+  generation (0.3–0.9 s) -> 10 `instrument_failure`, 0 attacks sent. Blue ran on benign-only
+  traffic. Spend: Blue $0.001179; the 10 DeepSeek 400s billed $0.
+- The output schema is strict-compliant by the OpenAI rule (static test
+  `tests/test_ai_red.py::test_red_output_schemas_are_strict_compliant`), yet DeepSeek still
+  rejects it. Possible causes (undistinguished without the 400 body, which is not stored):
+  a provider-side block, or a narrower DeepSeek strict subset (nullable via `type: [T,"null"]`,
+  or a nested nullable object) that v1/v2's flat all-required schema never exercised.
+- Per the designer's instruction, the gate STOPPED and did not retry or reword. This folder is
+  **preserved** (not deleted); its copy under `data/runs/` remains too. The match id was
+  auto-registered in `config/test_set.json` by the gate before the FAIL — pending the
+  designer's direction on removing it (archived failed runs do not belong in test_set.json).
