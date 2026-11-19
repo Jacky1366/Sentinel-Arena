@@ -17,7 +17,7 @@ from llm_fakes import REPO
 import run_match  # noqa: E402
 
 GOLDEN = REPO / "data" / "golden"
-COMMIT = "c4e79222"
+COMMIT = "c4e7922"
 LIB_V5_SHA = "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7"
 MATCHES = {  # folder -> (match_id, seed, total usd)
     "eval-6.3-gateB-deepseek-match1": ("20261119T071647Z-3ffc", 6311, 0.081741),
@@ -43,7 +43,7 @@ def test_files_match_their_hashes_and_the_protocol(name):
     m = json.loads((d / "match.json").read_text())
     assert run_match.validate_manifest(m) == []
     assert m["match_id"] == mid and m["purpose"] == "eval" and m["status"] == "completed"
-    assert m["git"]["commit"].startswith(COMMIT[:7]) and m["git"]["dirty"] is False
+    assert m["git"]["commit"].startswith(COMMIT) and m["git"]["dirty"] is False
     assert m["traffic"]["seed"] == seed and abs(m["cost"]["total_usd"] - usd) < 1e-9
     red, blue = m["red_params"], m["blue_params"]
     assert red["provider"] == "deepseek" and red["model"] == "deepseek-v4-pro"
