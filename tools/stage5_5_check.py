@@ -34,6 +34,7 @@ sys.path.insert(0, str(REPO / "tools"))
 import audit_match  # noqa: E402
 import replay_blue  # noqa: E402
 import run_match  # noqa: E402
+from runner import go_token  # noqa: E402
 from stats import match_stats as ms  # noqa: E402
 
 GOLDEN = REPO / "data" / "golden"
@@ -119,6 +120,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {src:32} {mode}")
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
+        return 2
+    refusal = go_token.check("gate-5.5")
+    if refusal:
+        print(refusal)
         return 2
     git = run_match.Ops().git_info()
     if git["dirty"]:

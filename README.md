@@ -84,8 +84,8 @@ Requires Docker with Compose v2.
 docker compose up -d --wait     # starts Juice Shop + nginx; returns once healthy
 tools/smoke_test.sh             # Stage 1: expects 4 valid, 2 stray, 0 invalid
 .venv/bin/python run_match.py            # one complete match -> data/runs/<match_id>/
-.venv/bin/python run_match.py --blue claude  # AI Blue: real, paid calls (ARENA_ANTHROPIC_API_KEY)
-.venv/bin/python run_match.py --red ai       # AI Red: real, paid calls (ARENA_OPENAI_API_KEY)
+ARENA_GO=manual-<what> .venv/bin/python run_match.py --blue claude  # AI Blue: real, paid calls (ARENA_ANTHROPIC_API_KEY; designer GO)
+ARENA_GO=manual-<what> .venv/bin/python run_match.py --red ai       # AI Red: real, paid calls (ARENA_OPENAI_API_KEY; designer GO)
 .venv/bin/python tools/stage4_check.py   # Stage 4: run_match + frozen-dir checks, all PASS
 .venv/bin/python tools/stage2_check.py   # Stage 2: scripted Red + Judge, all PASS
 .venv/bin/python tools/stage3_check.py   # Stage 3: full pipeline vs expectations

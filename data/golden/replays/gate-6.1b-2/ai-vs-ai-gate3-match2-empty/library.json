@@ -1,0 +1,13 @@
+{
+  "schema_version": "0.1",
+  "library_version": 0,
+  "parent": null,
+  "created_at": "2026-11-17T00:00:00.000Z",
+  "judge_version": "0.7.0",
+  "normalization_version": "2",
+  "mutator_version": "1",
+  "retention_version": "1",
+  "fixtures": [],
+  "promoted_matches": [],
+  "entries": []
+}

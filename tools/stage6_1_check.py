@@ -6,6 +6,11 @@ a clean committed tree) and the zero-token steps around them.
     .venv/bin/python tools/stage6_1_check.py --promote <match> ...    # zero token, in order
     .venv/bin/python tools/stage6_1_check.py --predict --library L    # zero token (pre-register)
     .venv/bin/python tools/stage6_1_check.py --gate 2 --library L --real-calls   # M5 replays
+    .venv/bin/python tools/stage6_1_check.py --gate 2b --real-calls  # rules-off arm, same sources
+
+Gate 2b (designer, 2026-11-18): the same 3 Gate 3 sources replayed with Blue rules OFF
+(prompt v1), caching on, no library, so rules off / rules on (empty v0000) / rules on (v5)
+are like-for-like on the same sources. Token ARENA_GO=gate-6.1b-2b.
 
 Gate 1 (D28): K = 5 independent TRAIN matches (run_match.py --purpose train), --red ai
 --blue claude, Blue rules on, caching on for both, dev models (D12), seeds 6101..6105
@@ -40,6 +45,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 import run_match  # noqa: E402
+from runner import go_token  # noqa: E402
 from rules import engine, hotload, library as rule_library  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
 from stats import match_stats as ms  # noqa: E402
@@ -222,10 +228,38 @@ def gate2(prices: dict, lib_path: Path, root: Path | None = None, ops=None) -> i
     return 0 if ok and len(rows) == 2 * len(SOURCES) else 1
 
 
+def gate2b(prices: dict, root: Path | None = None, ops=None) -> int:
+    """Rules-off arm on the M5 sources. ops (tests only): fake-provider run_match.Ops."""
+    gid = run_match.new_match_id()
+    root = root or replay_blue.REPLAYS / f"gate2b-6.1-{gid}"
+    rows, ok = [], True
+    for src in SOURCES:
+        code, rdir = replay_blue.replay(GOLDEN / src, root / f"{src}-off", engine="claude",
+                                        rules_mode="off", caching="on", library=None,
+                                        out_fn=lambda *_: None, ops=ops)
+        if rdir is None:
+            print(f"=== {src} off: REFUSED (exit {code})")
+            ok = False
+            continue
+        ok &= code in (0, 4)
+        r = replay_report(rdir, prices)
+        rows.append({"source": src, **r})
+        fmt = lambda b, k: f"{b[k]['num']}/{b[k]['den']}" if b else "—"
+        print(f"=== {src:24} off      calls {r['calls']:3}  ${r['usd']:.6f} (uncached "
+              f"${r['uncached']:.6f})  lines: ai {r['ai_lines']} / {r['lines']}  detection raw "
+              f"{fmt(r['raw'], 'detection')} audited {fmt(r['audited'], 'detection')}  FP "
+              f"{fmt(r['raw'], 'fp')}")
+    print(f"  total calls {sum(r['calls'] for r in rows)}  cost "
+          f"${sum(r['usd'] for r in rows):.6f}")
+    print(f"RESULT: {'PASS' if ok and len(rows) == len(SOURCES) else 'FAIL'} "
+          f"({len(rows)}/{len(SOURCES)} replays) -> {replay_blue._rel(root)}")
+    return 0 if ok and len(rows) == len(SOURCES) else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     g = ap.add_mutually_exclusive_group(required=True)
-    g.add_argument("--gate", type=int, choices=(1, 2))
+    g.add_argument("--gate", choices=("1", "2", "2b"))
     g.add_argument("--predict", action="store_true")
     g.add_argument("--promote", type=Path, nargs="+", metavar="MATCH")
     ap.add_argument("--library", type=Path, default=None)
@@ -234,7 +268,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if args.promote:
         return promote_all(args.promote)
-    if args.predict or args.gate == 2:
+    if args.gate == "2b":
+        print(f"Stage 6.1 Gate 2b: {len(SOURCES)} Gate 3 sources, claude Blue, rules OFF "
+              f"(prompt v1), caching on, no library")
+    elif args.predict or args.gate == "2":
         if args.library is None:
             print("REFUSED: --library <file> is required")
             return 2
@@ -255,11 +292,17 @@ def main(argv: list[str] | None = None) -> int:
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
         return 2
+    refusal = go_token.check(f"gate-6.1b-{args.gate}")
+    if refusal:
+        print(refusal)
+        return 2
     if run_match.Ops().git_info()["dirty"]:
         print("REFUSED: the git tree is dirty; commit first.")
         return 2
     prices = cost_stats.load_prices()
-    return gate1(prices) if args.gate == 1 else gate2(prices, args.library)
+    if args.gate == "1":
+        return gate1(prices)
+    return gate2(prices, args.library) if args.gate == "2" else gate2b(prices)
 
 
 if __name__ == "__main__":

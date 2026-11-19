@@ -1,0 +1,305 @@
+{
+  "schema_version": "0.8",
+  "match_id": "20261119T005133Z-0b84",
+  "started_at": "2026-11-19T00:51:33.688Z",
+  "finished_at": "2026-11-19T00:54:10.078Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.7.0",
+  "purpose": "train",
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "2",
+    "system_prompt_sha256": "cf440507f4463f38dc4aefba40ec7cb3736c654fff71c9aacd700d6eeb614027",
+    "rules": {
+      "mode": "on",
+      "max_rules": 10
+    },
+    "caching": {
+      "mode": "on",
+      "ttl": "5m"
+    },
+    "library": null,
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "red_engine": "ai",
+  "red_params": {
+    "provider": "openai",
+    "model": "gpt-6-luna",
+    "round_cap": 10,
+    "prompt_version": "1",
+    "system_prompt_sha256": "dbb15c865572556f0d1a066421d0c94a4c8d8a88e830838cc8109d023c2da830",
+    "caching": {
+      "mode": "on",
+      "ttl": "30m"
+    },
+    "sdk": {
+      "package": "openai",
+      "version": "3.41.0"
+    },
+    "request": {
+      "max_output_tokens": 2048,
+      "reasoning_effort": "low",
+      "output_format": "json_schema",
+      "store": false,
+      "temperature": null,
+      "temperature_note": "not set; run-to-run variation is expected"
+    },
+    "feedback_body_chars": 500,
+    "guard": {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "max_path_chars": 2048,
+      "max_body_chars": 4096
+    }
+  },
+  "red_source": null,
+  "git": {
+    "commit": "a8d7969505edb32ef7e432d6e3a8c2c80f46f37b",
+    "dirty": false
+  },
+  "traffic": {
+    "seed": 6101,
+    "seed_source": "cli",
+    "benign_set": {
+      "path": "benign/benign_set.json",
+      "sha256": "1ea7c40c9c16423016bd1c25e8f89107c3e2312df630e5103d20de0a6f493d59",
+      "set_version": "1"
+    },
+    "schedule": [
+      "red:1",
+      "benign:n01",
+      "benign:n02",
+      "red:2",
+      "benign:n03",
+      "benign:n04",
+      "benign:n05",
+      "benign:n06",
+      "benign:n07",
+      "benign:n08",
+      "benign:n09",
+      "benign:n10",
+      "red:3",
+      "benign:n11",
+      "red:4",
+      "benign:h01",
+      "benign:h02",
+      "benign:h03",
+      "red:5",
+      "benign:h04",
+      "benign:h05",
+      "red:6",
+      "red:7",
+      "red:8",
+      "red:9",
+      "red:10",
+      "benign:h06"
+    ]
+  },
+  "images": {
+    "juice_shop": {
+      "image": "bkimminich/juice-shop:v20.3.0",
+      "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+      "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+    },
+    "nginx": {
+      "image": "nginx:1.30.6-alpine",
+      "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+      "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+    }
+  },
+  "models": {
+    "red": {
+      "provider": "openai",
+      "model": "gpt-6-luna"
+    },
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    },
+    "analyst": null
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "2745024540ffe2c9ea838dde7a11a5320408c772536a08a12547b6e482f21e23",
+    "as_of": "2026-11-12"
+  },
+  "cost": {
+    "total_usd": 0.004369,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.003842,
+    "attempts": 31,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 5071,
+      "cached_input": 44419,
+      "cache_write": 6242,
+      "output": 5275
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.001595,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003188,
+        "attempts": 21,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2205,
+          "cached_input": 35920,
+          "cache_write": 1796,
+          "output": 1581
+        }
+      },
+      "red": {
+        "usd": 0.002774,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.000654,
+        "attempts": 10,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2866,
+          "cached_input": 8499,
+          "cache_write": 4446,
+          "output": 3694
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.001595,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003188,
+        "attempts": 21,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2205,
+          "cached_input": 35920,
+          "cache_write": 1796,
+          "output": 1581
+        }
+      },
+      "gpt-6-luna": {
+        "usd": 0.002774,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.000654,
+        "attempts": 10,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2866,
+          "cached_input": 8499,
+          "cache_write": 4446,
+          "output": 3694
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "048eec92bdc5c67b9dde8248f3af185f061a7d494923ca93d6b2fc068ae27861",
+      "bytes": 243
+    },
+    "api_calls.jsonl": {
+      "sha256": "74b0d88bb2feed315bfeaf0fc52983b896ff0c129e2eacff57ee53a9bee7400a",
+      "bytes": 17728
+    },
+    "benign_requests.jsonl": {
+      "sha256": "9db2cc6f375a79ef71597b472fbdf8122c5d8b700f6aa47b97af05812a5d1ce4",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "3e8471455c173251432c30347bd8edf7119296f96b6ae3ff05caf66d027d5564",
+      "bytes": 4258
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "ce3ff0f22df1836f53350e4a2a0db26783e101dabde78c6d5dd21c21a91429bd",
+      "bytes": 4775
+    },
+    "landed.jsonl": {
+      "sha256": "e4ed1379329f9d4f3322dfc533ca8fbd97ca65f0985cb299e366347b010acfc5",
+      "bytes": 1889
+    },
+    "proxy.jsonl": {
+      "sha256": "60ad2cb769b1368e8cba0c3c71046bee55e4bf3c7e7de9702d302e057e73c155",
+      "bytes": 6275
+    },
+    "red_attacks.jsonl": {
+      "sha256": "f819e3d370b981ddaa6ae8386b4f8d3eb0cdf714cf2703f2b96fbec1fc9c4880",
+      "bytes": 5136
+    },
+    "red_unsent.jsonl": {
+      "sha256": "d7e81efc8d329eb02e275db262207ffa21074cf669540fe30c6ddad3f3b784d2",
+      "bytes": 199
+    },
+    "rounds.jsonl": {
+      "sha256": "e22bba3a3cac4b37506dd8a62f8ed73b814d4c01a27960f8c493b4c38d85fcea",
+      "bytes": 2889
+    },
+    "rule_rejections.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rule_results.jsonl": {
+      "sha256": "db8dfe6cf324c9ef72be8bf94b0f24ab24a4ec8d991f129edd6ebe8d2e4af397",
+      "bytes": 1788
+    },
+    "rules.jsonl": {
+      "sha256": "85850d394604187ab38e95932aa6ebcd6df76063ab1dedebcc35a280f3b5b22f",
+      "bytes": 1501
+    },
+    "verdicts.jsonl": {
+      "sha256": "f40ef5cd0c53af85d70d33c75d2d079d667e49c28f7646e4d22916a2292cfd54",
+      "bytes": 9587
+    }
+  }
+}

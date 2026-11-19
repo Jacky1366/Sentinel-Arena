@@ -26,7 +26,7 @@ file artifacts defined in a data contract.
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
-| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Not started (each gate after a separate GO) |
+| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits; Gate 2b rules-off arm ($0.0039): 79 calls / $0.003945 |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 
@@ -333,6 +333,144 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
 
+### Stage 6.1b — Gate 1 (train matches), audits, promotion, M5 prediction
+Branch `stage6.1b-gates`.
+- **GO token by construction (first 6.1b commits).**
+  - Every `--real-calls` tool needs `ARENA_GO=<its gate id>`.
+  - `agents/llm_client.py` refuses any real provider client without a well-formed
+    `ARENA_GO`; direct `run_match` / `replay_blue` runs refuse at preflight.
+  - Only `agents/llm_client.py` imports a provider SDK (AST test).
+- **Gate 1 (Nov 18, GO, `ARENA_GO=gate-6.1b-1`, commit `a8d7969`): PASS, $0.015288.**
+  - 5 train matches, seeds 6101–6105: `20261119T005133Z-0b84`, `…005410Z-4ed0`,
+    `…005624Z-dc00`, `…005846Z-37ca`, `…010114Z-500b`.
+  - Configuration: AI Red gpt-6-luna vs AI Blue Haiku 5.5, rules on, caching on, no
+    library. All completed, four facts PASS.
+  - Detection 9/9, 9/10, 9/10, 10/10, 9/9; FP 0/17 in every match.
+  - 26 rules stored (15 CWE-89, 7 CWE-79, 4 CWE-22), none rejected in-match.
+- **D30 audits (designer, Nov 18).**
+  - All 26 candidate source rounds are valid. Basis: the label describes the attack
+    type, whatever the landing; every CWE-22 source has a real `..` traversal.
+  - Files `data/audits/<match_id>.jsonl` (committed); sheet
+    `docs/audits/stage6_1_gate1_20261119T005133Z-0b84.md`.
+- **Promotion, in ascending match order (zero tokens).** v0000 → v0005, 19 rules; 19
+  retained, 7 rejected. Library v5 sha256:
+  `324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7` (checked against the
+  committed file by `tests/test_gate_6_1b_gate1_evidence.py`).
+  - `4ed0` r-004 and `500b` r-004 (CWE-22, `path contains ".."`): `offline_fixture_hit`.
+    They fire on `fixture_v2_offline` yh04 `/ftp/minutes..2026.md`, the over-broad
+    traversal rule D31 was added to catch.
+  - 5 × `duplicate_exact`: `37ca` r-001 / r-004 / r-006 (= lib-0008 / lib-0009 /
+    lib-0003) and `500b` r-001 / r-003 (= lib-0008 / lib-0007).
+  - No `encoding_fragile`, `no_variant_blocked` or `no_counting_variant`.
+  - Advisory behavioural duplicates (D25, not rejected): lib-0010, lib-0017 ≈ lib-0007;
+    lib-0014 ≈ lib-0011; lib-0018 ≈ lib-0005.
+- **M5 prediction, pre-registered before the Gate 2 GO** (zero tokens, `--predict`,
+  library v5 alone on the 3 Gate 3 sources).
+  - The library answers 27 lines: 27 attack, 0 benign (9/26, 8/26 and 10/27 lines per
+    match).
+  - So the library arm is expected to save about 27 Blue AI calls versus the empty arm,
+    with no new false positives on the fixture traffic.
+- **M5 cost prediction, pre-registered before the Gate 2 GO** (designer, Nov 18). A rough
+  proportional estimate from the committed Stage 5.7 2×2 numbers only, with no new
+  test-set reads:
+  - Base: rules on, cached, $0.0061 / 90 calls.
+  - With ~27 calls answered by the library: $0.0061 × 63/90 ≈ **$0.0043 / ~63 calls** for
+    the library arm, i.e. below rules off cached ($0.0052).
+  - *Caveat (implementer):* the 2×2's $0.0061 / 90 and $0.0052 / 104 come from 5.7 Gates
+    2 / 2b, which replayed the four gate-5.5 sources, not the three Gate 3 sources M5
+    replays. The ~27 answered lines come from the Gate 3 sources. So this is a scale
+    estimate, not a like-for-like baseline; Gate 2's empty arm is the real baseline.
+  - *For scale (committed, `docs/progress.md` Stage 5.7 Gate 3):* the live Gate 3 Blue cost
+    was $0.001942 + $0.001499 + $0.001615 = $0.005056.
+
+```
+Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on the Gate 3 sources
+  ai-vs-ai-gate3-match1: 9/26 lines answered by the library (9 attack, 0 benign)
+    log_seq   6 CWE-89  lib-0009,lib-0015    attack CWE-89 round 1
+    log_seq   8 CWE-89  lib-0009,lib-0015    attack CWE-89 round 2
+    log_seq  11 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 3
+    log_seq  13 CWE-89  lib-0003             attack CWE-89 round 4
+    log_seq  14 CWE-22  lib-0012,lib-0013    attack CWE-22 round 5
+    log_seq  16 CWE-22  lib-0012,lib-0013    attack CWE-22 round 6
+    log_seq  17 CWE-22  lib-0012,lib-0013    attack CWE-22 round 7
+    log_seq  20 CWE-79  lib-0007,lib-0010,lib-0017 attack CWE-79 round 9
+    log_seq  21 CWE-79  lib-0011,lib-0014    attack CWE-79 round 10
+  ai-vs-ai-gate3-match2: 8/26 lines answered by the library (8 attack, 0 benign)
+    log_seq   6 CWE-89  lib-0001,lib-0008    attack CWE-89 round 1
+    log_seq   8 CWE-89  lib-0001,lib-0008    attack CWE-89 round 2
+    log_seq  11 CWE-89  lib-0005,lib-0016,lib-0018 attack CWE-89 round 3
+    log_seq  13 CWE-79  lib-0007,lib-0010,lib-0017 attack CWE-79 round 4
+    log_seq  14 CWE-79  lib-0006             attack CWE-79 round 5
+    log_seq  16 CWE-22  lib-0012,lib-0013    attack CWE-22 round 7
+    log_seq  20 CWE-22  lib-0012,lib-0013    attack CWE-22 round 9
+    log_seq  21 CWE-22  lib-0012,lib-0013    attack CWE-22 round 10
+  ai-vs-ai-gate3-match3: 10/27 lines answered by the library (10 attack, 0 benign)
+    log_seq   6 CWE-89  lib-0001,lib-0008    attack CWE-89 round 1
+    log_seq   8 CWE-89  lib-0001,lib-0008    attack CWE-89 round 2
+    log_seq  11 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 3
+    log_seq  13 CWE-79  lib-0007,lib-0010,lib-0017 attack CWE-79 round 4
+    log_seq  14 CWE-89  lib-0009,lib-0015    attack CWE-89 round 5
+    log_seq  16 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 6
+    log_seq  17 CWE-89  lib-0003,lib-0019    attack CWE-89 round 7
+    log_seq  19 CWE-89  lib-0009,lib-0015    attack CWE-89 round 8
+    log_seq  21 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 9
+    log_seq  22 CWE-22  lib-0012,lib-0013    attack CWE-22 round 10
+```
+
+- **Gate 2, M5 (Nov 18, GO, `ARENA_GO=gate-6.1b-2`, commit `fe37b2f`): PASS, $0.007764.**
+  The 3 Gate 3 sources were replayed with v0000 (empty) and v5 (19 rules), all else
+  identical. Evidence: `data/golden/replays/gate-6.1b-2/` (README).
+
+  | | empty (v0000) | library (v5) | prediction |
+  |---|---|---|---|
+  | AI calls | 70 | **52** (−18) | ~63 (cost prediction) |
+  | Blue cost | $0.004831 | **$0.002933** (−39%) | ≈ $0.0043, below rules-off $0.0052 |
+  | lines answered by the library | 0 | **27** (9 / 8 / 10) | **27** (9 / 8 / 10): exact |
+  | lines answered by in-match rules | 9 | 0 | n/a |
+  | detection raw / audited | 27/28 / 27/27 | identical | no change |
+  | FP | 0/51 | 0/51 | no new FP |
+
+  - **Line prediction: exactly right.** The library answered the same 27 lines (27 attack,
+    0 benign) that `--predict` listed.
+  - **Calls-saved prediction: wrong in size.** I predicted ~27 fewer calls; the real saving
+    was 18. The empty arm's own in-match rules already answered 9 of those lines (3 per
+    match), so the library replaces those rule answers instead of AI calls. The library
+    arm invented no in-match rules at all.
+  - **Cost prediction:** the direction was right and the size was conservative.
+    $0.002933 / 52 calls, below both the estimate ($0.0043 / ~63) and rules-off cached
+    ($0.0052). As the caveat said, that base came from different sources.
+  - **Holdout (TEST, offline):** 0 hits for all 19 library rules on the 40-entry holdout.
+- **Gate 2b (Nov 18, GO, `ARENA_GO=gate-6.1b-2b`, commit `d65e2cd`): PASS, $0.003945.**
+  The same 3 Gate 3 sources replayed with Blue rules off (prompt v1), caching on, no
+  library. Evidence: `data/golden/replays/gate-6.1b-2b/` (README). All three arms, like
+  for like on the same sources:
+
+  | arm | AI calls | Blue cost | lines: library / in-match rule / AI | detection raw / audited | FP |
+  |---|---|---|---|---|---|
+  | rules off | 79 | $0.003945 | 0 / 0 / 79 | 27/28 / 27/27 | 0/51 |
+  | rules on, empty v0000 | 70 | $0.004831 | 0 / 9 / 70 | identical | 0/51 |
+  | rules on, library v5 | **52** | **$0.002933** | 27 / 0 / 52 | identical | 0/51 |
+
+  - **The library arm is the cheapest:** −34% calls and −26% cost vs rules off, and −26%
+    calls and −39% cost vs rules on with the empty library.
+  - **Rules on without a library costs more than rules off** (+22%) despite 9 fewer calls,
+    because the prompt v2 call is heavier. This is the Stage 5.7 2×2 effect, now
+    measured on these sources.
+  - So the library is what makes rule mode pay for itself. Detection and FP are identical
+    in all three arms.
+- **Finding: the library and in-match rules overlap (18, not 27, calls saved).** In the
+  empty arm, Blue's own in-match rules already answered 9 of the 27 lines the library
+  answers (3 per match). Those lines cost no AI call in either arm, so the library's
+  saving over rules-on-empty is 27 − 9 = 18 calls. It is a saving over the AI path only,
+  not over all rule-answered lines. Predict savings against the rules-on baseline,
+  subtracting the lines in-match rules would answer anyway.
+- **Finding: the library arm invented 0 rules, so the library saturates quickly.** With the
+  library loaded, every attack line was answered before the AI saw it, so no in-match rule
+  was proposed (the empty arm invented 6 / 5 / 7). Against the same Red distribution
+  (gpt-6-luna, prompt v1), more train matches would mostly add duplicates; Gate 1 already
+  rejected 5 exact duplicates and flagged 4 behavioural ones. The library grows only from
+  novel attacks. This bears on 6.3 and Stage 7 (a stronger or more varied Red).
+
 ### Stage 6.1a — Rule library, retention, variants, offline benign data (body)
 Step 0 plan `docs/plans/stage6_1_step0.md`, approved Nov 17 with amendments; decisions
 D19–D32 in `docs/stage6_decisions.md`. Branch `stage6.1a-rule-library` (from `main` at
@@ -406,6 +544,10 @@ change to `data/golden/`.
     - xh15, xh27, yh05: `POST /api/Feedbacks` (cause not investigated).
   - Offline data is never sent in a match and HTTP status is not part of how it is used,
     so the 500s change nothing.
+- **Finding: the SQL-injection flaw also breaks legitimate users.** At Gate 0 the benign
+  apostrophes in xh01 (`q=rock 'n' roll mug`) and xh04 (login email `d.o'neil@…`) returned
+  HTTP 500. The same unescaped query that lets an attacker in also fails for ordinary
+  input: an O'Neil cannot log in, and a search with an apostrophe errors.
 - **Incident (Nov 18, disclosed).** After the seal, a gate refusal test fell through and
   ran the real Gate 1 tool. The test key guard refused all 55 AI calls ($0), but 5 stopped
   `train` matches ran against the Target. The test is fixed and guarded against real Ops

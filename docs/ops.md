@@ -95,6 +95,46 @@ sets an obviously fake one itself. `tests/test_key_hygiene.py` checks the guard:
 with the real config, prices and adapters is refused. Do not remove or weaken this
 fixture.
 
+## The GO token: paid runs need `ARENA_GO` (Stage 6.1b)
+
+Every paid entry point (a tool run with `--real-calls` / `--real-call`) also requires
+`ARENA_GO=<gate id>` in the environment for that one command, for example:
+
+```bash
+ARENA_GO=gate-6.1b-1 .venv/bin/python tools/stage6_1_check.py --gate 1 --real-calls
+```
+
+Without it, or with any other value, the tool prints the refusal and exits 2 **before**
+constructing `Ops`, touching Docker or building an AI client (`runner/go_token.py`). It is
+set only after the designer's GO for that gate id, and never stored in `.env`.
+
+**At the single exit.** `agents/llm_client.py` refuses to build a REAL provider client
+(Anthropic or OpenAI, no test transport) unless `ARENA_GO` is well formed:
+`gate-<id>`, or `manual-<short-description>` for a direct run. Examples:
+
+```bash
+ARENA_GO=manual-blue-smoke .venv/bin/python run_match.py --blue claude
+ARENA_GO=manual-replay-check .venv/bin/python tools/replay_blue.py --match <dir> --engine claude
+```
+
+- **Where it is checked:**
+  - when the client is built (`GoTokenError`, a `ValueError`); `run_match.py` and
+    `tools/replay_blue.py` build their clients at preflight, so a missing token refuses
+    the run (exit 2) before the lock, the Target or any output folder;
+  - again in each real adapter, before the SDK is imported. That error is raised, never
+    logged as a failed call.
+- **Child processes** inherit the token with the environment.
+- **The fake provider** never needs it.
+- **Only `agents/llm_client.py`** imports a provider SDK (AST-tested).
+
+- **Gate ids:**
+  - 6.1b: `gate-6.1b-1` (`stage6_1_check --gate 1`), `gate-6.1b-2` (`--gate 2`) and `gate-6.1b-2b` (`--gate 2b`).
+  - Earlier stages: `gate-5.4-1`, `gate-5.4-2`, `gate-5.5`, `gate-5.6-1`, `gate-5.6-2`,
+    `gate-5.7-1`, `gate-5.7-2`, `gate-5.7-2b` and `gate-5.7-3`.
+- **Tests:** they never set it, and `tests/conftest.py` removes every `ARENA_*` variable.
+  `tests/test_go_token.py` proves every paid tool refuses without it, and that a new
+  `--real-calls` tool cannot be added without the check.
+
 ## Secret scanning (two layers)
 
 1. **Local: gitleaks pre-commit hook** (`.githooks/pre-commit`). It scans the staged
@@ -146,5 +186,6 @@ a leak: anything pushed may already be copied. That is why revoking comes first.
 
 **Real API calls.** Only `run_match.py --blue claude`, `tools/stage5_4_smoke.py
 --real-call` (Gate 1) and `tools/stage5_4_check.py --real-calls` (Gate 2) send real,
-paid calls; the two gate tools refuse without their flag and run only after the
-designer's GO. Every test runs on the fake provider (above).
+paid calls (later: every AI engine and gate tool); the gate tools refuse without their
+flag and run only after the designer's GO. Since 6.1b every real call also needs the GO
+token (`ARENA_GO`, below). Every test runs on the fake provider (above).

@@ -172,3 +172,23 @@ def test_gate2_offline_compares_empty_and_library(tmp_path, monkeypatch, capsys)
         assert {k: v for k, v in e["blue_params"].items() if k not in drop} == \
                {k: v for k, v in l_["blue_params"].items() if k not in drop}  # all else equal
     assert "M5 summary" in out and "RESULT: PASS" in out
+
+
+def test_gate2b_offline_replays_rules_off_without_a_library(tmp_path, capsys):
+    """Gate 2b: the same sources, Blue rules OFF (prompt v1), caching on, no library."""
+    live = tmp_path / "live"
+    live.mkdir()
+    code = gate.gate2b(cost_stats.load_prices(), root=tmp_path / "out",
+                       ops=RulesOps(live, answer=lambda v: verdict("benign")))
+    out = capsys.readouterr().out
+    assert code == 0, out
+    reps = sorted(p.name for p in (tmp_path / "out").iterdir())
+    assert reps == sorted(f"{s}-off" for s in gate.SOURCES)
+    for s in gate.SOURCES:
+        d = tmp_path / "out" / f"{s}-off"
+        m = json.loads((d / "replay.json").read_text())
+        assert m["blue_params"]["rules"]["mode"] == "off"
+        assert m["blue_params"]["prompt_version"] == "1"
+        assert m["blue_params"]["caching"]["mode"] == "on"
+        assert m["blue_params"]["library"] is None and not (d / "library.json").exists()
+    assert "RESULT: PASS" in out

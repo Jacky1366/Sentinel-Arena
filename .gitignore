@@ -40,7 +40,6 @@ data/audits/*
 data/replays/*
 !data/replays/.gitkeep
 
-# --- Rule library (Stage 6.1): promoted versions and retention evidence stay local until
-# committed as gate evidence; the empty library v0000 is committed ---
-data/library/*
-!data/library/rule_library_v0000.json
+# --- Rule library (Stage 6.1): every library version and its retention evidence is
+# committed (raw evidence is never deleted; designer, 2026-11-18), so nothing under
+# data/library/ is ignored ---

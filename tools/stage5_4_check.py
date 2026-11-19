@@ -38,7 +38,7 @@ import run_match  # noqa: E402
 import stage2_check  # noqa: E402
 import stage4_check  # noqa: E402
 from blue import claude_engine as ce  # noqa: E402
-from runner import match_ops  # noqa: E402
+from runner import go_token, match_ops  # noqa: E402
 from stats import match_stats as ms  # noqa: E402
 
 SEED = json.loads((REPO / "tools" / "stage5_2_expected.json").read_text())["seed"]
@@ -126,6 +126,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if not args.real_calls:
         print("refusing: pass --real-calls (Gate 2 needs the designer's GO)")
+        return 2
+    refusal = go_token.check("gate-5.4-2")
+    if refusal:
+        print(refusal)
         return 2
     fails: list[str] = []
     reports = []

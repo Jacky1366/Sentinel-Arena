@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1",
+  "match_id": "20261119T005410Z-4ed0",
+  "promoted_at": "2026-11-19T01:10:49.340Z",
+  "judge_version": "0.7.0",
+  "normalization_version": "2",
+  "mutator_version": "1",
+  "retention_version": "1",
+  "base_seed": 0,
+  "match": {
+    "path": "data/runs/20261119T005410Z-4ed0",
+    "match_json_sha256": "5c83550bbdbdb97a7a95139c9b42f97ef778356173b69f4ea468868a1aa5509d",
+    "purpose": "train",
+    "git_commit": "a8d7969505edb32ef7e432d6e3a8c2c80f46f37b"
+  },
+  "audit": {
+    "path": "data/audits/20261119T005410Z-4ed0.jsonl",
+    "sha256": "c8dc58ab301118a11e97ed3ef21fe0b0503a12dd7c7c223f287db75ce9e123c4"
+  },
+  "parent_library": {
+    "path": "data/library/rule_library_v0001.json",
+    "sha256": "5b33ad7a6e3c1ded218e415624314009515f4dbcb1a0fe0fb29765f4384a8c8a",
+    "library_version": 1
+  },
+  "fixtures": [
+    {
+      "path": "benign/fixture_v1.jsonl",
+      "sha256": "8eb21189343a79afefee6ad628c353166d4c91a76f0faaecb77d779de60f5f54"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ],
+  "seal": [
+    {
+      "path": "benign/holdout_v1.jsonl",
+      "sha256": "5066801817c8f1940accc89dba1a3513f2d241f8441029340e80b5a45534945e"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ],
+  "outputs": {
+    "variants": {
+      "path": "data/library/retention/20261119T005410Z-4ed0/variants.jsonl",
+      "sha256": "b0c91ec997263ecd8ad7be619ef55124de7c848b277c4b90f90043e724f0a178"
+    },
+    "retention": {
+      "path": "data/library/retention/20261119T005410Z-4ed0/retention.jsonl",
+      "sha256": "cf7d1ee1a79f99f7fea2db2d6ac2ee4b0f93067fe8418c3a52bb63afa6711e38"
+    },
+    "library": {
+      "path": "data/library/rule_library_v0002.json",
+      "library_version": 2
+    }
+  },
+  "summary": {
+    "candidates": 4,
+    "retained": 3,
+    "rejected": 1,
+    "reasons": {
+      "offline_fixture_hit": 1
+    },
+    "variants": 32,
+    "counting_variants": 14
+  }
+}

@@ -285,6 +285,11 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
                              "setting)")
         llm_config = llm_client.with_caching(llm_config, "red", red_caching)
         llm_config = llm_client.with_caching(llm_config, "blue", blue_caching)
+        # AI clients are built here, before the lock or the Target is touched: a real
+        # provider client without the GO token raises GoTokenError (a ValueError) and
+        # the match is refused at preflight (exit 2).
+        red_llm = ops.red_client(llm_config, prices) if red_engine == "ai" else None
+        blue_llm = ops.blue_client(llm_config, prices) if engine == "claude" else None
         attacks = scripted_red.load_attacks(payloads)
         bset = send_benign.load_set(benign_set)  # BenignSetError is a ValueError
         seed_source = "generated" if seed is None else "cli"
@@ -394,7 +399,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         step = "traffic"
         red_driver = None
         if red_engine == "ai":
-            red = ai_red.AIRed(ops.red_client(llm_config, prices), red_m, match_dir,
+            red = ai_red.AIRed(red_llm, red_m, match_dir,
                                match_id, n_red)
             red_driver = match_ops.AIDriver(red)
         ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle,
@@ -410,7 +415,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         step = "blue"
         if engine == "claude":
             extra = {"library": lib_snapshot} if lib_snapshot is not None else {}
-            ops.blue(match_dir, match_id, engine, ops.blue_client(llm_config, prices), model,
+            ops.blue(match_dir, match_id, engine, blue_llm, model,
                      rules_mode, **extra)
         else:
             ops.blue(match_dir, match_id, engine)
