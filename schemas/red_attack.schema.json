@@ -38,7 +38,8 @@
       "enum": [
         "CWE-89",
         "CWE-79",
-        "CWE-22"
+        "CWE-22",
+        "other"
       ]
     },
     "payload": {
@@ -75,6 +76,27 @@
         "null"
       ],
       "maxLength": 500
+    },
+    "technique": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 64,
+      "description": "Free-play only (D41): a short free-text technique name (e.g. 'IDOR', 'JWT forgery'), or null. Absent in non-free-play records."
+    },
+    "headers": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "propertyNames": {
+        "enum": [
+          "Cookie",
+          "Authorization"
+        ]
+      },
+      "description": "Free-play only (D41, D15 amendment): the ONLY request headers Red may set (Cookie, Authorization). Absent otherwise. Not logged by the proxy and never seen by Blue."
     }
   },
   "allOf": [

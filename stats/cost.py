@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -70,11 +71,35 @@ def entry_for(prices: dict, model: str) -> dict | None:
     return prices["models"].get(model)
 
 
-def tier_for(entry: dict, prompt_tokens: int) -> dict:
-    for tier in entry["tiers"]:
+def in_peak(peak: dict, timestamp: str) -> bool:
+    """True if the UTC timestamp falls in one of the entry's peak windows (weekday in
+    peak.weekdays, 0 = Monday; hour in a [start, end) pair of peak.windows_utc)."""
+    t = datetime.strptime(timestamp[:19], "%Y-%m-%dT%H:%M:%S")
+    return t.weekday() in peak["weekdays"] and \
+        any(a <= t.hour < b for a, b in peak["windows_utc"])
+
+
+def rate_window(entry: dict, timestamp: str) -> str | None:
+    """"peak" / "off_peak" for a time-priced entry (DeepSeek, D39), else None."""
+    peak = entry.get("peak")
+    if peak is None:
+        return None
+    return "peak" if in_peak(peak, timestamp) else "off_peak"
+
+
+def rate_tiers(entry: dict, window: str | None) -> list[dict]:
+    """The tiers to price with: the peak tiers in the peak window, else entry.tiers."""
+    if window == "peak" and entry.get("peak") is not None:
+        return entry["peak"]["tiers"]
+    return entry["tiers"]
+
+
+def tier_for(entry: dict, prompt_tokens: int, window: str | None = None) -> dict:
+    tiers = rate_tiers(entry, window)
+    for tier in tiers:
         if tier["max_prompt_tokens"] is None or prompt_tokens <= tier["max_prompt_tokens"]:
             return tier
-    return entry["tiers"][-1]
+    return tiers[-1]
 
 
 def tokens_of(call: dict) -> dict[str, int]:
@@ -98,7 +123,12 @@ def call_cost(call: dict, prices: dict) -> dict:
         out["priced"] = False
         return out
     t = tokens_of(call)
-    tier = tier_for(entry, t["input"] + t["cached_input"] + t["cache_write"])
+    # Time-priced entries (D39): the window the client recorded, else from the timestamp.
+    window = call.get("rate_window") or (rate_window(entry, call["timestamp"])
+                                         if call.get("timestamp") else None)
+    if entry.get("peak") is not None and window is None:
+        window = "peak"  # no time information: never under-report
+    tier = tier_for(entry, t["input"] + t["cached_input"] + t["cache_write"], window)
     p_in, p_out = tier["input"], tier["output"]
     p_cached, p_write = tier["cached_input"], tier["cache_write"]
     usd = t["input"] * p_in + t["output"] * p_out

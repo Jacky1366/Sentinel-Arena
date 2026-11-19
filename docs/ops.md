@@ -10,6 +10,7 @@ under these names:
 | OpenAI | `ARENA_OPENAI_API_KEY` |
 | Anthropic | `ARENA_ANTHROPIC_API_KEY` |
 | Google | `ARENA_GEMINI_API_KEY` |
+| DeepSeek | `ARENA_DEEPSEEK_API_KEY` (Stage 6.3 Red candidate; the openai SDK against api.deepseek.com) |
 
 **Never use the SDKs' default names** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
 `GEMINI_API_KEY`). If `ANTHROPIC_API_KEY` is ever exported in your shell, **Claude Code
@@ -129,6 +130,8 @@ ARENA_GO=manual-replay-check .venv/bin/python tools/replay_blue.py --match <dir>
 
 - **Gate ids:**
   - 6.1b: `gate-6.1b-1` (`stage6_1_check --gate 1`), `gate-6.1b-2` (`--gate 2`) and `gate-6.1b-2b` (`--gate 2b`).
+  - 6.3: `gate-6.3-A` (`stage6_3_check --gate A --probe`), `gate-6.3-B` (`--gate B`) and
+    `gate-6.3-C` (`--gate C`).
   - Earlier stages: `gate-5.4-1`, `gate-5.4-2`, `gate-5.5`, `gate-5.6-1`, `gate-5.6-2`,
     `gate-5.7-1`, `gate-5.7-2`, `gate-5.7-2b` and `gate-5.7-3`.
 - **Tests:** they never set it, and `tests/conftest.py` removes every `ARENA_*` variable.

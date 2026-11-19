@@ -125,14 +125,21 @@ def test_no_library_was_built_from_test_data(path):
 
 def test_the_test_set_is_exactly_the_audited_ai_red_golden_matches():
     """Every committed AI-Red golden match is TEST data, except the committed TRAIN
-    evidence (purpose "train", Stage 6.1b Gate 1), which is train data by definition."""
+    evidence (purpose "train", Stage 6.1b Gate 1), which is train data by definition. The
+    Stage 6.3 eval matches (purpose "eval") are TEST data by purpose (D35)."""
     ai_red = set()
     for m in REPO.glob("data/golden/*/match.json"):
         doc = json.loads(m.read_text())
         if doc.get("red_engine") == "ai" and doc.get("purpose") != "train":
             ai_red.add(doc["match_id"])
-            assert (REPO / "data" / "golden" / "audits" / f"{doc['match_id']}.jsonl").is_file()
-    assert set(TEST_SET["match_ids"]) == ai_red and len(ai_red) == 6
+            audits = REPO / "data" / "golden" / "audits"
+            # free-play (D41) uses the binary attack-attempt audit; every other arm uses D16.
+            free_play = (doc.get("red_params") or {}).get("prompt_version") == "3"
+            suffix = ".freeplay.jsonl" if free_play else ".jsonl"
+            assert (audits / f"{doc['match_id']}{suffix}").is_file()
+    # 6 audited AI-Red golden matches (5.6 Gate 2, 5.7 Gate 3) + 3 eval matches (6.3 Gate B)
+    # + Gate B-deepseek (3) + Gate B-evasion (3) + Gate B-freeplay (3)
+    assert set(TEST_SET["match_ids"]) == ai_red and len(ai_red) == 18
     assert {s["path"] for s in TEST_SET["sealed"]} == {"benign/holdout_v1.jsonl",
                                                        "benign/fixture_v2_offline.jsonl"}
 

@@ -1,0 +1,7 @@
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 1, "request_id": "64f3a724-a68e-49b1-9fe6-a50498a496d1", "label": "other", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 2, "request_id": "208f97e7-d7fe-43be-82c5-d0e55ebc15e7", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 4, "request_id": "ff0862b0-8307-4cce-92c9-f30a6add3297", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 5, "request_id": "d39f2576-018c-4cbc-85b2-6b59f4a6d72b", "label": "CWE-89", "landed": true, "landed_reason": null, "newly_solved": ["Login Admin"]}
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 7, "request_id": "8c51a76b-ac11-4144-b0c3-e3ee4849bc76", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 8, "request_id": "7d234173-a29f-4e8b-833d-ccc7147495e8", "label": "other", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "round": 10, "request_id": "559462e2-95df-4329-b8c9-7df00c9897d6", "label": "other", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}

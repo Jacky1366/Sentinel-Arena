@@ -85,7 +85,10 @@ MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match
                     "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest_v0_4"),
                     "0.5": _schema("match_manifest_v0_5"), "0.6": _schema("match_manifest_v0_6"),
                     "0.7": _schema("match_manifest_v0_7"), "0.8": _schema("match_manifest")}
-PURPOSES = ("dev", "train")  # Stage 6.1 (D26): only a train match can feed the library
+# Stage 6.1 (D26): only a train match can feed the library. Stage 6.3 (D35): an eval
+# match is TEST data by purpose (config/test_set.json test_purposes), pre-registered.
+PURPOSES = ("dev", "train", "eval")
+CLEAN_TREE_PURPOSES = ("train", "eval")
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -156,6 +159,9 @@ class Ops:
     def reset(self) -> int:
         return match_ops.reset_target()
 
+    def challenge_catalog(self) -> dict:
+        return match_ops.challenge_catalog()
+
     def rotate(self, live_dir: Path) -> Path | None:
         return match_ops.rotate_proxy_log(live_dir)
 
@@ -188,7 +194,7 @@ class Ops:
 
     def blue(self, match_dir: Path, match_id: str, engine: str, client=None,
              model: str | None = None, rules_mode: str | None = None,
-             library: Path | None = None) -> None:
+             library: Path | None = None, blue_prompt: str | None = None) -> None:
         argv = ["--engine", engine, "--match-id", match_id, "--run-dir", str(match_dir)]
         if model is not None:
             argv += ["--model", model]
@@ -196,6 +202,8 @@ class Ops:
             argv += ["--rules-mode", rules_mode]
         if library is not None:
             argv += ["--library", str(library)]
+        if blue_prompt is not None:
+            argv += ["--blue-prompt", blue_prompt]
         run_blue.main(argv, client=client)
 
     def judge_rounds(self, match_dir: Path) -> None:
@@ -266,6 +274,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               red_engine: str = "scripted", red_model: str | None = None,
+              red_effort: str | None = None, red_max_output_tokens: int | None = None,
+              red_provider: str | None = None, red_prompt_version: str | None = None,
+              red_timeout_s: float | None = None, caps: dict | None = None,
               blue_rules_mode: str | None = None, blue_caching: str | None = None,
               red_caching: str | None = None, purpose: str = "dev",
               library: Path | None = None,
@@ -284,6 +295,22 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             raise ValueError("--blue-caching needs --blue claude (caching is an AI-call "
                              "setting)")
         llm_config = llm_client.with_caching(llm_config, "red", red_caching)
+        if red_effort is not None and red_engine != "ai":
+            raise ValueError("--red-effort needs --red ai (effort is an AI-call setting)")
+        llm_config = llm_client.with_effort(llm_config, "red", red_effort)
+        if red_max_output_tokens is not None and red_engine != "ai":
+            raise ValueError("--red-max-output-tokens needs --red ai (an AI-call setting)")
+        llm_config = llm_client.with_max_output_tokens(llm_config, "red", red_max_output_tokens)
+        if red_provider is not None and red_engine != "ai":
+            raise ValueError("--red-provider needs --red ai (an AI-call setting)")
+        llm_config = llm_client.with_provider(llm_config, "red", red_provider)
+        if (red_prompt_version is not None or red_timeout_s is not None) and red_engine != "ai":
+            raise ValueError("--red-prompt-version / --red-timeout-s need --red ai")
+        if red_prompt_version is not None and red_prompt_version not in ai_red.RED_PROMPTS:
+            raise ValueError(f"unknown Red prompt version {red_prompt_version!r}")
+        llm_config = llm_client.with_timeout(llm_config, "red", red_timeout_s)
+        llm_config = llm_client.with_caps(llm_config, caps)
+        red_pv = red_prompt_version or ai_red.RED_PROMPT_VERSION
         llm_config = llm_client.with_caching(llm_config, "blue", blue_caching)
         # AI clients are built here, before the lock or the Target is touched: a real
         # provider client without the GO token raises GoTokenError (a ValueError) and
@@ -303,7 +330,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
                 raise ValueError("no Red model: set agents.red.model in config/llm.json "
                                  "or pass --red-model")
             n_red = ai_red.round_cap_of(llm_config)
-            red_params = ai_red.red_params(llm_config, red_m)
+            red_params = ai_red.red_params(llm_config, red_m, red_pv)
             red_source = None
             red_models = {"red": {"provider": red_params["provider"], "model": red_m}}
         else:
@@ -315,9 +342,11 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         provenance = {"git": ops.git_info()}
         if purpose not in PURPOSES:
             raise ValueError(f"unknown purpose {purpose!r} (one of {PURPOSES})")
-        if purpose == "train" and provenance["git"]["dirty"]:
-            raise ValueError("--purpose train needs a clean committed tree (a train match "
-                             "can feed the rule library, D26)")
+        if purpose in CLEAN_TREE_PURPOSES and provenance["git"]["dirty"]:
+            raise ValueError(f"--purpose {purpose} needs a clean committed tree "
+                             + ("(a train match can feed the rule library, D26)"
+                                if purpose == "train" else
+                                "(an eval match is scored TEST data, D35)"))
         if engine not in run_blue.ENGINE_NAMES:
             raise ValueError(f"unknown Blue engine {engine!r}")
         if engine == "claude":
@@ -400,10 +429,14 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         red_driver = None
         if red_engine == "ai":
             red = ai_red.AIRed(red_llm, red_m, match_dir,
-                               match_id, n_red)
+                               match_id, n_red, prompt_version=red_pv)
             red_driver = match_ops.AIDriver(red)
         ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle,
                     red_driver=red_driver)
+        if red_pv == ai_red.FREEPLAY_PROMPT_VERSION:  # D41: capture challenge categories
+            (match_dir / "challenge_catalog.json").write_text(
+                json.dumps(ops.challenge_catalog(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8")
 
         step = "freeze"
         ops.freeze(live_dir, match_dir)
@@ -528,13 +561,28 @@ def main(argv: list[str] | None = None) -> int:
                         help="ai: prompt caching (default: config/llm.json agents.red.caching)"
                              ". on = explicit breakpoint per user turn, 30-minute TTL")
     parser.add_argument("--red", choices=("scripted", "ai"), default="scripted",
-                        help="Red engine: scripted payload set, or ai (OpenAI; real, paid "
+                        help="Red engine: scripted payload set, or ai (provider from config/llm.json; real, paid "
                              "API calls through agents/llm_client.py)")
     parser.add_argument("--red-model", default=None,
                         help="ai: model id (default: config/llm.json agents.red.model)")
     parser.add_argument("--purpose", choices=PURPOSES, default="dev",
-                        help="dev (default) or train: only a train match, run from a clean "
-                             "committed tree, can feed the rule library (Stage 6.1, D26)")
+                        help="dev (default), train (only a train match, run from a clean "
+                             "committed tree, can feed the rule library, D26) or eval "
+                             "(TEST data by purpose, clean tree, never promoted, D35)")
+    parser.add_argument("--red-effort", choices=llm_client.EFFORTS, default=None,
+                        help="ai: reasoning effort override (default: config/llm.json "
+                             "agents.red.request.effort; Stage 6.3, D33)")
+    parser.add_argument("--red-provider", choices=tuple(llm_client.KEY_ENV), default=None,
+                        help="ai: Red provider override (default: config/llm.json "
+                             "agents.red.provider; Stage 6.3: deepseek)")
+    parser.add_argument("--red-prompt-version", choices=sorted(ai_red.RED_PROMPTS),
+                        default=None, help="ai: Red prompt version (default 1; 2 = v1 + the "
+                                           "pre-registered evasion directive, D40)")
+    parser.add_argument("--red-timeout-s", type=float, default=None,
+                        help="ai: Red client timeout override in seconds (Stage 6.3, D40)")
+    parser.add_argument("--red-max-output-tokens", type=int, default=None,
+                        help="ai: Red output budget override, reasoning included (default: "
+                             "config/llm.json agents.red.max_output_tokens; Stage 6.3, D38)")
     parser.add_argument("--library", type=Path, default=None,
                         help="claude, rules mode on: preload this rule library, read-only "
                              "(copied into the match folder as library.json)")
@@ -544,6 +592,11 @@ def main(argv: list[str] | None = None) -> int:
     code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
                         settle=args.settle, engine=args.blue, blue_model=args.blue_model,
                         red_engine=args.red, red_model=args.red_model,
+                        red_effort=args.red_effort,
+                        red_max_output_tokens=args.red_max_output_tokens,
+                        red_provider=args.red_provider,
+                        red_prompt_version=args.red_prompt_version,
+                        red_timeout_s=args.red_timeout_s,
                         blue_rules_mode=args.blue_rules_mode,
                         blue_caching=args.blue_caching, red_caching=args.red_caching,
                         purpose=args.purpose, library=args.library)

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/free_play_audit.schema.json",
+  "title": "Free-play binary audit row (Stage 6.3, D41)",
+  "description": "One line of data/.../<match_id>.jsonl for a free-play match: per Red round, was it an attack attempt? Reconnaissance / normal browsing = 'no' and is excluded from the detection denominator. Label validity is NOT audited (free-play allows `other`). unaudited until the designer fills it in.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "match_id", "round", "attack_attempt", "reason", "auditor", "date"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "match_id": {"type": "string", "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"},
+    "round": {"type": "integer", "minimum": 1},
+    "attack_attempt": {"enum": ["unaudited", "yes", "no"]},
+    "reason": {"type": "string"},
+    "auditor": {"type": ["string", "null"], "enum": ["designer", null]},
+    "date": {"type": ["string", "null"], "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"}
+  },
+  "allOf": [
+    {"if": {"properties": {"attack_attempt": {"const": "unaudited"}}},
+     "then": {"properties": {"reason": {"const": ""}, "auditor": {"const": null}, "date": {"const": null}}},
+     "else": {"properties": {"auditor": {"const": "designer"}, "date": {"type": "string"}}}}
+  ]
+}

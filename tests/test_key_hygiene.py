@@ -52,6 +52,16 @@ def test_key_never_in_result_or_api_calls(tmp_path):
     assert len(lines(d)) == 2
 
 
+def test_a_deepseek_key_is_redacted_too(tmp_path):
+    d = run_dir(tmp_path)
+    (tmp_path / "no.env").write_text(f"ARENA_DEEPSEEK_API_KEY={SENTINEL}\n")
+    assert SENTINEL in lc.key_values({}, tmp_path / "no.env")  # read only inside llm_client
+    client, _ = make_client(leaky_adapter(["leak"]), tmp_path=tmp_path)
+    r = client.complete("blue", "fake-keyed", SYSTEM, MESSAGES, run_dir=d,
+                        log_seq_first=1, log_seq_last=1)
+    assert SENTINEL not in (r.error or "") and SENTINEL not in (d / lc.API_CALLS).read_text()
+
+
 def test_key_in_a_dotenv_file_is_redacted_too(tmp_path):
     d = run_dir(tmp_path)
     (tmp_path / "no.env").write_text(f"ARENA_ANTHROPIC_API_KEY={SENTINEL}\n")
@@ -120,7 +130,7 @@ def test_a_real_provider_client_is_refused_inside_the_test_session(tmp_path, mon
     # that falls through would hit. Since 6.1b the client is not even built: no ARENA_GO
     # in a test session (conftest), so GoTokenError; the missing_key layer behind it is
     # covered with keyed fakes in tests/test_llm_client.py.
-    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter):
+    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter, lc.DeepSeekAdapter):
         monkeypatch.setattr(cls, "call", lambda self, **kw: (_ for _ in ()).throw(
             AssertionError("a real adapter was called")))
     with pytest.raises(lc.GoTokenError, match="ARENA_GO"):

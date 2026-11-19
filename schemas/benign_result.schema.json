@@ -44,6 +44,7 @@
         "CWE-79",
         "CWE-22",
         "benign",
+        "other",
         null
       ]
     },

@@ -209,3 +209,51 @@ def test_red_params_and_record():
     assert rec["schema_version"] == "0.2" and rec["source"] == "ai"
     assert rec["endpoint"] == "/rest/user/login" and rec["payload"] == '{"email":"a"}'
     assert len(rec["rationale"]) == ai_red.RATIONALE_MAX
+
+
+# ---- strict structured-output compliance (D41 free-play 400 regression) ------------------
+
+def _assert_strict(schema, path="root"):
+    """OpenAI / DeepSeek strict json_schema: every object lists all its properties in
+    `required` and sets additionalProperties:false. The fake provider ignores the schema,
+    so this static check is what guards against the real API's 400 (Gate B-freeplay, Nov 19)."""
+    import red.ai_red  # noqa: F401
+    types = schema.get("type")
+    types = types if isinstance(types, list) else [types]
+    if "object" in types:
+        props = schema.get("properties", {})
+        assert schema.get("additionalProperties") is False, f"{path}: additionalProperties"
+        assert sorted(schema.get("required", [])) == sorted(props), f"{path}: required != properties"
+        for name, sub in props.items():
+            _assert_strict(sub, f"{path}.{name}")
+    if "array" in types and "items" in schema:
+        _assert_strict(schema["items"], f"{path}[]")
+
+
+def test_red_output_schemas_are_strict_compliant():
+    from red import ai_red
+    _assert_strict(ai_red.OUTPUT_SCHEMA)
+    _assert_strict(ai_red.FREEPLAY_OUTPUT_SCHEMA)
+
+
+def test_freeplay_schema_is_flat_for_the_deepseek_strict_subset():
+    # DeepSeek strict rejects nested objects ("unknown variant `object`") and type arrays
+    # (Gate B-freeplay 400, Nov 19). The free-play schema must be FLAT: every property a plain
+    # string/enum, no nested object, no type array.
+    from red import ai_red
+    for name, sub in ai_red.FREEPLAY_OUTPUT_SCHEMA["properties"].items():
+        assert isinstance(sub.get("type"), str), f"{name}: type must be a plain string"
+        assert sub["type"] == "string", f"{name}: free-play fields are flat strings"
+
+
+def test_freeplay_reply_maps_flat_fields_and_empty_strings():
+    from red import ai_red
+    import json
+    base = {"method": "GET", "path": "/", "body": "", "label": "other", "rationale": "r"}
+    a, _ = ai_red.validate_reply(json.dumps({**base, "technique": "", "cookie": "",
+                                             "authorization": ""}), "completed", True)
+    assert a["technique"] is None and a["headers"] == {}  # "" -> absent
+    a2, _ = ai_red.validate_reply(json.dumps({**base, "technique": "JWT forgery",
+                                              "cookie": "s=1", "authorization": ""}),
+                                  "completed", True)
+    assert a2["technique"] == "JWT forgery" and a2["headers"] == {"Cookie": "s=1"}

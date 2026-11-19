@@ -104,7 +104,8 @@ class ScriptedRed:
 
 
 def write_and_send(record: dict, method: str, target: str, body: str | None,
-                   out_dir: Path, timeout: float = DEFAULT_TIMEOUT) -> dict:
+                   out_dir: Path, timeout: float = DEFAULT_TIMEOUT,
+                   headers: dict[str, str] | None = None) -> dict:
     """Write one Red record (ground truth), THEN send its request through the shared
     arena client. The record carries request_id. Returns the HTTP result; on a send
     failure `status` is None and `error` is set (the record stays -> orphan). Used by
@@ -116,7 +117,8 @@ def write_and_send(record: dict, method: str, target: str, body: str | None,
 
     status, error, incomplete, body_text = None, None, False, ""
     try:
-        resp = arena_client.send(method, target, request_id, body=body, timeout=timeout)
+        resp = arena_client.send(method, target, request_id, body=body, timeout=timeout,
+                                 extra_headers=headers)
         status, incomplete, body_text = resp.status, resp.body_incomplete, resp.body_text
     except Exception as exc:  # noqa: BLE001 - any failure -> orphan, no retry
         error = f"{type(exc).__name__}: {exc}"

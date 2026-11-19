@@ -89,6 +89,7 @@ KEY_ENV = {
     "openai": "ARENA_OPENAI_API_KEY",
     "anthropic": "ARENA_ANTHROPIC_API_KEY",
     "gemini": "ARENA_GEMINI_API_KEY",
+    "deepseek": "ARENA_DEEPSEEK_API_KEY",  # Stage 6.3 Red candidate (probe-first)
 }
 PROVIDERS = tuple(KEY_ENV) + ("fake",)  # "fake" only in tests
 RETRYABLE = frozenset({"timeout", "rate_limit", "server_error", "connection"})
@@ -96,13 +97,17 @@ API_CALL_SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "api_call.schema.json").read_text(encoding="utf-8")))
 
 
-THINKING = ("disabled", "adaptive")
-EFFORTS = ("low", "medium", "high", "xhigh", "max")
+THINKING = ("disabled", "adaptive", "between_tools")  # between_tools: Sonnet 5.5's "off"
+EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")  # none: DeepSeek thinking off
 RULES_MODES = ("off", "shadow", "on")  # agents.blue.rules.mode (Stage 5.5)
 CACHING_MODES = ("off", "on")  # agents.<agent>.caching (Stage 5.7)
 # The only cache-write lifetimes config/prices.json has a price for (cache_write).
 CACHE_TTL = {"anthropic": "5m", "openai": "30m",
+             "deepseek": "auto",  # automatic, cannot be switched off; no write price
              "fake": "5m"}  # the test provider mimics Anthropic; gemini: no caching yet
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # OpenAI-compatible Responses API
+# DeepSeek is priced by each call's own timestamp (D39): the peak windows and both rate
+# sets live in config/prices.json (entry.peak); every line records `rate_window`.
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL is never read
 
 
@@ -115,7 +120,7 @@ class GoTokenError(ConfigError):
     logged as a failed call: no paid request may be built without ARENA_GO."""
 
 
-def is_real(adapter) -> bool:
+def is_real(adapter) -> bool:  # DeepSeekAdapter is an OpenAIAdapter subclass: covered
     """A real provider adapter (Anthropic / OpenAI) with no injected test transport: it
     would talk to the provider's network. Fakes are never real."""
     return isinstance(adapter, (AnthropicAdapter, OpenAIAdapter)) and \
@@ -198,6 +203,10 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         cs = a.get("chunk_size")
         if cs is not None and (isinstance(cs, bool) or not isinstance(cs, int) or cs < 1):
             raise ConfigError(f"agents.{agent}.chunk_size must be a positive integer")
+        ts = a.get("timeout_s")
+        if ts is not None and (isinstance(ts, bool) or not isinstance(ts, (int, float))
+                               or ts <= 0):
+            raise ConfigError(f"agents.{agent}.timeout_s must be a positive number")
         rc = a.get("round_cap")
         if rc is not None and (isinstance(rc, bool) or not isinstance(rc, int) or rc < 1):
             raise ConfigError(f"agents.{agent}.round_cap must be a positive integer")
@@ -244,6 +253,43 @@ def agent_max_output_tokens(cfg: dict, agent: str) -> int:
     return cfg["agents"][agent].get("max_output_tokens") or cfg["max_output_tokens"]
 
 
+def agent_timeout(cfg: dict, agent: str) -> float:
+    """The agent's client timeout in seconds: agents.<agent>.timeout_s, else the global."""
+    return cfg["agents"][agent].get("timeout_s") or cfg["timeout_s"]
+
+
+def with_caps(cfg: dict, overrides: dict | None) -> dict:
+    """A copy of cfg with caps overridden: overrides is {scope: {field: value}} over
+    cfg["caps"] (scope in red/blue/analyst/match; field in max_calls/max_tokens/max_usd).
+    None leaves cfg unchanged. Used for a per-arm cost cap (Stage 6.3 free-play, D41)."""
+    if not overrides:
+        return cfg
+    out = json.loads(json.dumps(cfg))
+    for scope, fields in overrides.items():
+        if scope not in out["caps"]:
+            raise ConfigError(f"unknown cap scope {scope!r}")
+        for field, value in fields.items():
+            if field not in CAP_FIELDS:
+                raise ConfigError(f"unknown cap field {field!r}")
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                      or value < 0):
+                raise ConfigError(f"caps.{scope}.{field} must be a non-negative number")
+            out["caps"][scope][field] = value
+    return out
+
+
+def with_timeout(cfg: dict, agent: str, seconds: float | None) -> dict:
+    """A copy of cfg with agents.<agent>.timeout_s set (None: unchanged). Used for
+    --red-timeout-s (Stage 6.3 evasion arm: DeepSeek at effort max can exceed 60 s)."""
+    if seconds is None:
+        return cfg
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds <= 0:
+        raise ConfigError(f"timeout_s must be a positive number, not {seconds!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["timeout_s"] = seconds
+    return out
+
+
 def agent_request(cfg: dict, agent: str) -> dict:
     """{thinking, effort} for the agent (None = provider default)."""
     req = cfg["agents"][agent].get("request") or {}
@@ -253,6 +299,54 @@ def agent_request(cfg: dict, agent: str) -> dict:
 def agent_caching(cfg: dict, agent: str) -> str:
     """"off" | "on" (Stage 5.7). A cost setting, held constant within a comparison."""
     return cfg["agents"][agent].get("caching", "off")
+
+
+def with_effort(cfg: dict, agent: str, effort: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.request.effort set (None: unchanged). Used for
+    --red-effort (Stage 6.3, D33: Red strength = model + effort together)."""
+    if effort is None:
+        return cfg
+    if effort not in EFFORTS:
+        raise ConfigError(f"effort must be one of {EFFORTS}, not {effort!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent].setdefault("request", {})["effort"] = effort
+    return out
+
+
+def with_max_output_tokens(cfg: dict, agent: str, n: int | None) -> dict:
+    """A copy of cfg with agents.<agent>.max_output_tokens set (None: unchanged). Used for
+    --red-max-output-tokens (Stage 6.3, D38: the output budget is part of Red strength)."""
+    if n is None:
+        return cfg
+    if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+        raise ConfigError(f"max_output_tokens must be a positive integer, not {n!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["max_output_tokens"] = n
+    return out
+
+
+def with_thinking(cfg: dict, agent: str, thinking: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.request.thinking set (None: unchanged). Used for
+    replay --thinking (Stage 6.3: Sonnet 5.5 turns thinking off with between_tools)."""
+    if thinking is None:
+        return cfg
+    if thinking not in THINKING:
+        raise ConfigError(f"thinking must be one of {THINKING}, not {thinking!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent].setdefault("request", {})["thinking"] = thinking
+    return out
+
+
+def with_provider(cfg: dict, agent: str, provider: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.provider set (None: unchanged). Used for
+    --red-provider (Stage 6.3: a DeepSeek Red arm)."""
+    if provider is None:
+        return cfg
+    if provider not in KEY_ENV:
+        raise ConfigError(f"provider must be one of {tuple(KEY_ENV)}, not {provider!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["provider"] = provider
+    return out
 
 
 def with_caching(cfg: dict, agent: str, mode: str | None) -> dict:
@@ -301,6 +395,7 @@ class Reply:
     http_status: int | None = 200
     stop_reason: str | None = None      # provider's stop reason (e.g. end_turn, refusal)
     raw_usage: dict | None = None       # provider's usage object as reported (never stored)
+    stop_details: dict | None = None    # Anthropic refusal details (never stored)
 
 
 @dataclass(frozen=True)
@@ -314,6 +409,7 @@ class Result:
     refusal: dict | None = None         # {scope, reason} if the body refused
     stop_reason: str | None = None      # of the successful attempt
     raw_usage: dict | None = None       # of the successful attempt (Gate 1 evidence)
+    stop_details: dict | None = None    # of the successful attempt (Anthropic refusals)
 
 
 class Adapter(Protocol):
@@ -322,7 +418,8 @@ class Adapter(Protocol):
 
     def call(self, *, model: str, system: str, messages: list[dict],
              max_output_tokens: int, timeout: float, api_key: str | None,
-             request: dict, output_schema: dict | None, cache: bool = False) -> Reply: ...
+             request: dict, output_schema: dict | None, cache: bool = False,
+             cache_turns: bool = False) -> Reply: ...
 
 
 # Usage mappings. Common rule: input_tokens = full-price input only; the whole
@@ -409,6 +506,28 @@ def anthropic_system(system: str, cache: bool) -> str | list[dict]:
              "cache_control": {"type": "ephemeral", "ttl": CACHE_TTL["anthropic"]}}]
 
 
+def anthropic_messages(messages: list[dict], cache_turns: bool) -> list[dict]:
+    """Caching for a multi-turn agent (Red, Stage 6.3): every user turn becomes one text
+    block and the LATEST one carries a 5-minute breakpoint. Request N+1 is a byte-exact
+    extension of request N, so N's breakpoint is read through the lookback window and
+    the new breakpoint writes what follows it (the previous reply + the new turn). Earlier
+    turns keep the block form without a marker (moving a marker is not an edit). Off
+    (and Blue's one-line calls): the messages unchanged."""
+    if not cache_turns:
+        return messages
+    out = []
+    last = max((i for i, m in enumerate(messages) if m["role"] == "user"), default=-1)
+    for i, m in enumerate(messages):
+        if m["role"] != "user":
+            out.append(m)
+            continue
+        block = {"type": "text", "text": m["content"]}
+        if i == last:
+            block["cache_control"] = {"type": "ephemeral", "ttl": CACHE_TTL["anthropic"]}
+        out.append({"role": "user", "content": [block]})
+    return out
+
+
 class AnthropicAdapter:
     provider = "anthropic"
     needs_key = True
@@ -417,7 +536,7 @@ class AnthropicAdapter:
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema, cache=False):
+             request, output_schema, cache=False, cache_turns=False):
         if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
             raise ConfigError("no API key passed")
         if self.http_client_factory is None:  # a real client: the GO token, before the SDK
@@ -432,13 +551,19 @@ class AnthropicAdapter:
                                      timeout=timeout, max_retries=0, open_telemetry=False,
                                      **extra)
         resp = client.messages.create(model=model, system=anthropic_system(system, cache),
-                                      messages=messages, max_tokens=max_output_tokens,
+                                      messages=anthropic_messages(messages,
+                                                                  cache and cache_turns),
+                                      max_tokens=max_output_tokens,
                                       **anthropic_request_kwargs(request, output_schema))
         # Read by block type: thinking blocks (if any) are never the answer.
         text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
         raw = resp.usage.model_dump(mode="json", exclude_none=True)
+        details = getattr(resp, "stop_details", None)
+        if details is not None and hasattr(details, "model_dump"):
+            details = details.model_dump(mode="json", exclude_none=True)
         return Reply(text=text, usage=anthropic_usage(resp.usage, raw),
-                     stop_reason=resp.stop_reason, raw_usage=raw)
+                     stop_reason=resp.stop_reason, raw_usage=raw,
+                     stop_details=details if isinstance(details, dict) else None)
 
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"  # explicit: OPENAI_BASE_URL is never read
@@ -538,16 +663,23 @@ def openai_reply_parts(resp: Any) -> tuple[str, str | None]:
 class OpenAIAdapter:
     provider = "openai"
     needs_key = True
+    base_url = OPENAI_BASE_URL
 
     def __init__(self, http_client_factory: Callable[[], Any] | None = None):
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
-    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema, cache=False):
-        if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
-            raise ConfigError("no API key passed")
+    def _shape(self, request, output_schema, cache, messages):
+        """(request kwargs, input items, unpriced-TTL flag)."""
         kwargs = openai_request_kwargs(request, output_schema, cache)
         items = openai_input(messages, cache)
+        return kwargs, items, openai_unpriced_ttl(kwargs, items)
+
+    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
+             request, output_schema, cache=False, cache_turns=False):
+        # cache_turns is implied: the OpenAI scheme already marks every user turn.
+        if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
+            raise ConfigError("no API key passed")
+        kwargs, items, unpriced_ttl = self._shape(request, output_schema, cache, messages)
         if self.http_client_factory is None:  # a real client: the GO token, before the SDK
             require_go()
         import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
@@ -557,19 +689,38 @@ class OpenAIAdapter:
         # base URL passed explicitly: no environment value can choose the key, the
         # host, the organization, the project or extra headers.
         with scrubbed_env("OPENAI_"):
-            client = openai.OpenAI(api_key=api_key, base_url=OPENAI_BASE_URL,
+            client = openai.OpenAI(api_key=api_key, base_url=self.base_url,
                                    timeout=timeout, max_retries=0, **extra)
         resp = client.responses.create(model=model, instructions=system, input=items,
                                        max_output_tokens=max_output_tokens, **kwargs)
         text, stop = openai_reply_parts(resp)
         raw = resp.usage.model_dump(mode="json", exclude_none=True)
-        return Reply(text=text, usage=openai_usage(resp.usage, raw,
-                                                   openai_unpriced_ttl(kwargs, items)),
+        return Reply(text=text, usage=openai_usage(resp.usage, raw, unpriced_ttl),
                      stop_reason=stop, raw_usage=raw)
 
 
+class DeepSeekAdapter(OpenAIAdapter):
+    """DeepSeek through its OpenAI-compatible Responses API (Stage 6.3 Red candidate):
+    the OpenAI adapter with DeepSeek's base URL, the same key / environment isolation
+    (the openai SDK, every OPENAI_* variable scrubbed, key and URL explicit) and the same
+    GO token. Caching is automatic at DeepSeek, so no cache field or breakpoint is sent
+    (prompt_cache_options is dropped; `store` is accepted, always false there).
+    SILENT-IGNORE RISK: DeepSeek ignores unsupported fields without an error, so whether
+    json_schema / strict and reasoning.effort are honoured, how usage maps (is cached
+    input inside input_tokens? reasoning inside output_tokens?) and what a refusal looks
+    like are UNVERIFIED until the full-build checklist (contract 6.10)."""
+    provider = "deepseek"
+    base_url = DEEPSEEK_BASE_URL
+
+    def _shape(self, request, output_schema, cache, messages):
+        kwargs = openai_request_kwargs(request, output_schema, False)
+        kwargs.pop("prompt_cache_options", None)
+        return kwargs, messages, False
+
+
 DEFAULT_ADAPTERS: dict[str, Adapter] = {"anthropic": AnthropicAdapter(),
-                                        "openai": OpenAIAdapter()}
+                                        "openai": OpenAIAdapter(),
+                                        "deepseek": DeepSeekAdapter()}
 
 
 def classify(exc: BaseException) -> tuple[str, int | None, float | None]:
@@ -614,9 +765,10 @@ def canonical_prompt(model: str, system: str, messages: list[dict]) -> str:
 
 def worst_case(entry: dict, prompt_chars: int, chars_per_token: float,
                max_output_tokens: int) -> tuple[int, float]:
-    """(tokens, usd) upper estimate for one call, priced at the applicable tier."""
+    """(tokens, usd) upper estimate for one call, priced at the applicable tier (at the
+    PEAK rates for a time-priced entry, D39: an upper estimate whatever the hour)."""
     est_input = math.ceil(prompt_chars / chars_per_token)
-    tier = cost_mod.tier_for(entry, est_input)
+    tier = cost_mod.tier_for(entry, est_input, "peak")
     usd = (est_input * tier["input"] + max_output_tokens * tier["output"]) / 1e6
     return est_input + max_output_tokens, usd
 
@@ -743,11 +895,17 @@ class LLMClient:
         max_out = agent_max_output_tokens(self.cfg, agent)
         request = agent_request(self.cfg, agent)
         cache = agent_caching(self.cfg, agent) == "on"
+        if provider == "deepseek" and not cache:
+            raise ConfigError("DeepSeek caches automatically and it cannot be switched off: "
+                              f"set agents.{agent}.caching to 'on' (recorded as ttl 'auto')")
+        cache_turns = agent == "red"  # Red is multi-turn; Blue caches its system prompt only
         attempts_sent = 0
 
         for attempt in range(1, self.cfg["max_retries"] + 2):
             base = self._base(run_dir, match_id, agent, provider, model, round,
                               log_seq_first, log_seq_last, attempt, prompt_sha)
+            if entry is not None and entry.get("peak") is not None:  # D39: time-priced
+                base["rate_window"] = cost_mod.rate_window(entry, base["timestamp"])
             if entry is None:
                 return self._refuse(run_dir, base, {"scope": agent, "reason": "missing_price"},
                                     attempts_sent)
@@ -774,14 +932,15 @@ class LLMClient:
             try:
                 reply = adapter.call(model=model, system=system, messages=messages,
                                      max_output_tokens=max_out,
-                                     timeout=self.cfg["timeout_s"], api_key=key,
+                                     timeout=agent_timeout(self.cfg, agent), api_key=key,
                                      request=request, output_schema=output_schema,
-                                     cache=cache)
+                                     cache=cache, cache_turns=cache_turns)
             except GoTokenError:
                 raise  # never swallowed as a failed call
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
                 latency = max(0, round_ms(self.clock() - t0))
                 kind, status, retry_after = classify(exc)
+                error = self._redact(f"{type(exc).__name__}: {exc}")[:500]
                 self._write(run_dir, {**base, "ok": False, "error_type": kind,
                                       "http_status": status, "refusal": None,
                                       "stop_reason": None,
@@ -789,8 +948,8 @@ class LLMClient:
                                       "cache_write_tokens": None,
                                       "unpriced_cache_write_tokens": None,
                                       "output_tokens": None,
+                                      "error_excerpt": error,  # redacted; keys never present
                                       "latency_ms": latency})
-                error = self._redact(f"{type(exc).__name__}: {exc}")[:500]
                 if kind not in RETRYABLE or attempt > self.cfg["max_retries"]:
                     return Result(ok=False, error=error, error_type=kind,
                                   attempts=attempts_sent)
@@ -812,7 +971,8 @@ class LLMClient:
                                       u.unpriced_cache_write_tokens,
                                   "output_tokens": u.output_tokens, "latency_ms": latency})
             return Result(ok=True, text=reply.text, usage=u, attempts=attempts_sent,
-                          stop_reason=reply.stop_reason, raw_usage=reply.raw_usage)
+                          stop_reason=reply.stop_reason, raw_usage=reply.raw_usage,
+                          stop_details=getattr(reply, "stop_details", None))
         raise AssertionError("unreachable")
 
 

@@ -40,7 +40,7 @@ docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
-docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D32 (+ D24 amendment, criterion d′)
+docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D41 (+ D24 amendment, criterion d′; D34 amendment; D15 amendment, D41)
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
@@ -65,6 +65,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   benign_holdout.schema.json      one line of benign/holdout_v1.jsonl or fixture_v2_offline.jsonl
   benign_offline_draft.schema.json  benign/*.draft.json (offline benign drafts)
   test_set.schema.json            config/test_set.json
+  free_play_audit.schema.json     free-play binary audit row (attack attempt yes/no, D41)
   autonomy_table.schema.json      the autonomy table JSON (contract 6.13)
   dashboard_bundle.schema.json    one dashboard bundle (contract 6.14)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
@@ -99,7 +100,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
 config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
-  test_set.json         TEST data registry (S6-1): the 6 audited AI-Red golden match ids + sealed offline benign hashes
+  test_set.json         TEST data registry (S6-1): the 6 audited AI-Red golden match ids + the 12 Stage 6.3 eval ids (Gate B, B-deepseek, B-evasion, B-freeplay), test_purposes [eval], sealed offline benign hashes
   prices.json           USD per million tokens per model (designer-maintained, dated)
   llm.json              models per agent, timeouts/retries, required per-agent + match caps; agents.blue.rules (mode off|shadow|on, max_rules); agents.<agent>.caching (off|on, 5.7)
 rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; governed by JUDGE_VERSION)
@@ -110,7 +111,7 @@ rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; go
   library.py            READ-ONLY rule library reader + canonical form (no write path; Blue + Judge)
   paths.py              the ONE above-root predicate (red guard + variant mutator, D32)
 library/writer.py       the ONE rule library writer (imported only by tools/promote_rules.py, D26)
-agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl; prompt caching markers + unpriced cache lifetimes (5.7)
+agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl; prompt caching markers + unpriced cache lifetimes (5.7); DeepSeek adapter + off-peak guard (6.3)
 agents/prompting.py     stable-prefix-first prompt builder + safe JSON parsing
 proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
 red/payloads.json       scripted-Red attack set (data, verified empirically)
@@ -127,15 +128,16 @@ runner/schedule.py      seeded interleaving; preserves Red order AND benign orde
 runner/go_token.py      the GO token: gate tools need ARENA_GO=<gate id>; any real AI client a well-formed token (6.1b)
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
 red/scripted_red.py     write labeled record, then fire one attack (one step at a time); write_and_send shared with AI Red
-red/ai_red.py           AI Red (5.6): fixed prompt (RED_PROMPT_VERSION), one proposal per slot, reply validation (OpenAI)
-red/red_guard.py        rules of engagement (D15): scope/method/encoding/above-root/label/size guards, run by the body
+red/ai_red.py           AI Red (5.6): versioned prompts (v1; v2 = D40 evasion; v3 = D41 free-play: any attack + other/technique/headers), one proposal per slot, reply validation
+red/red_guard.py        rules of engagement (D15; D41 free-play mode: label other + Cookie/Authorization headers): scope/method/encoding/above-root/label/header/size guards
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
 stats/cost.py           pure cost over api_calls.jsonl + price table
 stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule coverage by origin / calls / cost; CP bound for 0/n
+stats/free_play.py      free-play measurement (D41): landing = any solve (+ category), detection binary over audited attempts; pure stats layer over the Judge
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
 blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude, --rules-mode)
-blue/claude_engine.py   AI Blue (5.4): fixed prompts v1 (off) / v2 (shadow, on), one stateless call per line, reply validation, rule-first flow (5.5)
+blue/claude_engine.py   AI Blue (5.4): prompts v1 (off) / v2 (shadow, on); v3-open (D42, replay-only: widened attack definition + other/technique); one stateless call per line, reply validation, rule-first flow (5.5)
 blue/rule_invention.py  the body's half of rule invention: fills ids/cwe/source, validates, caps -> rules / rejections
 judge/fact1_landed.py   pure landed computation over artifacts (no network)
 judge/fact2_detected.py pure detected/type_correct computation; 0.1/0.2 verdicts; instrument_failure cross-check vs api_calls.jsonl
@@ -166,14 +168,16 @@ tools/verify_red_guard.py     zero-token probe: the above_root guard matches rea
 tools/audit_match.py          D16 label audit: scaffold / validate / apply (raw vs audited, --json) / sheet; AI labels only; replay folders
 tools/stage5_6_smoke.py       Gate 1 (5.6): ONE AI-Red generation, nothing sent (--real-call; GO only)
 tools/stage5_6_check.py       Gate 2 (5.6): 3 seeded --red ai matches, prints every attack (--real-calls; GO only)
-tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source)
+tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source); --blue-prompt open (D42), --thinking (6.3)
 tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/shadow/on, prints every rule (--real-calls; GO only)
 tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
 tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + JSON (6.2, zero token)
+tools/free_play.py            free-play (D41): binary audit scaffold/sheet + report
 tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js (6.4, read-only)
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
 tools/build_holdout.py        capture + seal the offline benign files outside any match (--capture = Gate 0, GO only; --check)
 tools/stage6_1_check.py       6.1b: Gate 1 (5 train matches) / --promote / --predict (zero token) / Gate 2 (M5 replays); GO only
+tools/stage6_3_check.py       6.3 flagship gate: A (--estimate zero token; --probe), B (3 eval matches, Sol Red), C (Sonnet / empty-library replays); GO + token only
 tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls + Red dry run, raw usage (--real-calls; GO only)
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
 dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
@@ -187,6 +191,11 @@ data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 
 data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gate 2; held-out candidate set)
 data/golden/ai-vs-ai-gate3-match{1,2,3}/  first AI-vs-AI matches, audited (5.7 Gate 3; four facts PASS; never rewritten)
 data/golden/train-6.1b-gate1-match{1..5}/  Stage 6.1b Gate 1 TRAIN matches (purpose train; audits in data/audits/; fed library v1-v5)
+data/golden/eval-6.3-gateB-match{1,2,3}/  Stage 6.3 Gate B EVAL matches (TEST data, D35; Luna high Red vs Haiku + v5; full audits in data/golden/audits/)
+data/golden/eval-6.3-gateB-deepseek-match{1,2,3}/  Stage 6.3 Gate B-deepseek EVAL matches (TEST data; deepseek-v4-pro max Red vs Haiku + v5; full audits)
+data/golden/eval-6.3-gateB-evasion-match{1,2,3}/  Stage 6.3 Gate B-evasion EVAL matches (TEST data; D40: + Red prompt v2 evasion directive; full audits)
+data/golden/eval-6.3-gateB-freeplay-match{1,2,3}/  Stage 6.3 Gate B-freeplay EVAL matches (TEST data; D41 exploratory: Red prompt v3 any-attack; binary audits)
+data/golden/incidents/     archived failed / instrument-failure runs (never deleted, never in test_set.json)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
@@ -194,6 +203,9 @@ data/golden/replays/gate-5.7/  Stage 5.7 Gates 2/2b evidence: 8 cached Blue repl
 data/golden/replays/gate-6.1b-2/  Stage 6.1b Gate 2 (M5) evidence: 3 Gate 3 sources x {empty v0000, library v5} + README (never rewritten)
 data/golden/stats/      committed autonomy tables (autonomy_6.1b.{md,json}: the three M5 arms)
 data/golden/replays/gate-6.1b-2b/  Stage 6.1b Gate 2b evidence: the same 3 sources, rules off (prompt v1) + README (never rewritten)
+data/golden/replays/gate-6.3-C/  Stage 6.3 Gate C evidence: 3 Gate B eval sources x {Sonnet + v5 (between_tools), Haiku + v0000} + README (never rewritten)
+data/golden/replays/gate-6.3-C-open/  Stage 6.3 D42 open-Blue evidence: 6 v3-open replays (free-play + deepseek) + FP check + README (never rewritten)
+data/golden/incidents/     archived failed / instrument-failure runs (never deleted, never in test_set.json)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -225,7 +237,7 @@ tests/test_blue_claude.py   AI Blue engine: prompt, information wall (D14), vali
 tests/test_instrument_failure.py  Judge cross-check, rounds/benign 0.2, stats denominators
 tests/test_run_match_blue.py  --blue claude wiring with fake Ops + fake provider
 tests/test_openai_adapter.py  OpenAI Responses adapter vs a mock transport: key/host/env, settings, usage
-tests/test_red_guard.py     the rules-of-engagement guards (D15)
+tests/test_red_guard.py     the rules-of-engagement guards (D15; D41 free-play labels + headers)
 tests/test_ai_red.py        AI Red engine: prompt, validation, history, feedback, info wall
 tests/test_run_match_red.py --red ai driver loop + wiring (fake Ops + fake provider)
 tests/test_audit.py         D16: audit schema, audited view, audit-first flag, audit_match tool, scripted = valid
@@ -256,6 +268,13 @@ tests/test_gate_6_1b_gate2_evidence.py  committed M5 replays (gate-6.1b-2, -2b):
 tests/test_autonomy.py      autonomy table: every column, CP bound, audit nulls, CLI (non-test folders)
 tests/test_autonomy_6_1b_evidence.py  committed 6.1b table regenerates byte for byte
 tests/test_export_dashboard.py  bundles copied from artifacts, cost totals, demo bundles regenerate, dashboard offline
+tests/test_stage6_3_offline.py  6.3: red effort, purpose eval, promotion refuses eval, estimate, Gates B/C offline
+tests/test_gate_6_3_gateB_evidence.py  committed Gate B eval matches: hashes, D38 config, test-set registration, full audit scaffold
+tests/test_gate_6_3_gateB_deepseek_evidence.py  committed Gate B-deepseek eval matches: hashes, DeepSeek config, rate windows, test-set registration, full audit
+tests/test_gate_6_3_gateB_freeplay_evidence.py  committed Gate B-freeplay eval matches: hashes, prompt v3 config, challenge catalog, binary audit
+tests/test_gate_6_3_c_open_evidence.py  committed open-Blue (D42) replays: hashes, v3-open prompt, 2a recovery of landed other-class misses, 2b taxonomy unchanged
+tests/test_gate_6_3_gateB_evasion_evidence.py  committed Gate B-evasion eval matches: hashes, prompt v2 sha, timeout, test-set registration, full audit
+tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 
@@ -332,6 +351,11 @@ asking" in your report. Escalate only if unsure which category a step falls in.
   4. Offline tests never replay test-set matches (`tests/test_stage6_1_gates_offline.py`
      swaps in non-test golden folders and fails on any test-set replay). Only the real
      6.1b gates (Gate 2, `--predict`) touch the Gate 3 matches, each after a GO.
+- **Failed / instrument-failure runs are archived and marked, never deleted.** Raw evidence
+  is never deleted (instrument failures are excluded from stats by D13, not removed). A failed
+  run under `data/runs/` is kept, or archived to `data/golden/incidents/` with its cause;
+  deleting a run folder is category 3 and needs the designer's GO (a Gate B-freeplay run was
+  deleted in error, Nov 19).
 - **Never chain a commit after tests with `;`.** Use `&&`, or run the tests, check the
   result, then commit (a failing suite once preceded a commit, Nov 18).
 - **Paid runs need the GO token**, set for that one command only after the designer's GO

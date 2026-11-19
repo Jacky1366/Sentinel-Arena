@@ -319,3 +319,81 @@ def test_prompts_are_unchanged_by_caching():
         claude_engine.SYSTEM_PROMPT.encode()).hexdigest()
     assert claude_engine.SYSTEM_PROMPT_SHA256.startswith("938ea67c385a")
     assert ai_red.RED_PROMPT_VERSION == "1"
+
+
+# -- Stage 6.3: Red on Anthropic (multi-turn breakpoint) ---------------------------------
+
+def call_anthropic_red(a, cache, cache_turns, messages=RED_TURNS):
+    return a.call(model="claude-opus-5-5", system="RED SYSTEM", messages=messages,
+                  max_output_tokens=8192, timeout=5, api_key=KEY,
+                  request={"thinking": None, "effort": "medium"},
+                  output_schema=ai_red.OUTPUT_SCHEMA, cache=cache, cache_turns=cache_turns)
+
+
+def _strip_markers(obj):
+    if isinstance(obj, dict):
+        return {k: _strip_markers(v) for k, v in obj.items() if k != "cache_control"}
+    if isinstance(obj, list):
+        return [_strip_markers(v) for v in obj]
+    return obj
+
+
+def test_anthropic_red_marks_the_latest_turn_and_the_system_only():
+    a, seen = adapter(lc.AnthropicAdapter, anthropic_reply())
+    call_anthropic_red(a, cache=True, cache_turns=True)
+    body = json.loads(seen[0])
+    ttl = {"type": "ephemeral", "ttl": "5m"}
+    assert body["system"] == [{"type": "text", "text": "RED SYSTEM", "cache_control": ttl}]
+    assert body["messages"] == [
+        {"role": "user", "content": [{"type": "text", "text": "turn 1"}]},
+        {"role": "assistant", "content": '{"a": 1}'},
+        {"role": "user", "content": [{"type": "text", "text": "turn 2", "cache_control": ttl}]}]
+    assert json.dumps(body).count("cache_control") == 2  # API limit is 4
+    assert "thinking" not in body  # Opus 5.5 / Sonnet 5.5: omitted = adaptive
+    assert body["output_config"] == {"effort": "medium", "format": {
+        "type": "json_schema", "schema": ai_red.OUTPUT_SCHEMA}}
+
+
+def test_anthropic_red_requests_are_append_only_and_off_is_unchanged():
+    a, seen = adapter(lc.AnthropicAdapter, anthropic_reply())
+    call_anthropic_red(a, cache=True, cache_turns=True, messages=RED_TURNS[:1])
+    call_anthropic_red(a, cache=True, cache_turns=True)
+    m1, m2 = (_strip_markers(json.loads(s)["messages"]) for s in seen)
+    assert m2[:len(m1)] == m1  # request N+1 extends request N byte for byte (markers aside)
+    a2, seen2 = adapter(lc.AnthropicAdapter, anthropic_reply())
+    call_anthropic_red(a2, cache=False, cache_turns=True)
+    assert json.loads(seen2[0])["messages"] == RED_TURNS and "cache_control" not in seen2[0].decode()
+
+
+def test_red_reply_schema_uses_only_keywords_anthropic_supports():
+    unsupported = {"minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum",
+                   "exclusiveMaximum", "multipleOf", "minItems", "maxItems", "pattern",
+                   "format"}
+    assert not unsupported & set(json.dumps(ai_red.OUTPUT_SCHEMA).replace('"', " ").split())
+
+
+def test_client_asks_for_turn_caching_for_red_only(tmp_path):
+    fake = FakeAdapter(text=json.dumps({"method": "GET", "path": "/", "body": "",
+                                        "label": "CWE-89", "rationale": "r"}))
+    cfg = copy.deepcopy(CONFIG)
+    for a_ in cfg["agents"].values():
+        a_["provider"] = "fake"
+        a_["caching"] = "on"
+    client = lc.LLMClient(config=cfg, prices=PRICES, adapters={"fake": fake}, env={},
+                          dotenv_path=REPO / "nonexistent" / "no.env", sleep=lambda s: None)
+    d = tmp_path / "m001"
+    d.mkdir()
+    client.complete("red", "fake-small", "S", RED_TURNS, run_dir=d, round=1)
+    client.complete("blue", "fake-small", "S", RED_TURNS[:1], run_dir=d, log_seq_first=1,
+                    log_seq_last=1)
+    assert [c["cache_turns"] for c in fake.calls] == [True, False]
+
+
+def test_anthropic_refusal_carries_stop_details_and_fails_the_red_turn(tmp_path):
+    reply = {**anthropic_reply(), "content": [], "stop_reason": "refusal",
+             "stop_details": {"type": "refusal", "category": "cyber",
+                              "explanation": "declined"}}
+    a, seen = adapter(lc.AnthropicAdapter, reply)
+    r = call_anthropic_red(a, cache=True, cache_turns=True)
+    assert r.stop_reason == "refusal" and r.stop_details["category"] == "cyber"
+    assert ai_red.validate_reply(r.text, r.stop_reason) == (None, "refusal")

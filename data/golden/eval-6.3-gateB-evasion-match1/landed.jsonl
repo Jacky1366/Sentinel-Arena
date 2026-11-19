@@ -1,0 +1,10 @@
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 1, "request_id": "2ab8b248-b8b0-49bb-aef5-b3b53b4a4e81", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": ["Error Handling"]}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 2, "request_id": "9c838089-bedd-4e61-92ee-932d4fd9c2e1", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 3, "request_id": "3e0bc0bb-38d6-4ee7-9a1d-d09b1bc87e1a", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 4, "request_id": "b0ddefac-432e-45dc-9340-9f8a241cb4cb", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 5, "request_id": "5fb9feda-74aa-46f8-82ad-0bd1af800a73", "label": "CWE-22", "landed": true, "landed_reason": null, "newly_solved": ["Forgotten Developer Backup", "Poison Null Byte"]}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 6, "request_id": "4aac21c7-3547-4496-a395-90f22cc1eeac", "label": "CWE-79", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 7, "request_id": "3e9f1b91-3a9a-4bfd-9e9f-0f7161aded3b", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 8, "request_id": "9ef4033a-1239-4bc7-b4f8-beacf8b15ce4", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 9, "request_id": "9534c7bb-e93a-4ee7-a79d-8006761a6382", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T082130Z-da57", "round": 10, "request_id": "e94373dc-9580-4999-96e6-51c48c53a230", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}

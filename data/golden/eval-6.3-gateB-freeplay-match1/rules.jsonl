@@ -1,0 +1,1 @@
+{"schema_version": "0.1", "match_id": "20261119T180616Z-a388", "hot_loaded": true, "rule": {"rule_id": "r-001", "cwe": "CWE-89", "conditions": [{"field": "query", "op": "contains", "pattern": "q='", "case_insensitive": true}], "source_request_id": "208f97e7-d7fe-43be-82c5-d0e55ebc15e7", "created_at_log_seq": 11, "created_match": "20261119T180616Z-a388"}}

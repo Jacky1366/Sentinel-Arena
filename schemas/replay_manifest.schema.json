@@ -182,6 +182,7 @@
                 "openai",
                 "anthropic",
                 "gemini",
+                "deepseek",
                 "fake"
               ]
             },
@@ -245,7 +246,8 @@
                   "enum": [
                     null,
                     "disabled",
-                    "adaptive"
+                    "adaptive",
+                    "between_tools"
                   ]
                 },
                 "effort": {
@@ -619,6 +621,7 @@
                 "openai",
                 "anthropic",
                 "gemini",
+                "deepseek",
                 "fake"
               ]
             },
@@ -773,7 +776,8 @@
           "enum": [
             null,
             "5m",
-            "30m"
+            "30m",
+            "auto"
           ]
         }
       },
@@ -796,7 +800,8 @@
           "ttl": {
             "enum": [
               "5m",
-              "30m"
+              "30m",
+              "auto"
             ]
           }
         }

@@ -31,6 +31,15 @@ PAID = [  # (tool module, argv, gate id)
     ("stage6_1_check", ["--gate", "1", "--real-calls"], "gate-6.1b-1"),
     ("stage6_1_check", ["--gate", "2", "--library", LIB0, "--real-calls"], "gate-6.1b-2"),
     ("stage6_1_check", ["--gate", "2b", "--real-calls"], "gate-6.1b-2b"),
+    ("stage6_3_check", ["--gate", "A", "--probe", "--real-calls"], "gate-6.3-A"),
+    ("stage6_3_check", ["--gate", "B", "--real-calls"], "gate-6.3-B"),
+    ("stage6_3_check", ["--gate", "C", "--matches", str(REPO / "data" / "golden"
+                                                        / "train-6.1b-gate1-match1"),
+                        "--real-calls"], "gate-6.3-C"),
+    ("stage6_3_check", ["--gate", "B-deepseek", "--real-calls"], "gate-6.3-B-deepseek"),
+    ("stage6_3_check", ["--gate", "B-evasion", "--real-calls"], "gate-6.3-B-evasion"),
+    ("stage6_3_check", ["--gate", "B-freeplay", "--real-calls"], "gate-6.3-B-freeplay"),
+    ("stage6_3_check", ["--gate", "C-open", "--real-calls"], "gate-6.3-C-open"),
 ]
 
 
@@ -44,6 +53,14 @@ def nothing_may_run(monkeypatch):
                       (replay_blue, "replay"), (match_ops, "reset_target"),
                       (match_ops, "running_images"), (match_ops, "acquire_lock")]:
         monkeypatch.setattr(obj, name, _boom)
+
+
+def test_every_gate_id_is_well_formed_for_the_single_exit():
+    # a gate id the tool accepts but llm_client.require_go rejects would refuse the GO'd
+    # run at the exit (Stage 6.3 Gate A: gate-6.3-A once failed the lower-case pattern)
+    for _, _, gate in PAID:
+        assert go_token.valid(gate), gate
+        lc.require_go({go_token.ENV: gate})
 
 
 def test_tests_never_carry_the_token():
@@ -96,7 +113,7 @@ def real_ops_no_docker(monkeypatch):
     for name in ("reset", "rotate", "traffic", "freeze", "judge_fact1", "blue"):
         monkeypatch.setattr(run_match.Ops, name, _boom)
     monkeypatch.setattr(match_ops, "acquire_lock", _boom)
-    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter):
+    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter, lc.DeepSeekAdapter):
         monkeypatch.setattr(cls, "call", _boom)
 
 
@@ -139,10 +156,11 @@ def test_the_fake_provider_never_needs_the_token(tmp_path):
     keyed = FakeAdapter(provider="anthropic", needs_key=True)  # a keyed fake is still fake
     assert not lc.is_real(keyed) and not lc.is_real(FakeAdapter())
     assert lc.is_real(lc.AnthropicAdapter()) and lc.is_real(lc.OpenAIAdapter())
+    assert lc.is_real(lc.DeepSeekAdapter())
     assert not lc.is_real(lc.AnthropicAdapter(http_client_factory=lambda: None))
 
 
-@pytest.mark.parametrize("cls", [lc.AnthropicAdapter, lc.OpenAIAdapter])
+@pytest.mark.parametrize("cls", [lc.AnthropicAdapter, lc.OpenAIAdapter, lc.DeepSeekAdapter])
 def test_a_real_adapter_checks_the_token_before_building_the_sdk_client(cls, monkeypatch):
     import builtins
     real_import = builtins.__import__

@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "as_of": "2026-11-12",
+  "as_of": "2026-11-18",
   "currency": "USD",
   "unit": "per_million_tokens",
   "models": {
@@ -24,7 +24,8 @@
           "cache_write": 0.625,
           "output": 2.5
         }
-      ]
+      ],
+      "note": "the >100K-token prompt tier (0.50 / 2.50 / 5-minute write 0.625 / read 0.05) checked present 2026-11-18 at the designer's request"
     },
     "claude-sonnet-5-5": {
       "provider": "anthropic",
@@ -39,35 +40,43 @@
           "cache_write": 2.5,
           "output": 10
         }
-      ]
+      ],
+      "note": "re-confirmed unchanged by the designer 2026-11-18, twice (2 / 10 / 5-minute write 2.50 / 1-hour write 4.00, not priced / read 0.10 since the Oct 7 cut)"
     },
     "claude-opus-5-5": {
       "provider": "anthropic",
-      "as_of": "2026-11-08",
-      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
-      "verified": false,
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official Anthropic pricing page: 4.00 input / 20.00 output, cache read 0.20, cache_write = 5-minute write 5.00 (1-hour write 8.00 is not priced here: a 1-hour write stops the match with unpriced_usage). Single tier.",
+      "verified": true,
       "tiers": [
         {
           "max_prompt_tokens": null,
-          "input": 4,
+          "input": 4.0,
           "cached_input": 0.2,
           "cache_write": 5.0,
-          "output": 20
+          "output": 20.0
         }
       ]
     },
     "gpt-6.1-sol": {
       "provider": "openai",
-      "as_of": "2026-11-08",
-      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
-      "verified": false,
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official OpenAI pricing page (developers.openai.com/api/docs/pricing, Standard): Short (<=272K input tokens, whole request) 2.00 input / 10.00 output, cached 0.10; Long (>272K) 4.00 / 15.00, cached 0.20. cache_write is the 30-minute write price (2.50 short / 5.00 long; read off the same page by the implementer the same day); 12-hour writes (5.00 / 10.00) are not priced here: if a response ever reports 12-hour cache writes, stop with unpriced_usage. Same list price as claude-sonnet-5-5 (genuine, not a copy).",
+      "verified": true,
       "tiers": [
         {
-          "max_prompt_tokens": null,
-          "input": 2,
+          "max_prompt_tokens": 272000,
+          "input": 2.0,
           "cached_input": 0.1,
           "cache_write": 2.5,
-          "output": 10
+          "output": 10.0
+        },
+        {
+          "max_prompt_tokens": null,
+          "input": 4.0,
+          "cached_input": 0.2,
+          "cache_write": 5.0,
+          "output": 15.0
         }
       ]
     },
@@ -92,6 +101,94 @@
           "output": 0.75
         }
       ]
+    },
+    "gpt-6.1-terra": {
+      "provider": "openai",
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official OpenAI pricing page (developers.openai.com/api/docs/pricing, Standard): Short (<=272K input tokens, whole request) 1.00 input / 5.00 output, cached 0.05, 30-minute write 1.25 (12-hour 2.50, not priced here). Long (>272K) tier as listed on the same page, read by the implementer the same day: 2.00 / 7.50, cached 0.10, 30-minute write 2.50 (12-hour 5.00). cache_write is the 30-minute write price; a 12-hour cache write stops the match with unpriced_usage.",
+      "verified": true,
+      "tiers": [
+        {
+          "max_prompt_tokens": 272000,
+          "input": 1.0,
+          "cached_input": 0.05,
+          "cache_write": 1.25,
+          "output": 5.0
+        },
+        {
+          "max_prompt_tokens": null,
+          "input": 2.0,
+          "cached_input": 0.1,
+          "cache_write": 2.5,
+          "output": 7.5
+        }
+      ]
+    },
+    "gpt-5.6-sol": {
+      "provider": "openai",
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official OpenAI pricing page (developers.openai.com/api/docs/pricing, Standard): Short (<=272K input tokens, whole request) 4.00 input / 20.00 output, cached 0.40, 30-minute write 5.00 (12-hour 10.00, not priced here). Long (>272K) tier as listed on the same page, read by the implementer the same day: 8.00 / 30.00, cached 0.80, 30-minute write 10.00 (12-hour 20.00). The page marks these as promotional pricing until 2026-11-30: re-verify before any run after that date. cache_write is the 30-minute write price; a 12-hour cache write stops the match with unpriced_usage.",
+      "verified": true,
+      "tiers": [
+        {
+          "max_prompt_tokens": 272000,
+          "input": 4.0,
+          "cached_input": 0.4,
+          "cache_write": 5.0,
+          "output": 20.0
+        },
+        {
+          "max_prompt_tokens": null,
+          "input": 8.0,
+          "cached_input": 0.8,
+          "cache_write": 10.0,
+          "output": 30.0
+        }
+      ]
+    },
+    "deepseek-v4-pro": {
+      "provider": "deepseek",
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official DeepSeek Models & Pricing page (api-docs.deepseek.com/quick_start/pricing, DeepSeek-V4-Pro-0813): off-peak 0.66 input (cache miss) / 0.022 cached (cache hit) / 1.98 output; peak 2x: 1.32 / 0.044 / 3.96 (Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese public holidays). Each call is priced by its own timestamp (D39). Caching is automatic with no write charge (cache_write 0). No long-context tier listed.",
+      "verified": true,
+      "tiers": [
+        {
+          "max_prompt_tokens": null,
+          "input": 0.66,
+          "cached_input": 0.022,
+          "cache_write": 0.0,
+          "output": 1.98
+        }
+      ],
+      "peak": {
+        "windows_utc": [
+          [
+            1,
+            4
+          ],
+          [
+            6,
+            10
+          ]
+        ],
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "note": "Chinese public holidays (off-peak at DeepSeek) are unknown here and count as peak: may over-report, never under-report.",
+        "tiers": [
+          {
+            "max_prompt_tokens": null,
+            "input": 1.32,
+            "cached_input": 0.044,
+            "cache_write": 0.0,
+            "output": 3.96
+          }
+        ]
+      }
     }
   },
   "placeholders": {}

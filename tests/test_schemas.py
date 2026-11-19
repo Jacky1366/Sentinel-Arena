@@ -66,6 +66,7 @@ SCHEMA_NAMES = [
     "benign_holdout",
     "benign_offline_draft",
     "test_set",
+    "free_play_audit",
 ]
 
 
@@ -465,6 +466,9 @@ VALID["benign_offline_draft"] = {
 VALID["test_set"] = {"schema_version": "0.1", "_comment": "x", "match_ids": [BID_MATCH],
                      "sealed": [{"path": "benign/holdout_v1.jsonl", "role": "test",
                                  "sha256": None}]}
+VALID["free_play_audit"] = {"schema_version": "0.1", "match_id": BID_MATCH, "round": 1,
+                            "attack_attempt": "yes", "reason": "IDOR on /rest/basket",
+                            "auditor": "designer", "date": "2026-11-19"}
 
 INVALID = {
     "red_attack_v0_1": [
@@ -475,8 +479,10 @@ INVALID = {
         ("wrong schema_version", _set("schema_version", "0.2")),
     ],
     "red_attack": [
-        ("label not in taxonomy", _set("label", "CWE-78")),
+        ("label not in taxonomy or other", _set("label", "CWE-78")),
         ("label benign (Red may not label benign)", _set("label", "benign")),
+        ("technique over 64 chars", _set("technique", "x" * 65)),
+        ("a header outside Cookie/Authorization", _set("headers", {"X-Evil": "1"})),
         ("missing source", _drop("source")),
         ("missing rationale", _drop("rationale")),
         ("ai without rationale", lambda r: {**r, "source": "ai", "rationale": None}),
@@ -1142,6 +1148,14 @@ INVALID = {
         ("unit not per million", _set("unit", "per_token")),
         ("missing placeholders", _drop("placeholders")),
     ],
+    "free_play_audit": [
+        ("attack_attempt not in enum", _set("attack_attempt", "maybe")),
+        ("unaudited with a reason", lambda r: {**r, "attack_attempt": "unaudited",
+                                               "reason": "x", "auditor": None, "date": None}),
+        ("decided without an auditor", _set("auditor", None)),
+        ("date not ISO", _set("date", "19/11/2026")),
+        ("extra property", _set("corrected", "x")),
+    ],
 }
 
 
@@ -1309,7 +1323,10 @@ def test_api_call_refusal_and_failure_shapes_valid():
 
 # Only the designer verifies a price (Stage 5.4: Haiku 5.5, Sonnet 5.5; Stage 5.6:
 # gpt-6-luna — all checked 2026-11-12).
-DESIGNER_VERIFIED = {"claude-haiku-5-5", "claude-sonnet-5-5", "gpt-6-luna"}
+DESIGNER_VERIFIED = {"claude-haiku-5-5": "2026-11-12", "claude-sonnet-5-5": "2026-11-12",
+                     "gpt-6-luna": "2026-11-12", "gpt-6.1-sol": "2026-11-18",
+                     "gpt-6.1-terra": "2026-11-18", "gpt-5.6-sol": "2026-11-18",
+                     "claude-opus-5-5": "2026-11-18", "deepseek-v4-pro": "2026-11-18"}
 
 
 def test_committed_price_table_is_valid_and_only_designer_verified():
@@ -1318,12 +1335,18 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
     for name, entry in {**prices["models"], **prices["placeholders"]}.items():
         assert entry["verified"] is (name in DESIGNER_VERIFIED), name
         if entry["verified"]:  # a verified entry names who verified it, when, and where
-            assert entry["source"].startswith("designer-verified 2026-11-12 against "), name
+            assert entry["source"].startswith(
+                f"designer-verified {DESIGNER_VERIFIED[name]} against "), name
+            assert entry["as_of"] == DESIGNER_VERIFIED[name], name
     # Stage 5.6: luna is priced and designer-verified; placeholders is empty.
     assert prices["placeholders"] == {}
     luna = prices["models"]["gpt-6-luna"]
     assert [t["max_prompt_tokens"] for t in luna["tiers"]] == [272000, None]
     assert luna["tiers"][0]["cache_write"] == 0.125 and luna["tiers"][1]["output"] == 0.75
+    # Stage 6.3 Gate A: Sol verified with both context tiers (30-minute cache write).
+    sol = prices["models"]["gpt-6.1-sol"]
+    assert [(t["max_prompt_tokens"], t["input"], t["cached_input"], t["cache_write"], t["output"])
+            for t in sol["tiers"]] == [(272000, 2.0, 0.1, 2.5, 10.0), (None, 4.0, 0.2, 5.0, 15.0)]
 
 
 @pytest.mark.parametrize("match_id,ok", [
@@ -1394,20 +1417,29 @@ def test_taxonomy_contents():
     assert TAXONOMY == ["CWE-89", "CWE-79", "CWE-22", "benign"]
 
 
-@pytest.mark.parametrize(
-    "name,field",
-    [("red_attack", "label"), ("rule", "cwe"), ("round_record", "label"),
-     ("landed_fact", "label")],
-)
+@pytest.mark.parametrize("name,field", [("rule", "cwe")])
 def test_label_enums_match_taxonomy_cwes(name, field):
+    # Blue's rule cwe is exactly the taxonomy CWEs; config/taxonomy.json is unchanged.
     assert sorted(SCHEMAS[name]["properties"][field]["enum"]) == sorted(CWE_LABELS)
+
+
+@pytest.mark.parametrize("name,field", [("red_attack", "label"), ("round_record", "label"),
+                                        ("landed_fact", "label")])
+def test_red_label_enums_are_the_cwes_plus_the_freeplay_other(name, field):
+    # Free-play (D41): Red may label an attack `other`. This is a Red-only extension of
+    # these three Judge-adjacent schemas; config/taxonomy.json, the verdict enum, the rule
+    # cwe and challenge_map stay the three CWEs (Blue's vocabulary is unchanged).
+    assert sorted(SCHEMAS[name]["properties"][field]["enum"]) == sorted([*CWE_LABELS, "other"])
 
 
 def test_verdict_enum_matches_full_taxonomy():
     # Blue's verdict is one of the four taxonomy values (or null in 0.2: no verdict).
     assert sorted(SCHEMAS["verdict_v0_1"]["properties"]["verdict"]["enum"]) == sorted(TAXONOMY)
     enum = SCHEMAS["verdict"]["properties"]["verdict"]["enum"]
-    assert None in enum and sorted(x for x in enum if x is not None) == sorted(TAXONOMY)
+    # Open Blue (D42, replay-only) adds `other` as a Blue-only extension; config/taxonomy.json,
+    # rules and the live prompts stay the four taxonomy values.
+    assert None in enum
+    assert sorted(x for x in enum if x is not None) == sorted([*TAXONOMY, "other"])
 
 
 def test_verdict_0_2_shapes_valid():
@@ -1428,7 +1460,7 @@ def test_round_record_verdict_enum_is_taxonomy_plus_null():
     # The round record also allows null (no-verdict / orphan rounds, contract 6).
     enum = SCHEMAS["round_record"]["properties"]["verdict"]["enum"]
     assert None in enum
-    assert sorted(v for v in enum if v is not None) == sorted(TAXONOMY)
+    assert sorted(v for v in enum if v is not None) == sorted([*TAXONOMY, "other"])  # D42
 
 
 def test_challenge_map_keys_match_taxonomy_cwes():
@@ -1484,7 +1516,9 @@ def test_anomaly_kinds_valid():
 
 def test_benign_verdict_enums_match_taxonomy():
     enum = SCHEMAS["benign_result"]["properties"]["verdict"]["enum"]
-    assert sorted(x for x in enum if x is not None) == sorted(TAXONOMY)
+    # Open Blue (D42) can label a benign line `other` (a false positive); it is the same
+    # Blue-only extension as the verdict schema. taxonomy.json is unchanged.
+    assert sorted(x for x in enum if x is not None) == sorted([*TAXONOMY, "other"])
 
 
 def test_committed_benign_baseline_validates_and_is_clean():

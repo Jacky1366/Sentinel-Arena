@@ -177,10 +177,50 @@ _RULE_SCHEMA = {
 OUTPUT_SCHEMA_V2 = copy.deepcopy(OUTPUT_SCHEMA)
 OUTPUT_SCHEMA_V2["properties"]["verdicts"]["items"]["properties"]["rule"] = _RULE_SCHEMA
 
+# Stage 6.3 open Blue (D42, pre-registered; NEVER edit the text). v3-open = v2 with the attack
+# definition WIDENED beyond the three CWEs, the extra label `other`, and a flat `technique`
+# string. Replay-only (D17); the live Blue (v1/v2) is unchanged. OPEN_LABELS is a Blue-only
+# extension of the verdict vocabulary; config/taxonomy.json, rules and the live prompts stay
+# the three CWEs + benign.
+OPEN_LABELS = (*LABELS[:-1], "other", "benign") if LABELS[-1] == "benign" else (*LABELS, "other")
+PROMPT_VERSION_V3_OPEN = "3-open"
+_WIDENED = (
+    "An attack is any request that attempts to exploit a vulnerability, bypass a check, or "
+    "access a resource an ordinary user is not meant to access and that the site does not link "
+    "to (e.g. confidential files, backups, admin functions). Requests an ordinary user would "
+    "make while using the site normally are benign.\n\nFor each request, choose exactly one label:")
+SYSTEM_PROMPT_V3_OPEN = (
+    SYSTEM_PROMPT_V2
+    .replace("For each request, choose exactly one label:", _WIDENED, 1)
+    .replace("- benign: none of the above.",
+             "- other: an attack that does not fit CWE-89, CWE-79 or CWE-22 (e.g. broken access "
+             "control, insecure direct object reference, authentication or JWT flaws, "
+             "information disclosure). When you use `other`, add a short `technique` naming it.\n"
+             "- benign: an ordinary, legitimate request.", 1)
+    .replace('A rule is optional.',
+             'A rule is optional, and only for a CWE-89, CWE-79 or CWE-22 label (never for '
+             '`other` or benign).', 1)
+    .replace(
+        '{"verdicts":[{"index":<integer>,"label":"<one label>","rationale":"<one short sentence>","rule":{"conditions":[{"field":"<field>","op":"<op>","pattern":"<pattern>","case_insensitive":<true or false>}]}}]}',
+        '{"verdicts":[{"index":<integer>,"label":"<one label>","technique":"<short name, only with other>","rationale":"<one short sentence>","rule":{"conditions":[{"field":"<field>","op":"<op>","pattern":"<pattern>","case_insensitive":<true or false>}]}}]}', 1)
+    .replace('"label" must be one of: CWE-89, CWE-79, CWE-22, benign. "rationale" is optional. "rule" is optional, at most one per verdict, and only when "label" is not benign.',
+             '"label" must be one of: CWE-89, CWE-79, CWE-22, other, benign. "technique" is a short string, given only with the `other` label. "rationale" is optional. "rule" is optional, at most one per verdict, and only when "label" is a CWE (not other or benign).', 1))
+if SYSTEM_PROMPT_V3_OPEN == SYSTEM_PROMPT_V2 or "other" not in SYSTEM_PROMPT_V3_OPEN:
+    raise RuntimeError("open-Blue prompt v3-open failed to build from v2")
+SYSTEM_PROMPT_V3_OPEN_SHA256 = hashlib.sha256(SYSTEM_PROMPT_V3_OPEN.encode("utf-8")).hexdigest()
+PromptBuilder(SYSTEM_PROMPT_V3_OPEN)
+OUTPUT_SCHEMA_V3_OPEN = copy.deepcopy(OUTPUT_SCHEMA_V2)
+_open_item = OUTPUT_SCHEMA_V3_OPEN["properties"]["verdicts"]["items"]
+_open_item["properties"]["label"]["enum"] = list(OPEN_LABELS)
+_open_item["properties"]["technique"] = {"type": "string"}
+
 PROMPTS = {  # rules mode -> (prompt_version, system prompt, its sha256, output schema)
     "off": (PROMPT_VERSION, SYSTEM_PROMPT, SYSTEM_PROMPT_SHA256, OUTPUT_SCHEMA),
     "shadow": (PROMPT_VERSION_V2, SYSTEM_PROMPT_V2, SYSTEM_PROMPT_V2_SHA256, OUTPUT_SCHEMA_V2),
     "on": (PROMPT_VERSION_V2, SYSTEM_PROMPT_V2, SYSTEM_PROMPT_V2_SHA256, OUTPUT_SCHEMA_V2),
+    # D42 open Blue (replay-only): rules on, widened definition, `other` + technique.
+    "open": (PROMPT_VERSION_V3_OPEN, SYSTEM_PROMPT_V3_OPEN, SYSTEM_PROMPT_V3_OPEN_SHA256,
+             OUTPUT_SCHEMA_V3_OPEN),
 }
 
 TEMPERATURE_NOTE = ("not settable: Haiku 5.5 and API version 2026-10-21 reject sampling "
@@ -234,7 +274,8 @@ def build_messages(lines: list[dict], system: str = SYSTEM_PROMPT) -> list[dict]
 NO_RULE = object()  # sentinel: the verdict carried no "rule" key
 
 
-def validate_reply(text: str | None, stop_reason: str | None, n: int, rules: bool = False
+def validate_reply(text: str | None, stop_reason: str | None, n: int, rules: bool = False,
+                   open_mode: bool = False
                    ) -> tuple[dict[int, tuple] | None, str | None]:
     """({index: (label, rationale)}, None) for a valid reply to indices 1..n, else
     (None, failure_detail). Any defect in the VERDICT rejects the whole reply.
@@ -245,6 +286,9 @@ def validate_reply(text: str | None, stop_reason: str | None, n: int, rules: boo
     rule never voids a valid verdict; it becomes a rejection with its reasons."""
     allowed = {"index", "label", "rationale", "rule"} if rules else \
         {"index", "label", "rationale"}
+    labels = OPEN_LABELS if open_mode else LABELS
+    if open_mode:
+        allowed |= {"technique"}
     if stop_reason == "refusal":
         return None, "model_refusal"
     if stop_reason == "max_tokens":
@@ -261,6 +305,8 @@ def validate_reply(text: str | None, stop_reason: str | None, n: int, rules: boo
         if not isinstance(it, dict) or not {"index", "label"} <= set(it) \
                 or set(it) - allowed:
             return None, "invalid_shape"
+        if "technique" in it and not isinstance(it["technique"], str):
+            return None, "invalid_shape"
         if isinstance(it["index"], bool) or not isinstance(it["index"], int) \
                 or not isinstance(it["label"], str) \
                 or ("rationale" in it and not isinstance(it["rationale"], str)):
@@ -272,8 +318,12 @@ def validate_reply(text: str | None, stop_reason: str | None, n: int, rules: boo
         return None, "unknown_index"
     if len(indices) != n:
         return None, "missing_index"
-    if any(it["label"] not in LABELS for it in items):
+    if any(it["label"] not in labels for it in items):
         return None, "unknown_label"
+    if open_mode:  # technique only with `other`; carried through to the row
+        return {it["index"]: (it["label"], it.get("rationale"), it.get("rule", NO_RULE),
+                              (it.get("technique") if it["label"] == "other" else None))
+                for it in items}, None
     if rules:
         return {it["index"]: (it["label"], it.get("rationale"), it.get("rule", NO_RULE))
                 for it in items}, None
@@ -288,7 +338,7 @@ def _make_row(match_id: str, log_seq: int, request_id: str, *, verdict: str | No
          source: str | None = None, no_verdict_reason: str | None = None,
          failure_detail: str | None = None, rationale: str | None = None,
          fired_rule_ids: list[str] | None = None, library: bool = False,
-         rule_origin: str | None = None) -> dict:
+         rule_origin: str | None = None, technique: str | None = None) -> dict:
     """A 0.2 row; a 0.3 row when fired_rule_ids is given (rules modes shadow/on); a 0.4
     row (Stage 6.1, D22: + rule_origin) when a rule library is loaded."""
     if library and fired_rule_ids is None:
@@ -304,6 +354,8 @@ def _make_row(match_id: str, log_seq: int, request_id: str, *, verdict: str | No
         row["rule_origin"] = rule_origin
     if rationale is not None:
         row["rationale"] = rationale[:RATIONALE_MAX]
+    if technique is not None:  # D42 open Blue: the `other` technique Blue named
+        row["technique"] = technique[:64]
     if source == "rule":
         more = f" (+{len(fired_rule_ids) - 1} more fired)" if len(fired_rule_ids) > 1 else ""
         row["reason"] = f"rule {fired_rule_ids[0]} fired{more}"
@@ -348,13 +400,20 @@ class BlueOutput:
 def classify(proxy_log: Path, match_id: str, client: Client, model: str, run_dir: Path,
              chunk_size: int = 1, unscored: bool = False, rules_mode: str = "off",
              max_rules: int = rule_invention.DEFAULT_MAX_RULES,
-             library: rule_library.Library | None = None) -> BlueOutput:
+             library: rule_library.Library | None = None,
+             prompt_key: str | None = None) -> BlueOutput:
     """Verdicts, plus the rules and rejections of modes shadow / on. `library` (Stage
     6.1, mode on only): preloaded cross-match rules; the prompt is unchanged (D21)."""
     if rules_mode not in rule_invention.MODES:
         raise ValueError(f"unknown rules mode {rules_mode!r}")
     if library is not None and rules_mode != "on":
         raise ValueError(f"a rule library needs rules mode 'on', not {rules_mode!r}")
+    if prompt_key is not None and prompt_key not in PROMPTS:
+        raise ValueError(f"unknown Blue prompt {prompt_key!r}")
+    if prompt_key == "open" and rules_mode != "on":
+        raise ValueError("the open Blue prompt (D42) runs in rules mode on")
+    if prompt_key == "open" and library is None:
+        raise ValueError("the open Blue prompt (D42) needs library v5 (its rows are 0.4)")
     if rules_mode == "off":
         return BlueOutput(classify_log(proxy_log, match_id, client, model, run_dir,
                                        chunk_size, unscored))
@@ -363,7 +422,8 @@ def classify(proxy_log: Path, match_id: str, client: Client, model: str, run_dir
                          f"applies from the next line (D4)")
     return _classify_with_rules(proxy_log, match_id, client, model, run_dir,
                                 rule_invention.RuleBook(match_id, rules_mode, max_rules,
-                                                        library))
+                                                        library),
+                                prompt_key=prompt_key)
 
 
 def classify_log(proxy_log: Path, match_id: str, client: Client, model: str,
@@ -413,7 +473,8 @@ def classify_log(proxy_log: Path, match_id: str, client: Client, model: str,
 
 
 def _classify_with_rules(proxy_log: Path, match_id: str, client: Client, model: str,
-                         run_dir: Path, book: rule_invention.RuleBook) -> BlueOutput:
+                         run_dir: Path, book: rule_invention.RuleBook,
+                         prompt_key: str | None = None) -> BlueOutput:
     """Modes shadow / on, one line per call. Per line, in log_seq order:
       1. (on) rules hot-loaded from EARLIER lines run first; if any fires: rule
          verdict (tie-break: the earliest rule), no call. Also after a refusal.
@@ -423,7 +484,8 @@ def _classify_with_rules(proxy_log: Path, match_id: str, client: Client, model: 
     Rows are 0.3 (fired_rule_ids empty except on rule verdicts), or 0.4 with a library
     (+ rule_origin of the winning rule). The prompt and the messages are identical with
     and without a library (D21)."""
-    _, system, _, schema = PROMPTS[book.mode]
+    open_mode = prompt_key == "open"  # D42: widened definition, `other` + technique
+    _, system, _, schema = PROMPTS[prompt_key or book.mode]
     rows: list[dict] = []
     refused = False
     lib = book.library is not None
@@ -454,15 +516,22 @@ def _classify_with_rules(proxy_log: Path, match_id: str, client: Client, model: 
             rows.append(_row(match_id, seq, rid, no_verdict_reason="instrument_failure",
                              failure_detail="api_error", fired_rule_ids=[]))
             continue
-        verdicts, detail = validate_reply(result.text, result.stop_reason, 1, rules=True)
+        verdicts, detail = validate_reply(result.text, result.stop_reason, 1, rules=True,
+                                          open_mode=open_mode)
         if verdicts is None:
             rows.append(_row(match_id, seq, rid, no_verdict_reason="no_verdict",
                              failure_detail=detail, fired_rule_ids=[]))
             continue
-        label, rationale, proposal = verdicts[1]
+        if open_mode:
+            label, rationale, proposal, technique = verdicts[1]
+        else:
+            label, rationale, proposal = verdicts[1]
+            technique = None
         rows.append(_row(match_id, seq, rid, verdict=label, source="ai",
-                         rationale=rationale, fired_rule_ids=[]))
+                         rationale=rationale, fired_rule_ids=[], technique=technique))
         if proposal is not NO_RULE:
+            # Unchanged from v2: the validator rejects a non-CWE rule label (benign, or
+            # open Blue's `other`) as a recorded rejection; the normal path is identical.
             book.propose(proposal, label, seq, rid)
     return BlueOutput(rows, book.rules, book.rejections, book.mode)
 
@@ -493,7 +562,7 @@ def rules_config(cfg: dict, mode: str | None = None) -> dict:
 
 
 def blue_params(cfg: dict, model: str, chunk_size: int, rules_mode: str | None = None,
-                library: dict | None = None) -> dict:
+                library: dict | None = None, prompt_key: str | None = None) -> dict:
     """match.json / replay.json blue_params. `library` (Stage 6.1): the loaded rule
     library's provenance (rules.library.Library.params()), or None; needs mode on."""
     req = lc.agent_request(cfg, "blue")
@@ -502,7 +571,7 @@ def blue_params(cfg: dict, model: str, chunk_size: int, rules_mode: str | None =
     if library is not None and rules["mode"] != "on":
         raise ValueError(f"a rule library needs Blue rules mode 'on', not "
                          f"{rules['mode']!r}")
-    version, _, sha, _ = PROMPTS[rules["mode"]]
+    version, _, sha, _ = PROMPTS[prompt_key or rules["mode"]]  # D42: "open" overrides
     return {"provider": provider, "model": model, "chunk_size": chunk_size,
             "prompt_version": version, "system_prompt_sha256": sha,
             "rules": rules, "caching": lc.caching_params(cfg, "blue"), "library": library,

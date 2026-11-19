@@ -40,7 +40,8 @@
       "enum": [
         "CWE-89",
         "CWE-79",
-        "CWE-22"
+        "CWE-22",
+        "other"
       ]
     },
     "verdict": {
@@ -49,6 +50,7 @@
         "CWE-79",
         "CWE-22",
         "benign",
+        "other",
         null
       ]
     },
@@ -170,7 +172,7 @@
       }
     },
     {
-      "comment": "detected true: a verdict flagged an attack; type_correct is a bool, reason null, verdict is a CWE",
+      "comment": "detected true: a verdict flagged an attack; type_correct is a bool, reason null, verdict is a CWE or (open Blue, D42) other",
       "if": {
         "required": [
           "detected"
@@ -193,7 +195,8 @@
             "enum": [
               "CWE-89",
               "CWE-79",
-              "CWE-22"
+              "CWE-22",
+              "other"
             ]
           }
         }

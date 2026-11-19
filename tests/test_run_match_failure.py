@@ -72,6 +72,10 @@ class FakeOps(run_match.Ops):
         self.calls.append("reset")
         return 0
 
+    def challenge_catalog(self):
+        self.calls.append("challenge_catalog")
+        return {}
+
     def rotate(self, live_dir):
         self.calls.append("rotate")
         return match_ops.rotate_proxy_log(live_dir, reopen=fake_reopen(live_dir),
@@ -524,7 +528,7 @@ def test_bad_llm_config_refused_at_preflight(dirs):
 # ---- Stage 5.2: the fakes never touch the network; benign traffic end to end ----
 
 NETWORK_STEPS = ("preflight", "reset", "rotate", "traffic", "freeze", "reopen",
-                 "blue_client", "red_client")
+                 "blue_client", "red_client", "challenge_catalog")
 
 
 def test_fake_ops_override_every_network_step():
