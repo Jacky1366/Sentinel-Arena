@@ -351,6 +351,24 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
   - Gate C ≈ $0.08;
   - worst case under the caps: $1.50 each.
 
+**Gate A (Nov 18, designer GO; $0, blocked on two decisions).**
+- **Prices.** `gpt-6.1-sol` is designer-verified on the official OpenAI page:
+  - ≤272K: $2.00 input / $10.00 output / $0.10 cached;
+  - >272K: $4.00 / $15.00 / $0.20;
+  - 30-minute cache write: $2.50 / $5.00.
+
+  This is the same list price as Sonnet 5.5 (genuine). Sonnet 5.5 was re-confirmed.
+  Rerunning the estimate gives unchanged numbers, since every profiled call is under 272K.
+- **Probe, run 1:** refused at the single exit before anything was sent. Gate ids with an
+  upper-case letter failed the token pattern; fixed, with a test that every gate id passes
+  `require_go`.
+- **Probe, run 2:** both calls rejected with HTTP 400 before generation, with no usage
+  recorded.
+  - **Sol Red:** OpenAI's cyber safeguards flagged the Red prompt. Cyber-permissive
+    safeguards need the org to hold "Daybreak" access. The same prompt passes on Luna.
+  - **Sonnet Blue:** Sonnet 5.5 rejects `thinking: disabled`. To turn thinking off on
+    this model, the API says to send `thinking: between_tools` instead.
+
 ### Stage 6.2 + 6.4 — Autonomy table (M6) + dashboard MVP (M8)
 Plan `docs/plans/stage6_2_4_step0.md`, run end to end under the autonomy policy. Zero
 tokens: no provider call.
