@@ -6,6 +6,8 @@ __pycache__/
 .Python
 build/
 dist/
+# the dashboard's static offline bundle is committed (Stage 6.4: laptop demo, no build needed)
+!dashboard/dist/
 *.egg-info/
 .eggs/
 .pytest_cache/

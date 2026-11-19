@@ -53,7 +53,13 @@ agent (`--blue-caching` / `--red-caching`, off by default), AI vs AI (`--red ai 
 claude`) and the four-facts check (`tools/four_facts.py`); Gates 1–3 passed, and the first
 three AI-vs-AI matches, with the designer's label audit, are committed in
 `data/golden/ai-vs-ai-gate3-match{1,2,3}/`. **Stage 5 is done:** all three reach four facts
-PASS. The dashboard is not implemented yet. See
+PASS. Stage 6 so far:
+- a cross-match rule library learned only from train matches. In the M5 replay it cut Blue's
+  AI calls 70 → 52 and cost 39%, with detection and FP unchanged;
+- an autonomy table (`data/golden/stats/autonomy_6.1b.md`);
+- an offline dashboard (`dashboard/dist/index.html`).
+
+See
 [`docs/progress.md`](docs/progress.md) and
 [`docs/stage5_decisions.md`](docs/stage5_decisions.md).
 
@@ -91,6 +97,9 @@ ARENA_GO=manual-<what> .venv/bin/python run_match.py --red ai       # AI Red: re
 .venv/bin/python tools/stage3_check.py   # Stage 3: full pipeline vs expectations
 .venv/bin/python tools/validate_log.py   # validate the whole live log
 docker compose down             # stop (the log in data/runs/live/ is kept)
+.venv/bin/python tools/autonomy_table.py --arm <name> <frozen dir>... --out <path>  # autonomy table
+.venv/bin/python tools/export_dashboard.py <frozen dir> --name <name>  # dashboard bundle
+open dashboard/dist/index.html                    # offline match playback (no server, no network)
 ```
 
 - The proxy listens on `http://127.0.0.1:8080` (loopback only). Juice Shop has no

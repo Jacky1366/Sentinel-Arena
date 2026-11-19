@@ -65,6 +65,8 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   benign_holdout.schema.json      one line of benign/holdout_v1.jsonl or fixture_v2_offline.jsonl
   benign_offline_draft.schema.json  benign/*.draft.json (offline benign drafts)
   test_set.schema.json            config/test_set.json
+  autonomy_table.schema.json      the autonomy table JSON (contract 6.13)
+  dashboard_bundle.schema.json    one dashboard bundle (contract 6.14)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
   rule_score.schema.json          rule scoring manifest
   match_rule.schema.json          one rules.jsonl line (a rule Blue invented in a match, 5.5)
@@ -130,6 +132,7 @@ red/red_guard.py        rules of engagement (D15): scope/method/encoding/above-r
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
 stats/cost.py           pure cost over api_calls.jsonl + price table
+stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule coverage by origin / calls / cost; CP bound for 0/n
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
 blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude, --rules-mode)
 blue/claude_engine.py   AI Blue (5.4): fixed prompts v1 (off) / v2 (shadow, on), one stateless call per line, reply validation, rule-first flow (5.5)
@@ -166,12 +169,14 @@ tools/stage5_6_check.py       Gate 2 (5.6): 3 seeded --red ai matches, prints ev
 tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source)
 tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/shadow/on, prints every rule (--real-calls; GO only)
 tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
+tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + JSON (6.2, zero token)
+tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js (6.4, read-only)
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
 tools/build_holdout.py        capture + seal the offline benign files outside any match (--capture = Gate 0, GO only; --check)
 tools/stage6_1_check.py       6.1b: Gate 1 (5 train matches) / --promote / --predict (zero token) / Gate 2 (M5 replays); GO only
 tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls + Red dry run, raw usage (--real-calls; GO only)
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
-dashboard/              results viewer (not yet implemented)
+dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/replays/<replay_id>/  Blue replays incl. replay.json (git-ignored, D17)
@@ -187,6 +192,7 @@ data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
 data/golden/replays/gate-5.7/  Stage 5.7 Gates 2/2b evidence: 8 cached Blue replays (rules on/off) + README (never rewritten)
 data/golden/replays/gate-6.1b-2/  Stage 6.1b Gate 2 (M5) evidence: 3 Gate 3 sources x {empty v0000, library v5} + README (never rewritten)
+data/golden/stats/      committed autonomy tables (autonomy_6.1b.{md,json}: the three M5 arms)
 data/golden/replays/gate-6.1b-2b/  Stage 6.1b Gate 2b evidence: the same 3 sources, rules off (prompt v1) + README (never rewritten)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
@@ -247,6 +253,9 @@ tests/test_holdout_set.py   offline benign drafts, mocked capture + seal, drift 
 tests/test_stage6_1_gates_offline.py  gate tool refusals, prediction, Gates 1-2 on the fake provider
 tests/test_gate_6_1b_gate1_evidence.py  committed Gate 1 train matches, audits, library v0000-v0005 + retention; v5 sha = progress.md
 tests/test_gate_6_1b_gate2_evidence.py  committed M5 replays (gate-6.1b-2, -2b): hashes, sources, library snapshots, cost
+tests/test_autonomy.py      autonomy table: every column, CP bound, audit nulls, CLI (non-test folders)
+tests/test_autonomy_6_1b_evidence.py  committed 6.1b table regenerates byte for byte
+tests/test_export_dashboard.py  bundles copied from artifacts, cost totals, demo bundles regenerate, dashboard offline
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 

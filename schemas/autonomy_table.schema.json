@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/autonomy_table.schema.json",
+  "title": "Autonomy table (contract 6.13, schema_version 0.1)",
+  "description": "Output of tools/autonomy_table.py (Stage 6.2, M6): per-arm rows CWE-89/79/22/total over frozen match or replay folders; every rate k/n, with the exact Clopper-Pearson 95% upper bound for k = 0; optional library-rule FP table on the offline benign sets. Pure reader output: nothing is judged. Holds Red ground truth (labels): Blue never reads it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "table_version",
+    "title",
+    "arms",
+    "library_fp"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "table_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string"
+    },
+    "arms": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/$defs/arm"
+      }
+    },
+    "library_fp": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "library",
+            "sha256",
+            "sets",
+            "rules"
+          ],
+          "properties": {
+            "library": {
+              "type": "string"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "sets": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "rules": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^lib-[0-9]{4,}$"
+              },
+              "additionalProperties": {
+                "type": "object",
+                "required": [
+                  "cwe"
+                ],
+                "properties": {
+                  "cwe": {
+                    "enum": [
+                      "CWE-89",
+                      "CWE-79",
+                      "CWE-22"
+                    ]
+                  }
+                },
+                "additionalProperties": {
+                  "$ref": "#/$defs/rate_hits"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "rate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "k",
+        "n",
+        "pct"
+      ],
+      "properties": {
+        "k": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "upper95": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detection_raw",
+        "detection_audited",
+        "type_correct",
+        "verdict_fp",
+        "rule_coverage",
+        "ai_calls",
+        "cost_usd"
+      ],
+      "properties": {
+        "detection_raw": {
+          "$ref": "#/$defs/rate"
+        },
+        "detection_audited": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/rate"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type_correct": {
+          "$ref": "#/$defs/rate"
+        },
+        "verdict_fp": {
+          "$ref": "#/$defs/rate"
+        },
+        "rule_coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rule",
+            "library",
+            "match"
+          ],
+          "properties": {
+            "rule": {
+              "$ref": "#/$defs/rate"
+            },
+            "library": {
+              "$ref": "#/$defs/rate"
+            },
+            "match": {
+              "$ref": "#/$defs/rate"
+            }
+          }
+        },
+        "ai_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cost_usd": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "folders",
+        "audit_complete",
+        "rows",
+        "tripwires"
+      ],
+      "properties": {
+        "folders": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "audit_complete": {
+          "type": "boolean"
+        },
+        "rows": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "CWE-89",
+            "CWE-79",
+            "CWE-22",
+            "total"
+          ],
+          "properties": {
+            "CWE-89": {
+              "$ref": "#/$defs/row"
+            },
+            "CWE-79": {
+              "$ref": "#/$defs/row"
+            },
+            "CWE-22": {
+              "$ref": "#/$defs/row"
+            },
+            "total": {
+              "$ref": "#/$defs/row"
+            }
+          }
+        },
+        "tripwires": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "counts",
+            "anomalies"
+          ],
+          "properties": {
+            "counts": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer"
+              }
+            },
+            "anomalies": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "rate_hits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "k",
+        "n",
+        "pct",
+        "hits"
+      ],
+      "properties": {
+        "k": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pct": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "upper95": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

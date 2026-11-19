@@ -1,0 +1,1072 @@
+{
+  "schema_version": "0.1",
+  "table_version": "1",
+  "title": "Stage 6.1b autonomy table: the three M5 arms on the Gate 3 sources",
+  "arms": {
+    "rules off": {
+      "folders": [
+        "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match1-off",
+        "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match2-off",
+        "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match3-off"
+      ],
+      "audit_complete": true,
+      "rows": {
+        "CWE-89": {
+          "detection_raw": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "detection_audited": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 0,
+              "n": 15,
+              "pct": 0.0,
+              "upper95": 0.218
+            },
+            "library": {
+              "k": 0,
+              "n": 15,
+              "pct": 0.0,
+              "upper95": 0.218
+            },
+            "match": {
+              "k": 0,
+              "n": 15,
+              "pct": 0.0,
+              "upper95": 0.218
+            }
+          },
+          "ai_calls": 15,
+          "cost_usd": 0.000862
+        },
+        "CWE-79": {
+          "detection_raw": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "detection_audited": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            },
+            "library": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            },
+            "match": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            }
+          },
+          "ai_calls": 5,
+          "cost_usd": 0.000264
+        },
+        "CWE-22": {
+          "detection_raw": {
+            "k": 7,
+            "n": 8,
+            "pct": 87.5
+          },
+          "detection_audited": {
+            "k": 7,
+            "n": 7,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 7,
+            "n": 7,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 0,
+              "n": 8,
+              "pct": 0.0,
+              "upper95": 0.3694
+            },
+            "library": {
+              "k": 0,
+              "n": 8,
+              "pct": 0.0,
+              "upper95": 0.3694
+            },
+            "match": {
+              "k": 0,
+              "n": 8,
+              "pct": 0.0,
+              "upper95": 0.3694
+            }
+          },
+          "ai_calls": 8,
+          "cost_usd": 0.000404
+        },
+        "total": {
+          "detection_raw": {
+            "k": 27,
+            "n": 28,
+            "pct": 96.4
+          },
+          "detection_audited": {
+            "k": 27,
+            "n": 27,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 27,
+            "n": 27,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 0,
+              "n": 79,
+              "pct": 0.0,
+              "upper95": 0.0456
+            },
+            "library": {
+              "k": 0,
+              "n": 79,
+              "pct": 0.0,
+              "upper95": 0.0456
+            },
+            "match": {
+              "k": 0,
+              "n": 79,
+              "pct": 0.0,
+              "upper95": 0.0456
+            }
+          },
+          "ai_calls": 79,
+          "cost_usd": 0.003945
+        }
+      },
+      "tripwires": {
+        "counts": {
+          "already_solved": 0,
+          "instrument_failure": 0,
+          "no_verdict": 0,
+          "not_measurable": 5,
+          "orphan": 0,
+          "rounds": 28,
+          "snapshot_missing": 0
+        },
+        "anomalies": {
+          "benign_solved_challenge": 3
+        }
+      }
+    },
+    "rules on, empty v0000": {
+      "folders": [
+        "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match1-empty",
+        "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match2-empty",
+        "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match3-empty"
+      ],
+      "audit_complete": true,
+      "rows": {
+        "CWE-89": {
+          "detection_raw": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "detection_audited": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 5,
+              "n": 15,
+              "pct": 33.3
+            },
+            "library": {
+              "k": 0,
+              "n": 15,
+              "pct": 0.0,
+              "upper95": 0.218
+            },
+            "match": {
+              "k": 5,
+              "n": 15,
+              "pct": 33.3
+            }
+          },
+          "ai_calls": 10,
+          "cost_usd": 0.000988
+        },
+        "CWE-79": {
+          "detection_raw": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "detection_audited": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            },
+            "library": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            },
+            "match": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            }
+          },
+          "ai_calls": 5,
+          "cost_usd": 0.000452
+        },
+        "CWE-22": {
+          "detection_raw": {
+            "k": 7,
+            "n": 8,
+            "pct": 87.5
+          },
+          "detection_audited": {
+            "k": 7,
+            "n": 7,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 7,
+            "n": 7,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 4,
+              "n": 8,
+              "pct": 50.0
+            },
+            "library": {
+              "k": 0,
+              "n": 8,
+              "pct": 0.0,
+              "upper95": 0.3694
+            },
+            "match": {
+              "k": 4,
+              "n": 8,
+              "pct": 50.0
+            }
+          },
+          "ai_calls": 4,
+          "cost_usd": 0.000307
+        },
+        "total": {
+          "detection_raw": {
+            "k": 27,
+            "n": 28,
+            "pct": 96.4
+          },
+          "detection_audited": {
+            "k": 27,
+            "n": 27,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 27,
+            "n": 27,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 9,
+              "n": 79,
+              "pct": 11.4
+            },
+            "library": {
+              "k": 0,
+              "n": 79,
+              "pct": 0.0,
+              "upper95": 0.0456
+            },
+            "match": {
+              "k": 9,
+              "n": 79,
+              "pct": 11.4
+            }
+          },
+          "ai_calls": 70,
+          "cost_usd": 0.004831
+        }
+      },
+      "tripwires": {
+        "counts": {
+          "already_solved": 0,
+          "instrument_failure": 0,
+          "no_verdict": 0,
+          "not_measurable": 5,
+          "orphan": 0,
+          "rounds": 28,
+          "snapshot_missing": 0
+        },
+        "anomalies": {
+          "benign_solved_challenge": 3
+        }
+      }
+    },
+    "rules on, library v5": {
+      "folders": [
+        "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match1-library",
+        "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match2-library",
+        "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match3-library"
+      ],
+      "audit_complete": true,
+      "rows": {
+        "CWE-89": {
+          "detection_raw": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "detection_audited": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 15,
+            "n": 15,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 15,
+              "n": 15,
+              "pct": 100.0
+            },
+            "library": {
+              "k": 15,
+              "n": 15,
+              "pct": 100.0
+            },
+            "match": {
+              "k": 0,
+              "n": 15,
+              "pct": 0.0,
+              "upper95": 0.218
+            }
+          },
+          "ai_calls": 0,
+          "cost_usd": 0.0
+        },
+        "CWE-79": {
+          "detection_raw": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "detection_audited": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 5,
+            "n": 5,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 5,
+              "n": 5,
+              "pct": 100.0
+            },
+            "library": {
+              "k": 5,
+              "n": 5,
+              "pct": 100.0
+            },
+            "match": {
+              "k": 0,
+              "n": 5,
+              "pct": 0.0,
+              "upper95": 0.5218
+            }
+          },
+          "ai_calls": 0,
+          "cost_usd": 0.0
+        },
+        "CWE-22": {
+          "detection_raw": {
+            "k": 7,
+            "n": 8,
+            "pct": 87.5
+          },
+          "detection_audited": {
+            "k": 7,
+            "n": 7,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 7,
+            "n": 7,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 7,
+              "n": 8,
+              "pct": 87.5
+            },
+            "library": {
+              "k": 7,
+              "n": 8,
+              "pct": 87.5
+            },
+            "match": {
+              "k": 0,
+              "n": 8,
+              "pct": 0.0,
+              "upper95": 0.3694
+            }
+          },
+          "ai_calls": 1,
+          "cost_usd": 5.2e-05
+        },
+        "total": {
+          "detection_raw": {
+            "k": 27,
+            "n": 28,
+            "pct": 96.4
+          },
+          "detection_audited": {
+            "k": 27,
+            "n": 27,
+            "pct": 100.0
+          },
+          "type_correct": {
+            "k": 27,
+            "n": 27,
+            "pct": 100.0
+          },
+          "verdict_fp": {
+            "k": 0,
+            "n": 51,
+            "pct": 0.0,
+            "upper95": 0.0698
+          },
+          "rule_coverage": {
+            "rule": {
+              "k": 27,
+              "n": 79,
+              "pct": 34.2
+            },
+            "library": {
+              "k": 27,
+              "n": 79,
+              "pct": 34.2
+            },
+            "match": {
+              "k": 0,
+              "n": 79,
+              "pct": 0.0,
+              "upper95": 0.0456
+            }
+          },
+          "ai_calls": 52,
+          "cost_usd": 0.002933
+        }
+      },
+      "tripwires": {
+        "counts": {
+          "already_solved": 0,
+          "instrument_failure": 0,
+          "no_verdict": 0,
+          "not_measurable": 5,
+          "orphan": 0,
+          "rounds": 28,
+          "snapshot_missing": 0
+        },
+        "anomalies": {
+          "benign_solved_challenge": 3
+        }
+      }
+    }
+  },
+  "library_fp": {
+    "library": "data/library/rule_library_v0005.json",
+    "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+    "sets": {
+      "holdout_v1": 40,
+      "fixture_v1": 17,
+      "fixture_v2_offline": 6
+    },
+    "rules": {
+      "lib-0001": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0002": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0003": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0004": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0005": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0006": {
+        "cwe": "CWE-79",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0007": {
+        "cwe": "CWE-79",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0008": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0009": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0010": {
+        "cwe": "CWE-79",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0011": {
+        "cwe": "CWE-79",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0012": {
+        "cwe": "CWE-22",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0013": {
+        "cwe": "CWE-22",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0014": {
+        "cwe": "CWE-79",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0015": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0016": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0017": {
+        "cwe": "CWE-79",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0018": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      },
+      "lib-0019": {
+        "cwe": "CWE-89",
+        "holdout_v1": {
+          "k": 0,
+          "n": 40,
+          "pct": 0.0,
+          "upper95": 0.0881,
+          "hits": []
+        },
+        "fixture_v1": {
+          "k": 0,
+          "n": 17,
+          "pct": 0.0,
+          "upper95": 0.1951,
+          "hits": []
+        },
+        "fixture_v2_offline": {
+          "k": 0,
+          "n": 6,
+          "pct": 0.0,
+          "upper95": 0.4593,
+          "hits": []
+        }
+      }
+    }
+  }
+}
