@@ -18,8 +18,9 @@ Each reason is one machine-readable string:
 
 above_root mirrors nginx: it percent-decodes the path (every round, as
 rules/normalize does), then resolves dot-segments; if the depth ever goes below the
-root, the path is blocked. tools/verify_red_guard.py checks this against the real
-nginx on the arena port.
+root, the path is blocked. The predicate is the single neutral definition in
+rules/paths.py (Stage 6.1, D32), shared with the Judge's variant mutator;
+tools/verify_red_guard.py checks it against the real nginx on the arena port.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-from rules import normalize
+from rules import paths
 
 ALLOWED_METHODS = ("GET", "POST")
 ALLOWED_LABELS = ("CWE-89", "CWE-79", "CWE-22")
@@ -45,24 +46,6 @@ class GuardResult:
     ok: bool
     reason: str | None = None
     detail: str | None = None
-
-
-def _above_root(path: str) -> bool:
-    """True if the path's normalized form climbs above the web root. Decodes percent
-    sequences first (nginx decodes before resolving dot-segments)."""
-    only_path = path.split("?", 1)[0].split("#", 1)[0]
-    decoded = normalize.decode_all(only_path)
-    depth = 0
-    for seg in decoded.split("/"):
-        if seg in ("", "."):
-            continue
-        if seg == "..":
-            depth -= 1
-            if depth < 0:
-                return True
-        else:
-            depth += 1
-    return False
 
 
 def check(method: str, path: str, body: str, label: str) -> GuardResult:
@@ -82,6 +65,6 @@ def check(method: str, path: str, body: str, label: str) -> GuardResult:
         return GuardResult(False, "scope_violation", "path carries a scheme or authority")
     if "\\" in path or _BAD_PERCENT.search(path) or not _VALID_TARGET.match(path):
         return GuardResult(False, "invalid_encoding", "not a valid percent-encoded target")
-    if _above_root(path):
+    if paths.above_root(path):
         return GuardResult(False, "above_root", "normalized path climbs above the web root")
     return GuardResult(True)

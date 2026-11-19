@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/replay_manifest.schema.json",
-  "title": "Replay manifest (contract 6.9, schema_version 0.1)",
-  "description": "data/replays/<replay_id>/replay.json (Stage 5.5, D17), written LAST by tools/replay_blue.py. A replay runs Blue and the full Judge on a COPY of a frozen match's inputs (proxy log, Red records, benign records, snapshots, Red unsent slots); it never writes into the source folder. source records the source match id, its match.json sha256 and every source artifact hash (from its match.json), and which files were copied (each verified against those hashes first). Verdicts and rounds keep the source match_id, so the source's D16 audit applies; a replay is identified by replay_id. status/failed_step/error/budget/cost follow match.json (contract 6.2); cost covers this replay's Blue calls only (Red's calls are never copied). Schema 0.2 (Stage 5.7): blue_params carry caching {mode, ttl}; every cost bucket carries cache_savings_usd (net, may be negative).",
+  "title": "Replay manifest (contract 6.9, schema_version 0.3)",
+  "description": "data/replays/<replay_id>/replay.json (Stage 5.5, D17), written LAST by tools/replay_blue.py. A replay runs Blue and the full Judge on a COPY of a frozen match's inputs (proxy log, Red records, benign records, snapshots, Red unsent slots); it never writes into the source folder. source records the source match id, its match.json sha256 and every source artifact hash (from its match.json), and which files were copied (each verified against those hashes first). Verdicts and rounds keep the source match_id, so the source's D16 audit applies; a replay is identified by replay_id. status/failed_step/error/budget/cost follow match.json (contract 6.2); cost covers this replay's Blue calls only (Red's calls are never copied). Schema 0.2 (Stage 5.7): blue_params carry caching {mode, ttl}; every cost bucket carries cache_savings_usd (net, may be negative). Stage 6.1 (0.3): blue_params.library (the rule library loaded read-only for this replay, or null; snapshot library.json in the replay folder). A replay is never a source for the library (S6-3). 0.2 replays are validated by replay_manifest_v0_2.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,7 +26,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "0.2"
+      "const": "0.3"
     },
     "replay_id": {
       "type": "string",
@@ -173,7 +173,8 @@
             "sdk",
             "request",
             "rules",
-            "caching"
+            "caching",
+            "library"
           ],
           "properties": {
             "provider": {
@@ -300,6 +301,41 @@
             },
             "caching": {
               "$ref": "#/$defs/caching"
+            },
+            "library": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "sha256",
+                    "library_version",
+                    "entries"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "library_version": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "entries": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              ]
             }
           }
         }

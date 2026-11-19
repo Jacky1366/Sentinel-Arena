@@ -67,8 +67,10 @@ def check_manifest(match_dir: Path) -> list[str]:
     bad = [n for n in recorded if recomputed.get(n) != recorded[n]]
     check("artifacts: sha256 + bytes recompute", not bad, fails, f"mismatch: {bad}")
     # Stage 5.1: the scripted match makes no AI calls and says so (0.5 from Stage 5.6).
-    check("match.json schema_version 0.7", manifest.get("schema_version") == "0.7", fails,
+    check("match.json schema_version 0.8", manifest.get("schema_version") == "0.8", fails,
           str(manifest.get("schema_version")))
+    check("match.json purpose dev (Stage 6.1 default)", manifest.get("purpose") == "dev", fails,
+          str(manifest.get("purpose")))
     check("scripted Blue/Red: blue_params and red_params null",
           manifest.get("blue_engine") == "scripted" and manifest.get("blue_params") is None
           and manifest.get("red_engine") == "scripted" and manifest.get("red_params") is None,

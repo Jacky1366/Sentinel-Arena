@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/test_set.schema.json",
+  "title": "Test-set registry (contract 6.12, schema_version 0.1)",
+  "description": "config/test_set.json (Stage 6.1, S6-1, D26): the scoring (test) data that must never feed the rule library. match_ids: the audited AI-Red golden matches. sealed: the offline benign files sealed before the first train match (D27), with their sha256 once captured (null = not sealed yet: tools/promote_rules.py refuses until every entry is sealed). tools/promote_rules.py refuses any listed match and checks each sealed file exists, with that hash, at the train match's recorded commit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "_comment",
+    "match_ids",
+    "sealed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "_comment": {
+      "type": "string"
+    },
+    "match_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+      }
+    },
+    "sealed": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "role",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "enum": [
+              "test",
+              "train"
+            ]
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

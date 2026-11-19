@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/variant.schema.json",
+  "title": "Variant (contract 5.4, schema_version 0.1)",
+  "description": "One line of data/library/retention/<match_id>/variants.jsonl (Stage 6.1, M3, S6-2, D24): one code-generated variant of a source request (judge/variants.py, pure, seeded). Never sent. counting is true iff exclusion_reason is null: a probe (re-encoding only), a non-equivalent transformation, a path above the web root, a normalizer-neutralized variant (forms(variant) is a superset of forms(source)) and an encoding-only variant (the fully decoded request equals the source's) never count. Holds Red ground truth (cwe = the source's Red label): Blue never reads it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mutator_version",
+    "base_seed",
+    "source_match_id",
+    "source_request_id",
+    "cwe",
+    "variant_id",
+    "transformation",
+    "request",
+    "neutralized",
+    "encoding_only",
+    "counting",
+    "exclusion_reason"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "mutator_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "base_seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source_match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "source_request_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    },
+    "cwe": {
+      "enum": [
+        "CWE-89",
+        "CWE-79",
+        "CWE-22"
+      ]
+    },
+    "variant_id": {
+      "type": "string",
+      "pattern": "^v-[0-9a-f]{12}$"
+    },
+    "transformation": {
+      "enum": [
+        "E1",
+        "E2",
+        "E3",
+        "E4",
+        "E5",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "T1",
+        "T1r",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T7",
+        "X1",
+        "X2",
+        "X3",
+        "X4",
+        "X5",
+        "X6",
+        "X7"
+      ]
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "path",
+        "query",
+        "body"
+      ],
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "query": {
+          "type": "string"
+        },
+        "body": {
+          "type": "string"
+        }
+      }
+    },
+    "neutralized": {
+      "type": "boolean"
+    },
+    "encoding_only": {
+      "type": "boolean"
+    },
+    "counting": {
+      "type": "boolean"
+    },
+    "exclusion_reason": {
+      "enum": [
+        null,
+        "normalizer_probe",
+        "non_equivalent",
+        "above_root",
+        "normalizer_neutralized",
+        "encoding_only"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "counting": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "exclusion_reason": {
+            "const": null
+          },
+          "neutralized": {
+            "const": false
+          },
+          "encoding_only": {
+            "const": false
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "exclusion_reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

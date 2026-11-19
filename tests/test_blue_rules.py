@@ -20,7 +20,7 @@ M = "20261109T153012Z-a1b2"
 RIDS = ["11111111-1111-4111-8111-1111111111%02d" % i for i in range(1, 40)]
 VERDICT = {v: Draft202012Validator(json.loads((REPO / "schemas" / f"{n}.schema.json")
                                               .read_text()))
-           for v, n in (("0.2", "verdict_v0_2"), ("0.3", "verdict"))}
+           for v, n in (("0.2", "verdict_v0_2"), ("0.3", "verdict_v0_3"), ("0.4", "verdict"))}
 V1_SHA = "938ea67c385af3b8faa536c9d1a67ff9c6bc394c217dd95be6066145ecc80190"  # Stage 5.4 golden
 
 

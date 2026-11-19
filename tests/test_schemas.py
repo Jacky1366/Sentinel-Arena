@@ -25,6 +25,7 @@ SCHEMA_NAMES = [
     "proxy_log",
     "challenge_snapshot",
     "verdict",
+    "verdict_v0_3",
     "verdict_v0_2",
     "verdict_v0_1",
     "rule",
@@ -39,6 +40,7 @@ SCHEMA_NAMES = [
     "match_manifest_v0_4",
     "match_manifest_v0_5",
     "match_manifest_v0_6",
+    "match_manifest_v0_7",
     "match_manifest",
     "api_call",
     "api_call_v0_1",
@@ -55,7 +57,15 @@ SCHEMA_NAMES = [
     "match_rule",
     "rule_rejection",
     "replay_manifest",
+    "replay_manifest_v0_2",
     "replay_manifest_v0_1",
+    "rule_library",
+    "variant",
+    "retention_row",
+    "retention_manifest",
+    "benign_holdout",
+    "benign_offline_draft",
+    "test_set",
 ]
 
 
@@ -236,11 +246,16 @@ VALID["round_record_v0_2"] = {
 VALID["benign_result_v0_2"] = {**VALID["benign_result_v0_1"], "schema_version": "0.2",
                                "verdict_source": "ai"}
 # Stage 5.5: current versions (verdicts / rounds / benign results 0.3, match.json 0.6).
-VALID["verdict"] = {**VALID["verdict_v0_2"], "schema_version": "0.3", "fired_rule_ids": []}
+VALID["verdict_v0_3"] = {**VALID["verdict_v0_2"], "schema_version": "0.3",
+                         "fired_rule_ids": []}
 RULE_VERDICT = {"schema_version": "0.3", "match_id": "m001", "log_seq": 8, "request_id": RID,
                 "verdict": "CWE-89", "source": "rule", "no_verdict_reason": None,
                 "failure_detail": None, "fired_rule_ids": ["r-001", "r-003"],
                 "reason": "rule r-001 fired (+1 more fired)"}
+# Stage 6.1: verdicts 0.4 (a library is loaded), rule_origin names the winner's origin.
+VALID["verdict"] = {**VALID["verdict_v0_3"], "schema_version": "0.4", "rule_origin": None}
+LIB_VERDICT = {**RULE_VERDICT, "schema_version": "0.4", "rule_origin": "library",
+               "fired_rule_ids": ["lib-0002", "r-001"], "reason": "rule lib-0002 fired"}
 VALID["round_record"] = {**VALID["round_record_v0_2"], "schema_version": "0.3",
                          "verdict_source": "rule"}
 VALID["benign_result"] = {**VALID["benign_result_v0_2"], "schema_version": "0.3",
@@ -264,7 +279,10 @@ VALID["match_manifest_v0_5"] = {**VALID["match_manifest_v0_4"], "schema_version"
                                 "red_params": None}
 VALID["match_manifest_v0_6"] = {**VALID["match_manifest_v0_5"], "schema_version": "0.6",
                                 "judge_version": "0.6.0"}
-VALID["match_manifest"] = {**VALID["match_manifest_v0_6"], "schema_version": "0.7"}
+VALID["match_manifest_v0_7"] = {**VALID["match_manifest_v0_6"], "schema_version": "0.7"}
+# Stage 6.1: match.json 0.8 (purpose, blue_params.library).
+VALID["match_manifest"] = {**VALID["match_manifest_v0_7"], "schema_version": "0.8",
+                           "purpose": "dev"}
 BLUE_PARAMS_V0_5 = {
     "provider": "anthropic", "model": "claude-haiku-5-5", "chunk_size": 1,
     "prompt_version": "1", "system_prompt_sha256": SHA,
@@ -275,7 +293,10 @@ BLUE_PARAMS_V0_5 = {
 BLUE_PARAMS_V0_6 = {**BLUE_PARAMS_V0_5, "prompt_version": "2",
                     "rules": {"mode": "on", "max_rules": 10},
                     "request": {**BLUE_PARAMS_V0_5["request"], "max_output_tokens": 512}}
-BLUE_PARAMS = {**BLUE_PARAMS_V0_6, "caching": {"mode": "on", "ttl": "5m"}}
+BLUE_PARAMS_V0_7 = {**BLUE_PARAMS_V0_6, "caching": {"mode": "on", "ttl": "5m"}}
+BLUE_PARAMS = {**BLUE_PARAMS_V0_7, "library": None}
+LIBRARY_PARAMS = {"path": "data/library/rule_library_v0005.json", "sha256": SHA,
+                  "library_version": 5, "entries": 12}
 CLAUDE_MANIFEST = {**VALID["match_manifest"], "blue_engine": "claude",
                    "blue_params": BLUE_PARAMS,
                    "models": {"red": None, "blue": {"provider": "anthropic",
@@ -299,7 +320,9 @@ REPLAY = {
     "blue_params": BLUE_PARAMS_V0_6,
     "models": {"blue": CLAUDE_MANIFEST["models"]["blue"]}}
 VALID["replay_manifest_v0_1"] = REPLAY
-REPLAY = {**REPLAY, "schema_version": "0.2", "blue_params": BLUE_PARAMS}
+REPLAY = {**REPLAY, "schema_version": "0.2", "blue_params": BLUE_PARAMS_V0_7}
+VALID["replay_manifest_v0_2"] = REPLAY
+REPLAY = {**REPLAY, "schema_version": "0.3", "blue_params": BLUE_PARAMS}
 VALID["replay_manifest"] = REPLAY
 VALID["red_attack"] = {
     "schema_version": "0.2", "match_id": "m001", "round": 7, "request_id": RID,
@@ -386,6 +409,63 @@ def _drop(key):
     return f
 
 
+# Stage 6.1: rule library, variants, retention, offline benign data, test-set registry.
+LIB_RULE = {**RULE, "created_match": BID_MATCH}
+VALID["rule_library"] = {
+    "schema_version": "0.1", "library_version": 1,
+    "parent": {"path": "data/library/rule_library_v0000.json", "sha256": SHA,
+               "library_version": 0},
+    "created_at": "2026-11-20T00:00:00.000Z", "judge_version": "0.7.0",
+    "normalization_version": "2", "mutator_version": "1", "retention_version": "1",
+    "fixtures": [{"path": "benign/fixture_v1.jsonl", "sha256": SHA}],
+    "promoted_matches": [BID_MATCH],
+    "entries": [{"library_id": "lib-0001", "canonical_sha256": SHA, "rule": LIB_RULE,
+                 "promoted_from": {"match_id": BID_MATCH, "rule_id": RULE["rule_id"]},
+                 "promoted_in_version": 1,
+                 "retention_ref": {"path": "data/library/retention/x/retention.jsonl",
+                                   "line": 1}}]}
+VALID["variant"] = {
+    "schema_version": "0.1", "mutator_version": "1", "base_seed": 0,
+    "source_match_id": BID_MATCH, "source_request_id": RID, "cwe": "CWE-89",
+    "variant_id": "v-0123456789ab", "transformation": "S1",
+    "request": {"method": "GET", "path": "/rest/products/search", "query": "q=x", "body": ""},
+    "neutralized": False, "encoding_only": False, "counting": True, "exclusion_reason": None}
+VALID["retention_row"] = {
+    "schema_version": "0.1", "retention_version": "1", "match_id": BID_MATCH,
+    "rule_id": "r-001", "cwe": "CWE-89", "decision": "retained", "library_id": "lib-0001",
+    "reasons": [], "canonical_sha256": SHA, "duplicate_of": None,
+    "behavioural_duplicate_of": None, "source_request_id": RID, "source_round": 3,
+    "source_label": "CWE-89", "audit_verdict": "valid", "replay_fires": True,
+    "replay_reason": None, "cwe_matches_source": True, "fixture_v1_hits": [],
+    "fixture_v2_hits": [], "variants_generated": ["v-0123456789ab"],
+    "variants_counting": ["v-0123456789ab"], "variants_blocked": ["v-0123456789ab"],
+    "variants_encoding": ["v-ba9876543210"], "variants_encoding_blocked": ["v-ba9876543210"],
+    "base_seed": 0, "mutator_version": "1"}
+FILE = {"path": "x", "sha256": SHA}
+VALID["retention_manifest"] = {
+    "schema_version": "0.1", "match_id": BID_MATCH, "promoted_at": "2026-11-20T00:00:00Z",
+    "judge_version": "0.7.0", "normalization_version": "2", "mutator_version": "1",
+    "retention_version": "1", "base_seed": 0,
+    "match": {"path": "data/runs/x", "match_json_sha256": SHA, "purpose": "train",
+              "git_commit": "f" * 40},
+    "audit": FILE, "parent_library": {"path": "p", "sha256": SHA, "library_version": 0},
+    "fixtures": [FILE], "seal": [FILE],
+    "outputs": {"variants": FILE, "retention": FILE,
+                "library": {"path": "l", "library_version": 1}},
+    "summary": {"candidates": 1, "retained": 1, "rejected": 0, "reasons": {},
+                "variants": 1, "counting_variants": 1}}
+VALID["benign_holdout"] = {"benign_id": "xh19", "category": "hard_negative",
+                           "look_alike": "CWE-22", "method": "GET",
+                           "path": "/rest/products/search", "query": "q=v1..v2", "body": ""}
+VALID["benign_offline_draft"] = {
+    "schema_version": "0.1", "set": "holdout_v1", "role": "test", "_comment": "draft",
+    "entries": [{"benign_id": "xn01", "category": "normal", "look_alike": None,
+                 "method": "GET", "endpoint": "/rest/products/search",
+                 "query_params": {"q": "apple"}, "note": "search"}]}
+VALID["test_set"] = {"schema_version": "0.1", "_comment": "x", "match_ids": [BID_MATCH],
+                     "sealed": [{"path": "benign/holdout_v1.jsonl", "role": "test",
+                                 "sha256": None}]}
+
 INVALID = {
     "red_attack_v0_1": [
         ("label not in taxonomy", _set("label", "CWE-78")),
@@ -435,7 +515,7 @@ INVALID = {
         ("status not integer", _set("status", "200")),
         ("leaks ground-truth label", _set("label", "CWE-89")),
     ],
-    "verdict": [
+    "verdict_v0_3": [
         ("verdict not in taxonomy", _set("verdict", "SQLi")),
         ("schema_version 0.1", _set("schema_version", "0.1")),
         ("missing source", _drop("source")),
@@ -496,6 +576,21 @@ INVALID = {
         ("missing log_seq", _drop("log_seq")),
         ("legacy round field not allowed", _set("round", 7)),
         ("extra property", _set("confidence", 0.9)),
+    ],
+    "verdict": [
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("missing rule_origin", _drop("rule_origin")),
+        ("ai verdict with an origin", _set("rule_origin", "match")),
+        ("origin not in enum", lambda r: {**LIB_VERDICT, "rule_origin": "memory"}),
+        ("rule verdict without an origin", lambda r: {**LIB_VERDICT, "rule_origin": None}),
+        ("library origin but an in-match rule first",
+         lambda r: {**LIB_VERDICT, "fired_rule_ids": ["r-001", "lib-0002"]}),
+        ("match origin but a library rule fired",
+         lambda r: {**LIB_VERDICT, "rule_origin": "match",
+                    "fired_rule_ids": ["r-001", "lib-0002"]}),
+        ("library id malformed", lambda r: {**LIB_VERDICT, "fired_rule_ids": ["lib-2"]}),
+        ("rule verdict with a rationale", lambda r: {**LIB_VERDICT, "rationale": "x"}),
+        ("ai verdict with fired_rule_ids", _set("fired_rule_ids", ["lib-0001"])),
     ],
     "verdict_v0_2": [
         ("schema_version 0.3", _set("schema_version", "0.3")),
@@ -700,10 +795,28 @@ INVALID = {
                     "models": {**r["models"], "blue": {"provider": "anthropic",
                                                        "model": "claude-haiku-5-5"}}}),
     ],
+    "match_manifest_v0_7": [
+        ("schema_version 0.8", _set("schema_version", "0.8")),
+        ("purpose is 0.8 only", _set("purpose", "dev")),
+        ("blue_params library is 0.8 only",
+         lambda r: {**r, "blue_engine": "claude", "blue_params": BLUE_PARAMS,
+                    "models": {**r["models"], "blue": {"provider": "anthropic",
+                                                       "model": "claude-haiku-5-5"}}}),
+    ],
     "match_manifest": [
+        ("missing purpose", _drop("purpose")),
+        ("purpose not in enum", _set("purpose", "test")),
+        ("claude blue_params without library (0.7 shape)",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": BLUE_PARAMS_V0_7}),
+        ("library without its sha256",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {**BLUE_PARAMS, "library": {
+             k: v for k, v in LIBRARY_PARAMS.items() if k != "sha256"}}}),
+        ("library with a negative entry count",
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {**BLUE_PARAMS, "library": {
+             **LIBRARY_PARAMS, "entries": -1}}}),
         ("schema_version 0.5", _set("schema_version", "0.5")),
         ("claude blue_params without caching (0.6 shape)",
-         lambda r: {**CLAUDE_MANIFEST, "blue_params": BLUE_PARAMS_V0_6}),
+         lambda r: {**CLAUDE_MANIFEST, "blue_params": {**BLUE_PARAMS_V0_6, "library": None}}),
         ("caching on without a ttl",
          lambda r: {**CLAUDE_MANIFEST, "blue_params": {
              **BLUE_PARAMS, "caching": {"mode": "on", "ttl": None}}}),
@@ -876,7 +989,13 @@ INVALID = {
         ("schema_version 0.2", _set("schema_version", "0.2")),
         ("blue_params caching is 0.2 only", _set("blue_params", BLUE_PARAMS)),
     ],
+    "replay_manifest_v0_2": [
+        ("schema_version 0.3", _set("schema_version", "0.3")),
+        ("blue_params library is 0.3 only", _set("blue_params", BLUE_PARAMS)),
+    ],
     "replay_manifest": [
+        ("schema_version 0.2", _set("schema_version", "0.2")),
+        ("blue_params without library (0.2 shape)", _set("blue_params", BLUE_PARAMS_V0_7)),
         ("schema_version 0.1", _set("schema_version", "0.1")),
         ("blue_params without caching (0.1 shape)", _set("blue_params", BLUE_PARAMS_V0_6)),
         ("source failed", lambda r: {**r, "source": {**r["source"], "status": "failed"}}),
@@ -952,6 +1071,62 @@ INVALID = {
         ("api key field", _set("api_key", "x")),
         ("missing schema_version", _drop("schema_version")),
         ("bad match_id", _set("match_id", "x")),
+    ],
+    "rule_library": [
+        ("library id malformed", lambda r: {**r, "entries": [{**r["entries"][0],
+                                                              "library_id": "lib-1"}]}),
+        ("rule without created_match",
+         lambda r: {**r, "entries": [{**r["entries"][0], "rule": {
+             k: v for k, v in LIB_RULE.items() if k != "created_match"}}]}),
+        ("no promoted_matches", _drop("promoted_matches")),
+        ("more than 50 entries", lambda r: {**r, "entries": r["entries"] * 51}),
+        ("benign cwe rule", lambda r: {**r, "entries": [{**r["entries"][0], "rule": {
+            **LIB_RULE, "cwe": "benign"}}]}),
+    ],
+    "variant": [
+        ("counting with a reason", _set("exclusion_reason", "encoding_only")),
+        ("counting but neutralized", _set("neutralized", True)),
+        ("unknown transformation", _set("transformation", "Z9")),
+        ("not counting without a reason", _set("counting", False)),
+        ("benign cwe", _set("cwe", "benign")),
+    ],
+    "retention_row": [
+        ("retained with a reason",
+         _set("reasons", [{"code": "fixture_hit", "detail": "x"}])),
+        ("rejected with a library id", lambda r: {**r, "decision": "rejected",
+                                                  "reasons": [{"code": "fixture_hit",
+                                                               "detail": "x"}]}),
+        ("retained without a blocked variant", _set("variants_blocked", [])),
+        ("unknown reason code", lambda r: {**r, "decision": "rejected", "library_id": None,
+                                           "reasons": [{"code": "too_broad", "detail": ""}]}),
+        ("retained duplicate", _set("duplicate_of", "lib-0001")),
+        ("no variants_encoding", lambda r: {k: v for k, v in r.items()
+                                            if k != "variants_encoding"}),
+        ("bad encoding variant id", _set("variants_encoding_blocked", ["v-xyz"])),
+    ],
+    "retention_manifest": [
+        ("purpose dev", lambda r: {**r, "match": {**r["match"], "purpose": "dev"}}),
+        ("missing seal", _drop("seal")),
+        ("output library version 0", lambda r: {**r, "outputs": {
+            **r["outputs"], "library": {"path": "l", "library_version": 0}}}),
+    ],
+    "benign_holdout": [
+        ("normal with a look-alike", lambda r: {**r, "benign_id": "xn01",
+                                                "category": "normal"}),
+        ("fixture v1 id", _set("benign_id", "h01")),
+        ("hard negative without a look-alike", _set("look_alike", None)),
+    ],
+    "benign_offline_draft": [
+        ("holdout with a train role", _set("role", "train")),
+        ("fixture id in the holdout", lambda r: {**r, "entries": [{
+            **r["entries"][0], "benign_id": "yh01", "category": "hard_negative",
+            "look_alike": "CWE-22"}]}),
+        ("PUT method", lambda r: {**r, "entries": [{**r["entries"][0], "method": "PUT"}]}),
+    ],
+    "test_set": [
+        ("no match ids", _set("match_ids", [])),
+        ("bad sha", _set("sealed", [{"path": "x", "role": "test", "sha256": "abc"}])),
+        ("unknown role", _set("sealed", [{"path": "x", "role": "dev", "sha256": None}])),
     ],
     "prices": [
         ("negative price",
@@ -1158,10 +1333,11 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
 ])
 def test_match_id_accepts_both_forms(match_id, ok):
     # Contract §0: legacy m+digits, or the run_match.py timestamp form.
-    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_1",
+    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_3", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
-                 "match_manifest_v0_6", "match_manifest", "api_call", "api_call_v0_1",
+                 "match_manifest_v0_6", "match_manifest_v0_7", "match_manifest", "api_call",
+                 "api_call_v0_1",
                  "benign_request", "benign_result",
                  "benign_result_v0_1", "anomaly"):
         rec = {**VALID[name], "match_id": match_id}
@@ -1175,10 +1351,11 @@ def test_rules_file_empty_rules_is_valid():
 
 
 def test_record_schemas_require_version_and_match_id():
-    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_1",
+    for name in ("red_attack", "red_attack_v0_1", "red_unsent", "match_audit", "verdict", "verdict_v0_3", "verdict_v0_1",
                  "round_record", "round_record_v0_1", "landed_fact", "match_manifest_v0_1",
                  "match_manifest_v0_2", "match_manifest_v0_3", "match_manifest_v0_4",
-                 "match_manifest_v0_6", "match_manifest", "api_call", "api_call_v0_1",
+                 "match_manifest_v0_6", "match_manifest_v0_7", "match_manifest", "api_call",
+                 "api_call_v0_1",
                  "benign_request", "benign_result",
                  "benign_result_v0_1", "anomaly"):
         required = SCHEMAS[name]["required"]
@@ -1234,8 +1411,8 @@ def test_verdict_enum_matches_full_taxonomy():
 
 
 def test_verdict_0_2_shapes_valid():
-    v = validator("verdict")
-    base = {k: x for k, x in VALID["verdict"].items() if k != "rationale"}
+    v = validator("verdict_v0_3")
+    base = {k: x for k, x in VALID["verdict_v0_3"].items() if k != "rationale"}
     v.validate(base)
     v.validate({**base, "source": "signature", "reason": "signature matched"})
     for reason, details in (("no_verdict", ("invalid_json", "invalid_shape", "missing_index",
@@ -1264,11 +1441,12 @@ def test_manifest_dispatch_covers_every_version():
     import sys
     sys.path.insert(0, str(ROOT))
     import run_match
-    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7"}
-    assert run_match.MANIFEST_VERSION == "0.7"
+    assert set(run_match.MANIFEST_SCHEMAS) == {"0.1", "0.2", "0.3", "0.4", "0.5", "0.6", "0.7",
+                                               "0.8"}
+    assert run_match.MANIFEST_VERSION == "0.8"
     for name in ("match_manifest_v0_1", "match_manifest_v0_2", "match_manifest_v0_3",
                  "match_manifest_v0_4", "match_manifest_v0_5", "match_manifest_v0_6",
-                 "match_manifest"):
+                 "match_manifest_v0_7", "match_manifest"):
         assert run_match.validate_manifest(VALID[name]) == [], name
 
 
@@ -1393,11 +1571,23 @@ def test_anomaly_rule_source_benign_valid():
                                    "detail": {"rule_id": "r-016", "benign_id": "h06"}})
 
 
+def test_verdict_0_4_library_and_match_origins_valid():
+    v = validator("verdict")
+    v.validate(LIB_VERDICT)
+    v.validate({**LIB_VERDICT, "rule_origin": "match", "fired_rule_ids": ["r-001", "r-002"],
+                "reason": "rule r-001 fired (+1 more fired)"})
+    v.validate({k: val for k, val in {**VALID["verdict"], "verdict": None, "source": None,
+                                      "no_verdict_reason": "no_verdict",
+                                      "failure_detail": "invalid_json"}.items()
+                if k != "rationale"})
+    assert not validator("verdict_v0_3").is_valid(LIB_VERDICT)
+
+
 def test_verdict_0_3_rule_and_no_verdict_shapes_valid():
     # Stage 5.5: a rule verdict lists its rules; an AI or no-verdict row lists none.
-    v = validator("verdict")
+    v = validator("verdict_v0_3")
     v.validate(RULE_VERDICT)
-    v.validate({k: val for k, val in {**VALID["verdict"], "verdict": None, "source": None,
+    v.validate({k: val for k, val in {**VALID["verdict_v0_3"], "verdict": None, "source": None,
                                       "no_verdict_reason": "instrument_failure",
                                       "failure_detail": "refused_by_body"}.items()
                 if k != "rationale"})

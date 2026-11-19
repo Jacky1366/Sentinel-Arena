@@ -1,0 +1,424 @@
+{
+  "schema_version": "0.1",
+  "set": "holdout_v1",
+  "role": "test",
+  "_comment": "DRAFT for designer approval (Stage 6.1, M4). Drafted from the pre-registered categories in docs/plans/stage6_1_step0.md section 6, never scored against any rule. tools/build_holdout.py --capture sends each entry ONCE through the shared client to a freshly reset Target, OUTSIDE any match, copies method/path/query/body verbatim from the logged line, resets the Target, and writes the sealed file and its .meta.json. Never sent in a match; Blue never reads it. TEST data (S6-1): used only for offline scoring of library rules; never read by retention or any selection code.",
+  "entries": [
+    {
+      "benign_id": "xn01",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "orange juice"
+      },
+      "note": "Ordinary product search."
+    },
+    {
+      "benign_id": "xn02",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "melon bike"
+      },
+      "note": "Ordinary product search (two words)."
+    },
+    {
+      "benign_id": "xn03",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/products/1/reviews",
+      "note": "Read the reviews of a product."
+    },
+    {
+      "benign_id": "xn04",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/languages",
+      "note": "The language list the front end loads."
+    },
+    {
+      "benign_id": "xn05",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/admin/application-version",
+      "note": "The version string the front end shows."
+    },
+    {
+      "benign_id": "xn06",
+      "category": "normal",
+      "look_alike": null,
+      "method": "POST",
+      "endpoint": "/rest/user/login",
+      "json_body": {
+        "email": "lena.kowalski@example.net",
+        "password": "Blue-Heron-77"
+      },
+      "note": "An unregistered visitor tries to log in."
+    },
+    {
+      "benign_id": "xn07",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/assets/public/images/products/apple_juice.jpg",
+      "note": "A product image."
+    },
+    {
+      "benign_id": "xn08",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/track-order/0815-5e5fcbd6a4b2c19a",
+      "note": "Track an order by its id."
+    },
+    {
+      "benign_id": "xn09",
+      "category": "normal",
+      "look_alike": null,
+      "method": "POST",
+      "endpoint": "/api/Users",
+      "json_body": {
+        "email": "tomas.berg@example.com",
+        "password": "fjord lantern thirty",
+        "passwordRepeat": "fjord lantern thirty"
+      },
+      "note": "A new customer registers."
+    },
+    {
+      "benign_id": "xn10",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "raspberry"
+      },
+      "note": "Ordinary product search."
+    },
+    {
+      "benign_id": "xn11",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/api/SecurityQuestions",
+      "note": "The security questions the registration form loads."
+    },
+    {
+      "benign_id": "xn12",
+      "category": "normal",
+      "look_alike": null,
+      "method": "GET",
+      "endpoint": "/rest/memories",
+      "note": "The photo wall the front end loads."
+    },
+    {
+      "benign_id": "xh01",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "rock 'n' roll mug"
+      },
+      "note": "Apostrophes in ordinary text."
+    },
+    {
+      "benign_id": "xh02",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "select juice of the month"
+      },
+      "note": "SQL keyword SELECT as an ordinary word."
+    },
+    {
+      "benign_id": "xh03",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "union square tote"
+      },
+      "note": "SQL keyword UNION as part of a place name."
+    },
+    {
+      "benign_id": "xh04",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "POST",
+      "endpoint": "/rest/user/login",
+      "json_body": {
+        "email": "d.o'neil@example.com",
+        "password": "harbour"
+      },
+      "note": "Apostrophe in a real surname inside the login email."
+    },
+    {
+      "benign_id": "xh05",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "POST",
+      "endpoint": "/rest/user/login",
+      "json_body": {
+        "email": "ana.lima@example.com",
+        "password": "kiwi == mango -- forever"
+      },
+      "note": "'=' and '--' inside a password."
+    },
+    {
+      "benign_id": "xh06",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "drop shipping"
+      },
+      "note": "SQL keyword DROP as an ordinary word."
+    },
+    {
+      "benign_id": "xh07",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "banana or apple"
+      },
+      "note": "SQL keyword OR between two words."
+    },
+    {
+      "benign_id": "xh08",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "POST",
+      "endpoint": "/api/Users",
+      "json_body": {
+        "email": "chloe.d'arcy@example.org",
+        "password": "sunflower field eight",
+        "passwordRepeat": "sunflower field eight"
+      },
+      "note": "Apostrophe in a real surname at registration."
+    },
+    {
+      "benign_id": "xh09",
+      "category": "hard_negative",
+      "look_alike": "CWE-89",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "order by price"
+      },
+      "note": "SQL keywords ORDER BY as ordinary words."
+    },
+    {
+      "benign_id": "xh10",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "smoothie <3 <3"
+      },
+      "note": "A heart emoticon: '<' in ordinary text."
+    },
+    {
+      "benign_id": "xh11",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "price < 5"
+      },
+      "note": "A comparison: '<' in ordinary text."
+    },
+    {
+      "benign_id": "xh12",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "Tom & Jerry mug"
+      },
+      "note": "An ampersand in a product name."
+    },
+    {
+      "benign_id": "xh13",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "script font poster"
+      },
+      "note": "The word 'script' in ordinary text."
+    },
+    {
+      "benign_id": "xh14",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "onload ramp for trucks"
+      },
+      "note": "The word 'onload' in ordinary text."
+    },
+    {
+      "benign_id": "xh15",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "POST",
+      "endpoint": "/api/Feedbacks",
+      "json_body": {
+        "comment": "5 stars > 4 stars, would buy again :->",
+        "rating": 5
+      },
+      "note": "Angle brackets in review text."
+    },
+    {
+      "benign_id": "xh16",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "alert sound off"
+      },
+      "note": "The word 'alert' in ordinary text."
+    },
+    {
+      "benign_id": "xh17",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "prompt delivery"
+      },
+      "note": "The word 'prompt' in ordinary text."
+    },
+    {
+      "benign_id": "xh18",
+      "category": "hard_negative",
+      "look_alike": "CWE-79",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "svg icons pack"
+      },
+      "note": "The word 'svg' in ordinary text."
+    },
+    {
+      "benign_id": "xh19",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "v1.2..v1.4 changelog"
+      },
+      "note": "A version range with '..'."
+    },
+    {
+      "benign_id": "xh20",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "wait..."
+      },
+      "note": "An ellipsis."
+    },
+    {
+      "benign_id": "xh21",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/assets/public/images/products/banana_juice.jpg",
+      "note": "A deep asset path."
+    },
+    {
+      "benign_id": "xh22",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/assets/i18n/en.json",
+      "note": "A deep asset path (translations)."
+    },
+    {
+      "benign_id": "xh23",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/ftp/report..final.pdf",
+      "note": "A file name with a double dot."
+    },
+    {
+      "benign_id": "xh24",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/ftp/notes.v2..draft.md",
+      "note": "A file name with several dots."
+    },
+    {
+      "benign_id": "xh25",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "..."
+      },
+      "note": "Only an ellipsis."
+    },
+    {
+      "benign_id": "xh26",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "1...10 counting book"
+      },
+      "note": "A range written with an ellipsis."
+    },
+    {
+      "benign_id": "xh27",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "POST",
+      "endpoint": "/api/Feedbacks",
+      "json_body": {
+        "comment": "Label says best before../2027... confusing",
+        "rating": 3
+      },
+      "note": "'../' in free review text (the strongest CWE-22 look-alike)."
+    },
+    {
+      "benign_id": "xh28",
+      "category": "hard_negative",
+      "look_alike": "CWE-22",
+      "method": "GET",
+      "endpoint": "/rest/products/search",
+      "query_params": {
+        "q": "file.tar.gz..part2"
+      },
+      "note": "A file name with a double dot in a search."
+    }
+  ]
+}

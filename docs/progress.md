@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-13*
+*Last updated: 2026-11-17*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -17,7 +17,6 @@ file artifacts defined in a data contract.
 | 2 | Scripted Red + Judge fact 1 (landed) | Nov 5–7 | Done (Nov 4) |
 | 3 | Blue v0 + Judge fact 2 + round record | Nov 7–9 | Done (Nov 5) |
 | 4 | Integration: one-command match | Nov 9–11 | Done (Nov 7; verified + merged Nov 8) |
-| — | Progress Report | Nov 12 | Done (submitted Nov 12) |
 | 5.1 | Repo safety + Stage 5 decisions + LLM client + cost tracking | Nov 13–19 (Stage 5) | Done (Nov 8) |
 | 5.2 | Benign traffic + Judge fact 4a (false positives) | Nov 13–19 (Stage 5) | Done (Nov 9) |
 | 5.3 | Rule format + RE2 rule engine + Judge facts 3 / 4b | Nov 13–19 (Stage 5) | Done (Nov 9) |
@@ -26,8 +25,10 @@ file artifacts defined in a data contract.
 | 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); merged |
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
+| 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
+| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Not started (each gate after a separate GO) |
 
-Currently ~4 days ahead of plan. Next milestone: Assignment 3 (Nov 26).
+Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 
 ## Completed
 
@@ -331,6 +332,85 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   stack after the normalization move (matches `20261109T041650Z-e736` /
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
+### Stage 6.1a — Rule library, retention, variants, offline benign data (body)
+Step 0 plan `docs/plans/stage6_1_step0.md`, approved Nov 17 with amendments; decisions
+D19–D32 in `docs/stage6_decisions.md`. Branch `stage6.1a-rule-library` (from `main` at
+`fd65f88`). Built and tested on the fake provider only: no real call, no match, no
+change to `data/golden/`.
+
+- **Rule library (M1, D20, D21, D26).**
+  - Immutable versioned files `data/library/rule_library_vNNNN.json`; the empty v0000 is
+    committed.
+  - The read-only reader is `rules/library.py`. The single writer is `library/writer.py`,
+    imported only by `tools/promote_rules.py` (tested on the import graph).
+  - Dedup uses a canonical form.
+  - Library rules are preloaded into `rules/hotload.py`: live from line 1, first in the
+    tie-break. The AI never sees them; the prompt bytes are identical with and without a
+    library.
+- **Verdicts 0.4 (D22).** `rule_origin` is `library` or `match`. `match.json` 0.8 adds
+  `purpose` and `blue_params.library`; `replay.json` 0.3. `run_match.py` and
+  `tools/replay_blue.py` take `--library` (read-only, copied in as `library.json`), and
+  `run_match.py --purpose train` needs a clean tree.
+- **Judge.** The rule-verdict cross-check loads the snapshot and checks `rule_origin`.
+  `JUDGE_VERSION` 0.7.0.
+- **Retention (M2, D23, D30, D31).** `tools/promote_rules.py`, with pure decisions in
+  `judge/retention.py`. It writes a new library version plus `variants.jsonl`,
+  `retention.jsonl` and `retention.json` under `data/library/retention/<match_id>/`; every
+  failing criterion gets its own reason code.
+  - It refuses dev matches, replays, golden or test-set matches, dirty or changed matches,
+    unsealed or pre-seal matches, and incomplete audits.
+  - D30: `tools/audit_match.py` covers only the source rounds of candidate rules for train
+    matches.
+- **Variant mutator (M3, D24, D32).** `judge/variants.py` is pure, seeded and per source.
+  It has 25 transformations across CWE-89, CWE-79 and CWE-22, and classifies each variant
+  on its own. The above-root predicate moved to `rules/paths.py` (red guard and mutator
+  share it; `judge/` never imports `red/`).
+- **Offline benign data (M4, D27, D31).**
+  - Drafts: `benign/holdout_v1.draft.json` (40: 12 normal, 9 / 9 / 10 look-alikes) and
+    `benign/fixture_v2_offline.draft.json` (6 CWE-22 look-alikes).
+  - Capture tool `tools/build_holdout.py` (`--capture` = Gate 0; `--check`).
+  - Test-set registry `config/test_set.json` (the 6 audited AI-Red golden matches; sealed
+    hashes null until capture).
+- **M5 tooling.** `tools/stage6_1_check.py`: Gate 1 (train matches + scoped audits),
+  `--promote`, `--predict` (zero-token, pre-registered), Gate 2 (empty vs library replays,
+  holdout hits).
+- **Tests.** 1,588 passing. New: library, hot-load, Blue, Judge cross-check, variants,
+  retention, promotion, the train/test wall (incl. a leak test that fails if any library
+  names a test match), holdout capture (mocked), offline gates.
+- **Designer decisions (Nov 18).**
+  - **D24 amendment approved.** `encoding_only` variants never count for (d). New
+    criterion **(d′)**: a rule must block every applicable `encoding_only` variant of its
+    source, else `encoding_fragile` (catches rules anchored to one raw encoding).
+  - **X1 approved.** It is a whole self-firing vector swap (a handler-only swap is not an
+    equivalent attack).
+  - **Disclosure accepted.** The mutator was sanity-checked once, offline and read-only, on
+    the golden Gate 3 rules (TEST data). That surfaced three bugs and the D24 point; nothing
+    was selected or tuned with it.
+  - **Incident (Nov 18, disclosed).** One test run replayed the Gate 3 test matches through
+    the offline gate tests: read-only, fake Blue, nothing selected or tuned. Those tests now
+    use non-test folders and guard against test-set replays.
+- **An empty library is a loaded library** (bug found by the offline Gate 2 test and
+  fixed). M5's empty arm loads v0000 and writes 0.4 verdicts like the library arm.
+- **Gate 0 (Nov 18, zero tokens).**
+  - Both drafts were approved unedited and captured once through the shared client,
+    outside any match, on a freshly reset Target. The Target was reset again afterwards
+    (0 solved).
+  - Sealed: `benign/holdout_v1.jsonl` (40, sha256 `50668018…`) and
+    `benign/fixture_v2_offline.jsonl` (6, `6f6f786d…`), hashes in `config/test_set.json`.
+    Seal and hashes went in one commit.
+  - xh12 logs as the single value `q=Tom+%26+Jerry+mug`.
+  - HTTP 500s, recorded in the `.meta.json` statuses:
+    - xh01 (apostrophe in search) and xh04 (apostrophe in the login email): consistent
+      with Juice Shop's injectable SQL failing on a quote; the requests are benign text.
+    - xh15, xh27, yh05: `POST /api/Feedbacks` (cause not investigated).
+  - Offline data is never sent in a match and HTTP status is not part of how it is used,
+    so the 500s change nothing.
+- **Incident (Nov 18, disclosed).** After the seal, a gate refusal test fell through and
+  ran the real Gate 1 tool. The test key guard refused all 55 AI calls ($0), but 5 stopped
+  `train` matches ran against the Target. The test is fixed and guarded against real Ops
+  (`docs/stage6_decisions.md`).
+- **Cleanup.** Unrelated external schedule lines removed from this file (designer-approved).
 
 ### Stage 5.7 — Prompt caching + first AI-vs-AI matches (Stage 5 finale)
 **Done (Nov 14). Stage 5 is done:** all three Gate 3 AI-vs-AI matches reach four facts
@@ -705,8 +785,10 @@ These are honest boundaries of the instrument, recorded in the contract:
    always printed with that mix and is not comparable across mixes.
 9. **The fact-4b fixture is not held out.** It is the same 17 benign requests that
    are sent in every match, so an AI Blue (5.5) will have seen these exact lines
-   and could write rules that avoid them. A second, never-sent benign set is
-   planned before Stage 6.
+   and could write rules that avoid them. Stage 6.1 adds a never-sent holdout
+   (`benign/holdout_v1.jsonl`, 40 entries, TEST data) and a small never-sent TRAIN
+   fixture of CWE-22 look-alikes (`benign/fixture_v2_offline.jsonl`, D31); both are
+   captured and sealed at Gate 0 on Nov 18 (contract §6.12).
 10. **Decoding is content-type agnostic** (inherited from Stage 3, kept). Bodies
    are URL-decoded even when they are JSON (now including `unquote_plus`), so a
    literal `%27` inside a JSON value also yields a form containing `'`. It passes
@@ -771,8 +853,12 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
   runs, and the AI demo golden run will also live there.
 
 ## Next
-- ~~Progress Report~~ (submitted Nov 12).
-- **Assignment 3** (Nov 26).
+- **Stage 6** (issue #5; decisions `docs/stage6_decisions.md`):
+  - **6.1a** done: body built on the fake provider (Nov 17); drafts approved, Gate 0
+    capture + seal committed (Nov 18); PR open.
+  - **6.1b** Gate 1 (5 train matches, ≈ $0.015) and Gate 2 (M5, 6 replays, ≈ $0.010),
+    each after a separate GO from a clean committed tree.
+  - Later: M6 autonomy table, M7 flagship gate (target Nov 26), M8 dashboard.
 - ~~**Stage 5 — AI brains**~~ (Nov 13–19; done Nov 14), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).

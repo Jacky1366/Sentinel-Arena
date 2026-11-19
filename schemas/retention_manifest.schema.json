@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/retention_manifest.schema.json",
+  "title": "Retention manifest (contract 5.4, schema_version 0.1)",
+  "description": "data/library/retention/<match_id>/retention.json (Stage 6.1), written LAST by tools/promote_rules.py: what one promotion read (the train match and its hashes, the audit, the parent library, both train-side fixtures, the sealed holdout's recorded hash for the pre-registration check) and wrote (variants.jsonl, retention.jsonl, the new library file), with the versions in force and a summary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "match_id",
+    "promoted_at",
+    "judge_version",
+    "normalization_version",
+    "mutator_version",
+    "retention_version",
+    "base_seed",
+    "match",
+    "audit",
+    "parent_library",
+    "fixtures",
+    "seal",
+    "outputs",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "match_id": {
+      "type": "string",
+      "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+    },
+    "promoted_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "judge_version": {
+      "type": "string"
+    },
+    "normalization_version": {
+      "type": "string"
+    },
+    "mutator_version": {
+      "type": "string"
+    },
+    "retention_version": {
+      "type": "string"
+    },
+    "base_seed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "match_json_sha256",
+        "purpose",
+        "git_commit"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "match_json_sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "purpose": {
+          "const": "train"
+        },
+        "git_commit": {
+          "type": "string"
+        }
+      }
+    },
+    "audit": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/file"
+        }
+      ]
+    },
+    "parent_library": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "library_version"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        },
+        "library_version": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "seal": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/file"
+      }
+    },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "variants",
+        "retention",
+        "library"
+      ],
+      "properties": {
+        "variants": {
+          "$ref": "#/$defs/file"
+        },
+        "retention": {
+          "$ref": "#/$defs/file"
+        },
+        "library": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "library_version"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "library_version": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidates",
+        "retained",
+        "rejected",
+        "reasons",
+        "variants",
+        "counting_variants"
+      ],
+      "properties": {
+        "candidates": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "retained": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reasons": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "variants": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "counting_variants": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha"
+        }
+      }
+    }
+  }
+}

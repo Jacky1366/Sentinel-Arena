@@ -1,0 +1,75 @@
+{
+  "set": "holdout_v1",
+  "role": "test",
+  "path": "benign/holdout_v1.jsonl",
+  "entries": 40,
+  "sha256": "5066801817c8f1940accc89dba1a3513f2d241f8441029340e80b5a45534945e",
+  "sealed_at": "2026-11-19T00:26:37.206Z",
+  "counts": {
+    "normal": 12,
+    "hard_negative CWE-89": 9,
+    "hard_negative CWE-79": 9,
+    "hard_negative CWE-22": 10
+  },
+  "draft_sha256": "a38042e72d80d65a6bf949833665ee3a51353881a5566a549eafb03d37ea6e70",
+  "capture": {
+    "images": {
+      "juice_shop": {
+        "image": "bkimminich/juice-shop:v20.3.0",
+        "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+        "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+      },
+      "nginx": {
+        "image": "nginx:1.30.6-alpine",
+        "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+        "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+      }
+    },
+    "git": {
+      "commit": "6f38f0d6a662e66f4262b8126967bb4656585203"
+    },
+    "statuses": {
+      "xn01": 200,
+      "xn02": 200,
+      "xn03": 200,
+      "xn04": 200,
+      "xn05": 200,
+      "xn06": 401,
+      "xn07": 200,
+      "xn08": 200,
+      "xn09": 201,
+      "xn10": 200,
+      "xn11": 200,
+      "xn12": 200,
+      "xh01": 500,
+      "xh02": 200,
+      "xh03": 200,
+      "xh04": 500,
+      "xh05": 401,
+      "xh06": 200,
+      "xh07": 200,
+      "xh08": 201,
+      "xh09": 200,
+      "xh10": 200,
+      "xh11": 200,
+      "xh12": 200,
+      "xh13": 200,
+      "xh14": 200,
+      "xh15": 500,
+      "xh16": 200,
+      "xh17": 200,
+      "xh18": 200,
+      "xh19": 200,
+      "xh20": 200,
+      "xh21": 200,
+      "xh22": 200,
+      "xh23": 404,
+      "xh24": 404,
+      "xh25": 200,
+      "xh26": 200,
+      "xh27": 500,
+      "xh28": 200
+    }
+  },
+  "note": "Captured verbatim from the proxy log outside any match (Stage 6.1, D27). Never sent in a match; Blue never reads it."
+}

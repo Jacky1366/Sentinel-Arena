@@ -18,6 +18,7 @@ from llm_fakes import REPO
 from test_run_match_rules import RulesOps, broad, dirs, go  # noqa: F401 (fixture)
 from test_blue_rules import union_brain
 from test_run_match_failure import FakeOps
+import run_match  # noqa: E402
 from tools import audit_match, replay_blue  # noqa: E402
 
 GOLDEN = sorted(p.parent for p in (REPO / "data" / "golden").glob("*/match.json"))
@@ -116,14 +117,30 @@ def test_scripted_replay_of_every_golden_folder_leaves_it_untouched(golden, tmp_
         assert key(rdir / "verdicts.jsonl") == key(golden / "verdicts.jsonl")
 
 
-def test_the_source_audit_applies_to_a_replay(tmp_path):
-    golden = REPO / "data" / "golden" / "ai-red-luna-gate2-match3"
-    code, rdir, _ = do_replay(golden, tmp_path / "r", FakeOps(tmp_path), engine="scripted")
+def test_the_source_audit_applies_to_a_replay(dirs, tmp_path):
+    """A synthetic AI-Red match (fake pipeline, never test-set data) with one round audited
+    invalid: its replay finds the source's audit and the audited view drops that round."""
+    from test_promote_rules import TrainOps
+    live, runs = dirs
+    lines: list[str] = []
+    code, src = run_match.run_match(ops=TrainOps(live, answer=broad), live_dir=live,
+                                    runs_dir=runs, engine="claude", blue_rules_mode="on",
+                                    out=lines.append)
+    assert code == 0, lines
+    audits, golden = tmp_path / "audits", tmp_path / "golden_audits"
+    p = audit_match.scaffold(src, audits=audits, golden_dir=golden)
+    rows = [json.loads(l) for l in p.read_text().splitlines()]
+    bad = rows[0]["round"]
+    for r in rows:
+        r.update(verdict="invalid" if r["round"] == bad else "valid", reason="test",
+                 auditor="designer", date="2026-11-18")
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    code, rdir, _ = do_replay(src, tmp_path / "r", FakeOps(tmp_path), engine="scripted")
     assert code == 0
-    s = audit_match.summary(rdir)
-    assert s["match_id"] == "20261113T053039Z-4645"
-    assert s["audit_file"] == "data/golden/audits/20261113T053039Z-4645.jsonl"
-    assert s["audited_excludes_label_invalid"] == [9] and s["audited"] is not None
+    s = audit_match.summary(rdir, audits=audits, golden=golden)
+    assert s["match_id"] == json.loads((src / "match.json").read_text())["match_id"]
+    assert s["audit_file"].endswith(f"{s['match_id']}.jsonl")
+    assert s["audited_excludes_label_invalid"] == [bad] and s["audited"] is not None
     assert s["audited"]["detection"]["den"] == s["raw"]["detection"]["den"] - 1
 
 
@@ -152,6 +169,9 @@ def test_refuses_a_non_empty_output_folder(tmp_path):
     assert "not empty" in refused(REPO / "data" / "golden" / "scripted-baseline-match", out)
 
 
+NON_TEST = REPO / "data" / "golden" / "scripted-baseline-benign-match"  # not test-set data
+
+
 def copy_match(src: Path, dst: Path) -> Path:
     dst.mkdir(parents=True)
     for p in src.iterdir():
@@ -161,14 +181,14 @@ def copy_match(src: Path, dst: Path) -> Path:
 
 
 def test_refuses_a_tampered_source(tmp_path):
-    d = copy_match(REPO / "data" / "golden" / "ai-red-luna-gate2-match1", tmp_path / "m")
+    d = copy_match(NON_TEST, tmp_path / "m")
     with (d / "proxy.jsonl").open("a") as fh:
         fh.write("\n")
     assert "was changed" in refused(d, tmp_path / "out")
 
 
 def test_refuses_a_failed_source(tmp_path):
-    d = copy_match(REPO / "data" / "golden" / "ai-red-luna-gate2-match1", tmp_path / "m")
+    d = copy_match(NON_TEST, tmp_path / "m")
     m = json.loads((d / "match.json").read_text())
     m.update(status="failed", failed_step="blue", error="x")
     (d / "match.json").write_text(json.dumps(m))
@@ -229,3 +249,49 @@ def test_gate_report_prints_numbers_and_every_rule(dirs, tmp_path, capsys):
     assert "rules mode shadow" in out and "REJECTED" in out and "regex_unsupported_feature" in out
     assert "rule path" in out and "AI path" in out and "raw" in out and "audited" in out
     assert "whole match: detection" in out and "det " not in out
+
+
+# ---- Stage 6.1: a library is loaded READ-ONLY (S6-3) ------------------------------
+
+# A NON-test golden folder (designer rule, 2026-11-18: no new test reads test-set matches).
+SRC61 = REPO / "data" / "golden" / "scripted-baseline-benign-match"
+
+
+def _lib(tmp_path):
+    from test_rule_library import make_library, rule
+    return make_library(tmp_path / "lib", ("20261120T010000Z-aaaa",
+                                           [rule(1, cwe="CWE-22", pattern="%2500", field="path",
+                                                 ci=False)]))[-1]
+
+
+def test_replay_with_a_library_never_writes_it_back(tmp_path):
+    """A golden match replayed with a library and rule invention on (as M5 replays the test
+    matches): the library file is byte-identical afterwards, no new library version
+    appears, the golden folder is untouched; the rules invented while replaying stay in the
+    replay folder only."""
+    test_ids = json.loads((REPO / "config" / "test_set.json").read_text())["match_ids"]
+    assert json.loads((SRC61 / "match.json").read_text())["match_id"] not in test_ids
+    lib = _lib(tmp_path)
+    lib_dir_before = tree(lib.parent)
+    golden_before = tree(SRC61)
+    live = tmp_path / "live"
+    live.mkdir()
+    code, rdir, out = do_replay(SRC61, tmp_path / "replay", RulesOps(live, answer=broad),
+                                engine="claude", rules_mode="on", library=lib)
+    assert code == 0, out
+    assert tree(lib.parent) == lib_dir_before
+    assert tree(SRC61) == golden_before
+    m = json.loads((rdir / "replay.json").read_text())
+    assert SCHEMA.is_valid(m) and m["schema_version"] == "0.3"
+    assert m["blue_params"]["library"]["sha256"] == hashlib.sha256(lib.read_bytes()).hexdigest()
+    assert (rdir / "library.json").read_bytes() == lib.read_bytes()
+    v = [json.loads(l) for l in (rdir / "verdicts.jsonl").read_text().splitlines()]
+    assert {r["schema_version"] for r in v} == {"0.4"}
+    assert any(r["rule_origin"] == "library" for r in v)
+    assert (rdir / "rules.jsonl").read_text()  # invented rules stay in the replay folder
+
+
+def test_replay_library_needs_claude(tmp_path):
+    code, rdir, out = do_replay(SRC61, tmp_path / "replay", FakeOps(tmp_path), engine="scripted",
+                                library=_lib(tmp_path))
+    assert code == 2 and rdir is None and "--library needs --engine claude" in out

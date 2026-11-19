@@ -1,0 +1,6 @@
+{"benign_id": "yh01", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=v3.1..v3.2+diff", "body": ""}
+{"benign_id": "yh02", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=hmm...", "body": ""}
+{"benign_id": "yh03", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/assets/public/images/products/lemon_juice.jpg", "query": "", "body": ""}
+{"benign_id": "yh04", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/ftp/minutes..2026.md", "query": "", "body": ""}
+{"benign_id": "yh05", "category": "hard_negative", "look_alike": "CWE-22", "method": "POST", "path": "/api/Feedbacks", "query": "", "body": "{\"comment\": \"see ../ above, great taste\", \"rating\": 4}"}
+{"benign_id": "yh06", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=2..4+bottles", "body": ""}

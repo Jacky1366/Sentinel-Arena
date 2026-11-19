@@ -26,7 +26,7 @@ SOURCES = ["ai-red-luna-gate2-match1", "ai-red-luna-gate2-match2", "ai-red-luna-
 FOLDERS = [f"{s}-{m}-cached" for m in ("on", "off") for s in SOURCES]
 COMMIT = {"on": "5d6013d964a65bfa961741e5ecd851b8b4eda6a3",     # Gate 2
           "off": "bb4eeeb2c84f9fc44ba512980c3cde1e74a74380"}    # Gate 2b
-SCHEMA = Draft202012Validator(json.loads((REPO / "schemas" / "replay_manifest.schema.json")
+SCHEMA = Draft202012Validator(json.loads((REPO / "schemas" / "replay_manifest_v0_2.schema.json")
                                          .read_text()))
 JUDGED = ("landed.jsonl", "rounds.jsonl", "benign_results.jsonl", "anomalies.jsonl",
           "rule_results.jsonl")

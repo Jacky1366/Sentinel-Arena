@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/benign_offline_draft.schema.json",
+  "title": "Offline benign draft (contract 6.12, schema_version 0.1)",
+  "description": "benign/holdout_v1.draft.json and benign/fixture_v2_offline.draft.json (Stage 6.1, M4, D27, D31): the designer-approved entries tools/build_holdout.py captures. Entry format as benign/benign_set.json (endpoint, query_params or raw_query, json_body) plus look_alike (the CWE a hard negative resembles). role: test (holdout, S6-1) or train (fixture_v2_offline, read only by retention). Never sent in a match; Blue never reads it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "set",
+    "role",
+    "_comment",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "set": {
+      "enum": [
+        "holdout_v1",
+        "fixture_v2_offline"
+      ]
+    },
+    "role": {
+      "enum": [
+        "test",
+        "train"
+      ]
+    },
+    "_comment": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "benign_id",
+          "category",
+          "look_alike",
+          "method",
+          "endpoint",
+          "note"
+        ],
+        "properties": {
+          "benign_id": {
+            "type": "string",
+            "pattern": "^(xn|xh|yh)[0-9]{2}$"
+          },
+          "category": {
+            "enum": [
+              "normal",
+              "hard_negative"
+            ]
+          },
+          "look_alike": {
+            "enum": [
+              "CWE-89",
+              "CWE-79",
+              "CWE-22",
+              null
+            ]
+          },
+          "method": {
+            "enum": [
+              "GET",
+              "POST"
+            ]
+          },
+          "endpoint": {
+            "type": "string",
+            "pattern": "^/"
+          },
+          "query_params": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "raw_query": {
+            "type": "string"
+          },
+          "json_body": {
+            "type": "object"
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "category": {
+                  "const": "normal"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "benign_id": {
+                  "pattern": "^xn"
+                },
+                "look_alike": {
+                  "const": null
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "benign_id": {
+                  "pattern": "^(xh|yh)"
+                },
+                "look_alike": {
+                  "enum": [
+                    "CWE-89",
+                    "CWE-79",
+                    "CWE-22"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "set": {
+            "const": "holdout_v1"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "role": {
+            "const": "test"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "benign_id": {
+                  "pattern": "^x"
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "role": {
+            "const": "train"
+          },
+          "entries": {
+            "items": {
+              "properties": {
+                "benign_id": {
+                  "pattern": "^yh"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

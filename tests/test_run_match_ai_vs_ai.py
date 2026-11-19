@@ -90,7 +90,7 @@ def test_ai_vs_ai_with_caching_on_for_both(dirs):
     code, d, out = go(ops, dirs, blue_caching="on", red_caching="on")
     assert code == 0, out
     m = manifest_of(d)
-    assert m["schema_version"] == "0.7" and run_match.validate_manifest(m) == []
+    assert m["schema_version"] == "0.8" and run_match.validate_manifest(m) == []
     assert m["red_engine"] == "ai" and m["blue_engine"] == "claude"
     assert m["blue_params"]["caching"] == {"mode": "on", "ttl": "5m"}  # fake = Anthropic-like
     assert m["red_params"]["caching"] == {"mode": "on", "ttl": "5m"}

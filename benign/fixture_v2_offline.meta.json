@@ -1,0 +1,38 @@
+{
+  "set": "fixture_v2_offline",
+  "role": "train",
+  "path": "benign/fixture_v2_offline.jsonl",
+  "entries": 6,
+  "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b",
+  "sealed_at": "2026-11-19T00:26:37.207Z",
+  "counts": {
+    "hard_negative CWE-22": 6
+  },
+  "draft_sha256": "e53fa9cd73baac719daacd78813bc6ebf2ff527c419c37e7a8f620fb8c824119",
+  "capture": {
+    "images": {
+      "juice_shop": {
+        "image": "bkimminich/juice-shop:v20.3.0",
+        "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+        "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+      },
+      "nginx": {
+        "image": "nginx:1.30.6-alpine",
+        "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+        "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+      }
+    },
+    "git": {
+      "commit": "6f38f0d6a662e66f4262b8126967bb4656585203"
+    },
+    "statuses": {
+      "yh01": 200,
+      "yh02": 200,
+      "yh03": 200,
+      "yh04": 404,
+      "yh05": 500,
+      "yh06": 200
+    }
+  },
+  "note": "Captured verbatim from the proxy log outside any match (Stage 6.1, D27). Never sent in a match; Blue never reads it."
+}

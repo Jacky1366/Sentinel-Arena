@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/rule_library.schema.json",
+  "title": "Rule library (contract 5.3, schema_version 0.1)",
+  "description": "data/library/rule_library_vNNNN.json: Blue's cross-match rule memory (Stage 6.1, D20). One immutable file per library version: a promotion (tools/promote_rules.py, the only writer, train matches only, S6-3) writes a NEW file whose parent is the previous version; no file is ever overwritten. Version 0 is the empty library. Entries carry provenance but NO Red ground truth (source label, facts 3/4b and variant results live only in the retention log), so Blue's body may read a library; the AI never sees it (D21). Entry order is promotion order and the hot-load tie-break order.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "library_version",
+    "parent",
+    "created_at",
+    "judge_version",
+    "normalization_version",
+    "mutator_version",
+    "retention_version",
+    "fixtures",
+    "promoted_matches",
+    "entries"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "library_version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "parent": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "sha256",
+            "library_version"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "library_version": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "judge_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "normalization_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mutator_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "retention_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "promoted_matches": {
+      "type": "array",
+      "uniqueItems": true,
+      "description": "Every train match promoted into this lineage, in promotion order (ascending match_id), including matches that contributed no rule. A match is never promoted twice.",
+      "items": {
+        "type": "string",
+        "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+      }
+    },
+    "entries": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "library_id",
+          "canonical_sha256",
+          "rule",
+          "promoted_from",
+          "promoted_in_version",
+          "retention_ref"
+        ],
+        "properties": {
+          "library_id": {
+            "type": "string",
+            "pattern": "^lib-[0-9]{4,}$"
+          },
+          "canonical_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "rule": {
+            "allOf": [
+              {
+                "$ref": "https://sentinel-arena.local/schemas/rule.schema.json"
+              },
+              {
+                "required": [
+                  "created_match"
+                ]
+              }
+            ]
+          },
+          "promoted_from": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "match_id",
+              "rule_id"
+            ],
+            "properties": {
+              "match_id": {
+                "type": "string",
+                "pattern": "^(m[0-9]{3,}|[0-9]{8}T[0-9]{6}Z-[0-9a-f]{4})$"
+              },
+              "rule_id": {
+                "type": "string",
+                "pattern": "^r-[0-9]{3,}$"
+              }
+            }
+          },
+          "promoted_in_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "retention_ref": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "line"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "line": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

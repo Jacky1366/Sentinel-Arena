@@ -1,0 +1,40 @@
+{"benign_id": "xn01", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/products/search", "query": "q=orange+juice", "body": ""}
+{"benign_id": "xn02", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/products/search", "query": "q=melon+bike", "body": ""}
+{"benign_id": "xn03", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/products/1/reviews", "query": "", "body": ""}
+{"benign_id": "xn04", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/languages", "query": "", "body": ""}
+{"benign_id": "xn05", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/admin/application-version", "query": "", "body": ""}
+{"benign_id": "xn06", "category": "normal", "look_alike": null, "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"lena.kowalski@example.net\", \"password\": \"Blue-Heron-77\"}"}
+{"benign_id": "xn07", "category": "normal", "look_alike": null, "method": "GET", "path": "/assets/public/images/products/apple_juice.jpg", "query": "", "body": ""}
+{"benign_id": "xn08", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/track-order/0815-5e5fcbd6a4b2c19a", "query": "", "body": ""}
+{"benign_id": "xn09", "category": "normal", "look_alike": null, "method": "POST", "path": "/api/Users", "query": "", "body": "{\"email\": \"tomas.berg@example.com\", \"password\": \"fjord lantern thirty\", \"passwordRepeat\": \"fjord lantern thirty\"}"}
+{"benign_id": "xn10", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/products/search", "query": "q=raspberry", "body": ""}
+{"benign_id": "xn11", "category": "normal", "look_alike": null, "method": "GET", "path": "/api/SecurityQuestions", "query": "", "body": ""}
+{"benign_id": "xn12", "category": "normal", "look_alike": null, "method": "GET", "path": "/rest/memories", "query": "", "body": ""}
+{"benign_id": "xh01", "category": "hard_negative", "look_alike": "CWE-89", "method": "GET", "path": "/rest/products/search", "query": "q=rock+%27n%27+roll+mug", "body": ""}
+{"benign_id": "xh02", "category": "hard_negative", "look_alike": "CWE-89", "method": "GET", "path": "/rest/products/search", "query": "q=select+juice+of+the+month", "body": ""}
+{"benign_id": "xh03", "category": "hard_negative", "look_alike": "CWE-89", "method": "GET", "path": "/rest/products/search", "query": "q=union+square+tote", "body": ""}
+{"benign_id": "xh04", "category": "hard_negative", "look_alike": "CWE-89", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"d.o'neil@example.com\", \"password\": \"harbour\"}"}
+{"benign_id": "xh05", "category": "hard_negative", "look_alike": "CWE-89", "method": "POST", "path": "/rest/user/login", "query": "", "body": "{\"email\": \"ana.lima@example.com\", \"password\": \"kiwi == mango -- forever\"}"}
+{"benign_id": "xh06", "category": "hard_negative", "look_alike": "CWE-89", "method": "GET", "path": "/rest/products/search", "query": "q=drop+shipping", "body": ""}
+{"benign_id": "xh07", "category": "hard_negative", "look_alike": "CWE-89", "method": "GET", "path": "/rest/products/search", "query": "q=banana+or+apple", "body": ""}
+{"benign_id": "xh08", "category": "hard_negative", "look_alike": "CWE-89", "method": "POST", "path": "/api/Users", "query": "", "body": "{\"email\": \"chloe.d'arcy@example.org\", \"password\": \"sunflower field eight\", \"passwordRepeat\": \"sunflower field eight\"}"}
+{"benign_id": "xh09", "category": "hard_negative", "look_alike": "CWE-89", "method": "GET", "path": "/rest/products/search", "query": "q=order+by+price", "body": ""}
+{"benign_id": "xh10", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=smoothie+%3C3+%3C3", "body": ""}
+{"benign_id": "xh11", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=price+%3C+5", "body": ""}
+{"benign_id": "xh12", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=Tom+%26+Jerry+mug", "body": ""}
+{"benign_id": "xh13", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=script+font+poster", "body": ""}
+{"benign_id": "xh14", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=onload+ramp+for+trucks", "body": ""}
+{"benign_id": "xh15", "category": "hard_negative", "look_alike": "CWE-79", "method": "POST", "path": "/api/Feedbacks", "query": "", "body": "{\"comment\": \"5 stars > 4 stars, would buy again :->\", \"rating\": 5}"}
+{"benign_id": "xh16", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=alert+sound+off", "body": ""}
+{"benign_id": "xh17", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=prompt+delivery", "body": ""}
+{"benign_id": "xh18", "category": "hard_negative", "look_alike": "CWE-79", "method": "GET", "path": "/rest/products/search", "query": "q=svg+icons+pack", "body": ""}
+{"benign_id": "xh19", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=v1.2..v1.4+changelog", "body": ""}
+{"benign_id": "xh20", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=wait...", "body": ""}
+{"benign_id": "xh21", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/assets/public/images/products/banana_juice.jpg", "query": "", "body": ""}
+{"benign_id": "xh22", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/assets/i18n/en.json", "query": "", "body": ""}
+{"benign_id": "xh23", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/ftp/report..final.pdf", "query": "", "body": ""}
+{"benign_id": "xh24", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/ftp/notes.v2..draft.md", "query": "", "body": ""}
+{"benign_id": "xh25", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=...", "body": ""}
+{"benign_id": "xh26", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=1...10+counting+book", "body": ""}
+{"benign_id": "xh27", "category": "hard_negative", "look_alike": "CWE-22", "method": "POST", "path": "/api/Feedbacks", "query": "", "body": "{\"comment\": \"Label says best before../2027... confusing\", \"rating\": 3}"}
+{"benign_id": "xh28", "category": "hard_negative", "look_alike": "CWE-22", "method": "GET", "path": "/rest/products/search", "query": "q=file.tar.gz..part2", "body": ""}

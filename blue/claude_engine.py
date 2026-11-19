@@ -48,6 +48,7 @@ from typing import Any, Protocol
 from agents import llm_client as lc
 from agents.prompting import PromptBuilder, parse_json
 from blue import rule_invention
+from rules import library as rule_library
 
 REPO = Path(__file__).resolve().parent.parent
 TAXONOMY = json.loads((REPO / "config" / "taxonomy.json").read_text(encoding="utf-8"))
@@ -283,17 +284,24 @@ def validate_reply(text: str | None, stop_reason: str | None, n: int, rules: boo
 # Rows
 # --------------------------------------------------------------------------
 
-def _row(match_id: str, log_seq: int, request_id: str, *, verdict: str | None = None,
+def _make_row(match_id: str, log_seq: int, request_id: str, *, verdict: str | None = None,
          source: str | None = None, no_verdict_reason: str | None = None,
          failure_detail: str | None = None, rationale: str | None = None,
-         fired_rule_ids: list[str] | None = None) -> dict:
-    """A 0.2 row, or a 0.3 row when fired_rule_ids is given (rules modes shadow/on)."""
-    row = {"schema_version": "0.2" if fired_rule_ids is None else "0.3",
+         fired_rule_ids: list[str] | None = None, library: bool = False,
+         rule_origin: str | None = None) -> dict:
+    """A 0.2 row; a 0.3 row when fired_rule_ids is given (rules modes shadow/on); a 0.4
+    row (Stage 6.1, D22: + rule_origin) when a rule library is loaded."""
+    if library and fired_rule_ids is None:
+        raise ValueError("a library row needs fired_rule_ids")
+    version = "0.2" if fired_rule_ids is None else "0.4" if library else "0.3"
+    row = {"schema_version": version,
            "match_id": match_id, "log_seq": log_seq,
            "request_id": request_id, "verdict": verdict, "source": source,
            "no_verdict_reason": no_verdict_reason, "failure_detail": failure_detail}
     if fired_rule_ids is not None:
         row["fired_rule_ids"] = list(fired_rule_ids)
+    if library:
+        row["rule_origin"] = rule_origin
     if rationale is not None:
         row["rationale"] = rationale[:RATIONALE_MAX]
     if source == "rule":
@@ -304,6 +312,9 @@ def _row(match_id: str, log_seq: int, request_id: str, *, verdict: str | None = 
     else:
         row["reason"] = f"{no_verdict_reason.replace('_', ' ')}: {failure_detail}"
     return row
+
+
+_row = _make_row  # rules mode off (and the tests) use the plain name
 
 
 def read_judged_lines(proxy_log: Path) -> list[dict]:
@@ -336,10 +347,14 @@ class BlueOutput:
 
 def classify(proxy_log: Path, match_id: str, client: Client, model: str, run_dir: Path,
              chunk_size: int = 1, unscored: bool = False, rules_mode: str = "off",
-             max_rules: int = rule_invention.DEFAULT_MAX_RULES) -> BlueOutput:
-    """Verdicts, plus the rules and rejections of modes shadow / on."""
+             max_rules: int = rule_invention.DEFAULT_MAX_RULES,
+             library: rule_library.Library | None = None) -> BlueOutput:
+    """Verdicts, plus the rules and rejections of modes shadow / on. `library` (Stage
+    6.1, mode on only): preloaded cross-match rules; the prompt is unchanged (D21)."""
     if rules_mode not in rule_invention.MODES:
         raise ValueError(f"unknown rules mode {rules_mode!r}")
+    if library is not None and rules_mode != "on":
+        raise ValueError(f"a rule library needs rules mode 'on', not {rules_mode!r}")
     if rules_mode == "off":
         return BlueOutput(classify_log(proxy_log, match_id, client, model, run_dir,
                                        chunk_size, unscored))
@@ -347,7 +362,8 @@ def classify(proxy_log: Path, match_id: str, client: Client, model: str, run_dir
         raise ValueError(f"rule invention (mode {rules_mode!r}) needs chunk_size 1: a rule "
                          f"applies from the next line (D4)")
     return _classify_with_rules(proxy_log, match_id, client, model, run_dir,
-                                rule_invention.RuleBook(match_id, rules_mode, max_rules))
+                                rule_invention.RuleBook(match_id, rules_mode, max_rules,
+                                                        library))
 
 
 def classify_log(proxy_log: Path, match_id: str, client: Client, model: str,
@@ -404,16 +420,23 @@ def _classify_with_rules(proxy_log: Path, match_id: str, client: Client, model: 
       2. otherwise, after a body refusal: instrument_failure without a call.
       3. otherwise one AI call (prompt v2). A valid reply gives the verdict; its
          optional proposal goes to the body (validated, then stored or rejected).
-    Rows are 0.3 (fired_rule_ids empty except on rule verdicts)."""
+    Rows are 0.3 (fired_rule_ids empty except on rule verdicts), or 0.4 with a library
+    (+ rule_origin of the winning rule). The prompt and the messages are identical with
+    and without a library (D21)."""
     _, system, _, schema = PROMPTS[book.mode]
     rows: list[dict] = []
     refused = False
+    lib = book.library is not None
+
+    def _row(*a, **k):  # every row of this loop: 0.3, or 0.4 with a library
+        return _make_row(*a, library=lib, **k)
+
     for seq, line in enumerate(read_judged_lines(proxy_log), start=1):
         rid = line["request_id"]
         firing = book.fire(line, seq)
         if firing.rule_ids:
             rows.append(_row(match_id, seq, rid, verdict=firing.cwe, source="rule",
-                             fired_rule_ids=firing.rule_ids))
+                             fired_rule_ids=firing.rule_ids, rule_origin=firing.origin))
             continue
         if refused:
             rows.append(_row(match_id, seq, rid, no_verdict_reason="instrument_failure",
@@ -469,14 +492,20 @@ def rules_config(cfg: dict, mode: str | None = None) -> dict:
     return out
 
 
-def blue_params(cfg: dict, model: str, chunk_size: int, rules_mode: str | None = None) -> dict:
+def blue_params(cfg: dict, model: str, chunk_size: int, rules_mode: str | None = None,
+                library: dict | None = None) -> dict:
+    """match.json / replay.json blue_params. `library` (Stage 6.1): the loaded rule
+    library's provenance (rules.library.Library.params()), or None; needs mode on."""
     req = lc.agent_request(cfg, "blue")
     provider = cfg["agents"]["blue"]["provider"]
     rules = rules_config(cfg, rules_mode)
+    if library is not None and rules["mode"] != "on":
+        raise ValueError(f"a rule library needs Blue rules mode 'on', not "
+                         f"{rules['mode']!r}")
     version, _, sha, _ = PROMPTS[rules["mode"]]
     return {"provider": provider, "model": model, "chunk_size": chunk_size,
             "prompt_version": version, "system_prompt_sha256": sha,
-            "rules": rules, "caching": lc.caching_params(cfg, "blue"),
+            "rules": rules, "caching": lc.caching_params(cfg, "blue"), "library": library,
             "sdk": sdk_info(provider),
             "request": {"max_output_tokens": lc.agent_max_output_tokens(cfg, "blue"),
                         "thinking": req["thinking"], "effort": req["effort"],

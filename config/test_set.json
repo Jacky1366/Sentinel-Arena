@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "_comment": "Test (scoring) data, S6-1: the 6 audited AI-Red golden matches (3 Stage 5.6 Gate 2, 3 Stage 5.7 Gate 3) and the sealed offline benign files. Never a source for the rule library (tools/promote_rules.py refuses them). fixture_v2_offline is TRAIN data, listed here only because it is sealed in the same commit as the holdout (D31); its sha256 is checked the same way.",
+  "match_ids": [
+    "20261113T052633Z-77ac",
+    "20261113T052837Z-01d4",
+    "20261113T053039Z-4645",
+    "20261114T072114Z-1a3a",
+    "20261114T072400Z-a58a",
+    "20261114T072621Z-a41b"
+  ],
+  "sealed": [
+    {
+      "path": "benign/holdout_v1.jsonl",
+      "role": "test",
+      "sha256": "5066801817c8f1940accc89dba1a3513f2d241f8441029340e80b5a45534945e"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "role": "train",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ]
+}

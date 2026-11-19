@@ -68,6 +68,7 @@ from benign import send_benign  # noqa: E402
 from judge import (JUDGE_VERSION, fact1_landed, fact4_benign, red_facts,  # noqa: E402
                    round_record, rule_facts)
 from red import ai_red, scripted_red  # noqa: E402
+from rules import library as rule_library  # noqa: E402
 from runner import match_ops  # noqa: E402
 from runner.schedule import Schedule, new_seed  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
@@ -79,11 +80,12 @@ def _schema(name: str) -> dict:
     return json.loads((REPO / "schemas" / f"{name}.schema.json").read_text(encoding="utf-8"))
 
 
-MANIFEST_VERSION = "0.7"
+MANIFEST_VERSION = "0.8"
 MANIFEST_SCHEMAS = {"0.1": _schema("match_manifest_v0_1"), "0.2": _schema("match_manifest_v0_2"),
                     "0.3": _schema("match_manifest_v0_3"), "0.4": _schema("match_manifest_v0_4"),
                     "0.5": _schema("match_manifest_v0_5"), "0.6": _schema("match_manifest_v0_6"),
-                    "0.7": _schema("match_manifest")}
+                    "0.7": _schema("match_manifest_v0_7"), "0.8": _schema("match_manifest")}
+PURPOSES = ("dev", "train")  # Stage 6.1 (D26): only a train match can feed the library
 MANIFEST_SCHEMA = MANIFEST_SCHEMAS[MANIFEST_VERSION]
 PRICES_SCHEMA = _schema("prices")
 EXIT = {"completed": 0, "failed": 1, "stopped": 4}  # 2 preflight refused, 3 lock held
@@ -185,12 +187,15 @@ class Ops:
         return llm_client.LLMClient(config=config, prices=prices)
 
     def blue(self, match_dir: Path, match_id: str, engine: str, client=None,
-             model: str | None = None, rules_mode: str | None = None) -> None:
+             model: str | None = None, rules_mode: str | None = None,
+             library: Path | None = None) -> None:
         argv = ["--engine", engine, "--match-id", match_id, "--run-dir", str(match_dir)]
         if model is not None:
             argv += ["--model", model]
         if rules_mode is not None:
             argv += ["--rules-mode", rules_mode]
+        if library is not None:
+            argv += ["--library", str(library)]
         run_blue.main(argv, client=client)
 
     def judge_rounds(self, match_dir: Path) -> None:
@@ -204,6 +209,30 @@ class Ops:
 
     def judge_rules(self, match_dir: Path) -> None:
         rule_facts.main(["--run-dir", str(match_dir)])
+
+
+def load_library(path: Path, engine: str, rules_mode: str | None) -> rule_library.Library:
+    """Load and check a rule library for a run (Stage 6.1, D21). Read-only: nothing here
+    can write a library. Needs claude Blue in rules mode on. Raises ValueError."""
+    if engine != "claude":
+        raise ValueError("--library needs --blue claude (a rule library is preloaded into "
+                         "AI Blue's rules, rules mode on)")
+    if rules_mode != "on":
+        raise ValueError(f"--library needs Blue rules mode 'on', not {rules_mode!r}")
+    return rule_library.load(path, display=_display_path(path))
+
+
+def snapshot_library(src: Path, run_dir: Path, sha256: str) -> Path:
+    """Copy the loaded library into the run folder as library.json (Blue and the Judge read
+    only this copy) and verify the copy against the hash that was loaded."""
+    dst = run_dir / rule_library.SNAPSHOT
+    if dst.exists():
+        raise FileExistsError(f"{dst} already exists")
+    dst.write_bytes(src.read_bytes())
+    if sha256_file(dst) != sha256:
+        raise OSError(f"library snapshot {dst} does not match the loaded library's sha256 "
+                      f"(the file changed while loading)")
+    return dst
 
 
 def _fallback_freeze(ops: Ops, live_dir: Path, match_dir: Path, out) -> str:
@@ -238,7 +267,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               red_engine: str = "scripted", red_model: str | None = None,
               blue_rules_mode: str | None = None, blue_caching: str | None = None,
-              red_caching: str | None = None,
+              red_caching: str | None = None, purpose: str = "dev",
+              library: Path | None = None,
               out=print) -> tuple[int, Path | None]:
     """Run one match. Returns (exit_code, match_dir or None if never started)."""
     ops = ops or Ops()
@@ -278,6 +308,11 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             red_models = {"red": None}
         schedule = Schedule(n_red, benign_ids, seed)  # ValueError on a bad seed
         provenance = {"git": ops.git_info()}
+        if purpose not in PURPOSES:
+            raise ValueError(f"unknown purpose {purpose!r} (one of {PURPOSES})")
+        if purpose == "train" and provenance["git"]["dirty"]:
+            raise ValueError("--purpose train needs a clean committed tree (a train match "
+                             "can feed the rule library, D26)")
         if engine not in run_blue.ENGINE_NAMES:
             raise ValueError(f"unknown Blue engine {engine!r}")
         if engine == "claude":
@@ -286,8 +321,11 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             if chunk != 1:
                 raise ValueError(f"agents.blue.chunk_size is {chunk}: a scored match is one "
                                  f"line per call (D4); chunk_size > 1 is for unscored runs")
-            blue_params = claude_engine.blue_params(llm_config, model, chunk,
-                                                    blue_rules_mode)  # ValueError: bad mode
+            mode = claude_engine.rules_config(llm_config, blue_rules_mode)["mode"]
+            lib = load_library(library, engine, mode) if library is not None else None
+            blue_params = claude_engine.blue_params(
+                llm_config, model, chunk, blue_rules_mode,
+                lib.params() if lib is not None else None)  # ValueError: bad mode
             rules_mode = blue_params["rules"]["mode"]
             models = {**red_models, "blue": {"provider": blue_params["provider"],
                                              "model": model}, "analyst": None}
@@ -295,7 +333,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             if blue_rules_mode not in (None, "off"):
                 raise ValueError("--blue-rules-mode needs --blue claude (rule invention is "
                                  "an AI Blue feature)")
-            model, blue_params, rules_mode = None, None, None
+            if library is not None:
+                load_library(library, engine, None)  # raises: needs claude Blue
+            model, blue_params, rules_mode, lib = None, None, None, None
             models = {**red_models, "blue": None, "analyst": None}
         traffic = {"seed": seed, "seed_source": seed_source,
                    "benign_set": {"path": _display_path(benign_set),
@@ -324,12 +364,21 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
     started_at = match_ops.utc_now()
     out(f"match {match_id} -> {_display_path(match_dir)}")
     out(f"seed {seed} ({seed_source}): {n_red} Red + {len(benign_ids)} benign slots")
+    if purpose != "dev":
+        out(f"purpose: {purpose}")
 
     failed_step: str | None = None
     error: str | None = None
     rotated = frozen = False
     step = "reset"
+    lib_snapshot = None
     try:
+        if lib is not None:
+            step = "library"
+            lib_snapshot = snapshot_library(library, match_dir, lib.sha256)
+            out(f"rule library v{lib.library_version} ({len(lib)} rules, read-only): "
+                f"{lib.path}")
+            step = "reset"
         solved = ops.reset()
         out(f"target reset: {solved} challenges solved")
         if solved != 0:
@@ -360,8 +409,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         ops.judge_fact1(match_dir)
         step = "blue"
         if engine == "claude":
+            extra = {"library": lib_snapshot} if lib_snapshot is not None else {}
             ops.blue(match_dir, match_id, engine, ops.blue_client(llm_config, prices), model,
-                     rules_mode)
+                     rules_mode, **extra)
         else:
             ops.blue(match_dir, match_id, engine)
         step = "judge_rounds"
@@ -406,6 +456,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             "failed_step": failed_step,
             "error": error,
             "judge_version": JUDGE_VERSION,
+            "purpose": purpose,
             "blue_engine": engine,
             "blue_params": blue_params,
             "red_engine": red_engine,
@@ -476,6 +527,12 @@ def main(argv: list[str] | None = None) -> int:
                              "API calls through agents/llm_client.py)")
     parser.add_argument("--red-model", default=None,
                         help="ai: model id (default: config/llm.json agents.red.model)")
+    parser.add_argument("--purpose", choices=PURPOSES, default="dev",
+                        help="dev (default) or train: only a train match, run from a clean "
+                             "committed tree, can feed the rule library (Stage 6.1, D26)")
+    parser.add_argument("--library", type=Path, default=None,
+                        help="claude, rules mode on: preload this rule library, read-only "
+                             "(copied into the match folder as library.json)")
     parser.add_argument("--settle", type=float, default=3.0,
                         help="max seconds to wait for a solve to register")
     args = parser.parse_args(argv)
@@ -483,7 +540,8 @@ def main(argv: list[str] | None = None) -> int:
                         settle=args.settle, engine=args.blue, blue_model=args.blue_model,
                         red_engine=args.red, red_model=args.red_model,
                         blue_rules_mode=args.blue_rules_mode,
-                        blue_caching=args.blue_caching, red_caching=args.red_caching)
+                        blue_caching=args.blue_caching, red_caching=args.red_caching,
+                        purpose=args.purpose, library=args.library)
     return code
 
 

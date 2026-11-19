@@ -52,7 +52,8 @@ REPO = Path(__file__).resolve().parent.parent
 VERDICT_SCHEMAS = {
     v: Draft202012Validator(json.loads((REPO / "schemas" / f"{name}.schema.json")
                                        .read_text(encoding="utf-8")))
-    for v, name in (("0.1", "verdict_v0_1"), ("0.2", "verdict_v0_2"), ("0.3", "verdict"))}
+    for v, name in (("0.1", "verdict_v0_1"), ("0.2", "verdict_v0_2"), ("0.3", "verdict_v0_3"),
+                    ("0.4", "verdict"))}
 
 UUID4 = __import__("re").compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
@@ -103,10 +104,15 @@ def normalize_verdict(row: dict) -> dict:
     if row["schema_version"] == "0.1":
         return {"request_id": row["request_id"], "log_seq": row["log_seq"],
                 "match_id": row["match_id"], "verdict": row["verdict"],
-                "source": "signature", "no_verdict_reason": None, "fired_rule_ids": []}
+                "source": "signature", "no_verdict_reason": None, "fired_rule_ids": [],
+                "rule_origin": None, "schema_version": "0.1"}
     out = {k: row[k] for k in ("request_id", "log_seq", "match_id", "verdict", "source",
-                               "no_verdict_reason")}
-    out["fired_rule_ids"] = list(row.get("fired_rule_ids", []))  # 0.3 only
+                               "no_verdict_reason", "schema_version")}
+    out["fired_rule_ids"] = list(row.get("fired_rule_ids", []))  # 0.3 / 0.4
+    # 0.4 (Stage 6.1): where the winning rule came from; before 0.4 a rule verdict could
+    # only come from an in-match rule.
+    out["rule_origin"] = row.get("rule_origin",
+                                 "match" if row["source"] == "rule" else None)
     return out
 
 

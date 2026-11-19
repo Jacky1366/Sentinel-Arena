@@ -17,6 +17,11 @@ scripted (or a legacy 0.1 Red record without a source) carries a designer-writte
 verified in Stage 2, so it is valid by construction and has no audit line. A match with
 only scripted rounds needs no audit file: its audited numbers equal the raw ones.
 
+A TRAIN match (match.json purpose "train", Stage 6.1, D30) is audited only where the rule
+library needs it: the SOURCE ROUNDS OF CANDIDATE RULES (the rounds whose request produced
+a rule in rules.jsonl). scaffold, validate and sheet use exactly those rounds; apply still
+prints the raw numbers (its audited view stays incomplete, by design).
+
 A replay folder (tools/replay_blue.py, D17) is audited through its SOURCE match: the
 match id comes from replay.json source.match_id, so the source's audit file applies.
 
@@ -96,6 +101,21 @@ def scripted_rounds(match_dir: Path) -> set[int]:
     return ms.scripted_rounds(_jl(match_dir / "red_attacks.jsonl"))
 
 
+def audit_scope(match_dir: Path) -> set[int] | None:
+    """The rounds a scoped audit covers, or None for a full audit (D30, Stage 6.1). A train
+    match is audited only on the source rounds of its candidate rules: the AI-labeled Red
+    rounds whose request_id is the source_request_id of a rule in rules.jsonl."""
+    mpath = match_dir / "match.json"
+    if not mpath.is_file():
+        return None
+    if json.loads(mpath.read_text(encoding="utf-8")).get("purpose") != "train":
+        return None
+    sources = {r["rule"]["source_request_id"] for r in _jl(match_dir / "rules.jsonl")}
+    scripted = scripted_rounds(match_dir)
+    return {a["round"] for a in _jl(match_dir / "red_attacks.jsonl")
+            if a["request_id"] in sources and a["round"] not in scripted}
+
+
 def audit_path(match_id: str, audits: Path | None = None, golden: Path | None = None) -> Path:
     """The committed golden audit wins; otherwise the dev location (may not exist).
     Locations are read at call time (module globals), so tests can redirect them."""
@@ -111,9 +131,10 @@ def load_audit(match_dir: Path, audits: Path | None = None, golden: Path | None 
 
 
 def validate_rows(rows: list[dict], match_id: str, rounds: list[dict],
-                  scripted: set[int] | frozenset = frozenset()) -> list[str]:
-    """One line per AI-labeled round, exactly. Scripted rounds (valid by construction)
-    must not appear."""
+                  scripted: set[int] | frozenset = frozenset(),
+                  scope: set[int] | None = None) -> list[str]:
+    """One line per AI-labeled round, exactly (or, with a D30 scope, per scoped round).
+    Scripted rounds (valid by construction) must not appear."""
     errors = []
     for i, row in enumerate(rows, start=1):
         errors += [f"line {i}: {e.message}" for e in SCHEMA.iter_errors(row)]
@@ -127,7 +148,7 @@ def validate_rows(rows: list[dict], match_id: str, rounds: list[dict],
     if on_scripted:
         errors.append(f"rounds {on_scripted} carry scripted labels: valid by construction, "
                       f"never audited (D16)")
-    want = {r["round"] for r in rounds} - set(scripted)
+    want = ({r["round"] for r in rounds} if scope is None else set(scope)) - set(scripted)
     extra = set(seen) - want - set(scripted)
     if extra:
         errors.append(f"rounds not in the match: {sorted(extra)}")
@@ -147,13 +168,18 @@ def scaffold(match_dir: Path, golden: bool = False, audits: Path | None = None,
     if not rounds:
         raise AuditError(f"no rounds.jsonl in {match_dir} (the Judge must have run)")
     scripted = scripted_rounds(match_dir)
+    scope = audit_scope(match_dir)
     rows = [{"schema_version": "0.1", "match_id": mid, "round": r["round"],
              "verdict": "unaudited", "reason": "", "auditor": None, "date": None}
-            for r in sorted(rounds, key=lambda r: r["round"]) if r["round"] not in scripted]
+            for r in sorted(rounds, key=lambda r: r["round"]) if r["round"] not in scripted
+            and (scope is None or r["round"] in scope)]
+    if not rows and scope is not None:
+        raise AuditError(f"{match_dir}: a train match with no candidate rule; there is "
+                         f"nothing to audit (D30)")
     if not rows:
         raise AuditError(f"{match_dir}: every round carries a scripted label, valid by "
                          f"construction (D16); there is nothing to audit")
-    errors = validate_rows(rows, mid, rounds, scripted)
+    errors = validate_rows(rows, mid, rounds, scripted, scope)
     if errors:
         raise AuditError(f"scaffold would be invalid: {errors}")  # a bug, never data
     out = (golden_dir if golden else audits) / f"{mid}.jsonl"
@@ -174,8 +200,9 @@ def summary(match_dir: Path, audits: Path | None = None, golden: Path | None = N
     path, rows = load_audit(match_dir, audits, golden)
     mid = match_id_of(match_dir)
     scripted = scripted_rounds(match_dir)
+    scope = audit_scope(match_dir)
     if rows:
-        errors = validate_rows(rows, mid, rounds, scripted)
+        errors = validate_rows(rows, mid, rounds, scripted, scope)
         if errors:
             raise AuditError(f"{path}: {errors}")
     view = ms.apply_audit(rounds, rows, scripted)
@@ -199,6 +226,7 @@ def summary(match_dir: Path, audits: Path | None = None, golden: Path | None = N
             "audited_excludes_label_invalid": view["invalid"],
             "valid": view["valid"], "unaudited": view["unaudited"],
             "valid_by_construction": view["valid_by_construction"],
+            "audit_scope": None if scope is None else sorted(scope),
             "audit_first": {str(k): v for k, v in ms.audit_first(rounds, challenge_map).items()}}
 
 
@@ -255,11 +283,16 @@ def sheet(match_dirs: list[Path], audits: Path | None = None, golden: Path | Non
                     f"`{_rel(path)}`" + ("" if audit else " (missing)"))
         verdicts = {a["round"]: a for a in audit}
         scripted = scripted_rounds(d)
+        scope = audit_scope(d)
+        if scope is not None:
+            head[-1] += f"; train match: candidate source rounds only {sorted(scope)} (D30)"
         proxy = {x["request_id"]: x for x in _jl(d / "proxy.jsonl") if x.get("request_id")}
         rounds = {x["request_id"]: x for x in _jl(d / "rounds.jsonl")}
         flagged = ms.audit_first(list(rounds.values()), challenge_map)
         items = []
         for a in _jl(d / "red_attacks.jsonl"):
+            if scope is not None and a["round"] not in scope:
+                continue
             px, r = proxy.get(a["request_id"], {}), rounds.get(a["request_id"], {})
             target = px.get("path", a["endpoint"]) + (f"?{px['query']}" if px.get("query") else "")
             if not px and a["payload"].startswith("/"):
@@ -276,7 +309,7 @@ def sheet(match_dirs: list[Path], audits: Path | None = None, golden: Path | Non
                 "valid (scripted)" if a["round"] in scripted else v["verdict"] if decided else "",
                 "designer-written label, valid by construction (D16)" if a["round"] in scripted
                 else _esc(v.get("reason", "")) if decided else ""]))
-        for u in _jl(d / "red_unsent.jsonl"):
+        for u in ([] if scope is not None else _jl(d / "red_unsent.jsonl")):
             p = u.get("proposed") or {}
             items.append((u["round"], [
                 str(n), str(u["round"]), f"unsent: {u['kind']}/{u['reason']}",
@@ -319,7 +352,8 @@ def main(argv: list[str] | None = None) -> int:
                 raise AuditError(f"no audit file at {path}")
             errors = validate_rows(rows, match_id_of(args.match_dir),
                                    _jl(args.match_dir / "rounds.jsonl"),
-                                   scripted_rounds(args.match_dir))
+                                   scripted_rounds(args.match_dir),
+                                   audit_scope(args.match_dir))
             if errors:
                 for e in errors:
                     print(f"INVALID {_rel(path)}: {e}")
