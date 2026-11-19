@@ -912,3 +912,40 @@ def test_open_blue_replay_other_on_attack_and_benign_passes_full_judge(dirs, tmp
     assert any(b["verdict"] == "other" and b["false_positive"] for b in benign)
     rounds = [_j.loads(l) for l in (rdir / "rounds.jsonl").read_text().splitlines()]
     assert any(r.get("verdict") == "other" and r.get("detected") for r in rounds)
+
+
+def test_benign_fp_persists_every_verdict(tmp_path):
+    from llm_fakes import make_client
+    from test_blue_rules import Brain
+    import json as _j
+    def brain(view):
+        if "' OR 1=1" in view.get("query", ""):
+            return _j.dumps({"verdicts": [{"index": 1, "label": "CWE-89"}]})
+        return _j.dumps({"verdicts": [{"index": 1, "label": "benign"}]})
+    client, _ = make_client(adapter=Brain(brain), tmp_path=tmp_path)
+    lines = [{"method": "GET", "path": "/", "query": "q=x", "body": "", "_id": "a", "_set": "h"},
+             {"method": "GET", "path": "/", "query": "q=' OR 1=1--", "body": "", "_id": "b",
+              "_set": "fix"}]
+    res = g.benign_fp(client, "fake-small", "on", lines, tmp_path / "fp")
+    rows = [_j.loads(l) for l in (tmp_path / "fp" / "fp_verdicts.jsonl").read_text().splitlines()]
+    assert len(rows) == 2  # every line, not only FPs
+    assert {r["benign_id"]: r["false_positive"] for r in rows} == {"a": False, "b": True}
+    assert res["fp"] == 1
+
+
+def test_gate_c_open_fp_only_skips_replays(dirs, tmp_path, capsys):
+    from llm_fakes import make_client
+    hold = tmp_path / "h.jsonl"
+    hold.write_text(json.dumps({"benign_id": "xh1", "category": "normal", "look_alike": None,
+                                "method": "GET", "path": "/", "query": "", "body": ""}) + "\n")
+    fix = tmp_path / "f.jsonl"
+    fix.write_text(json.dumps({"benign_id": "n1", "category": "normal", "method": "GET",
+                               "path": "/", "query": "", "body": ""}) + "\n")
+    from test_run_match_failure import FakeOps
+    blue_llm, _ = make_client(adapter=None, tmp_path=tmp_path)
+    code = g.gate_c_open(PRICES, root=tmp_path / "co", ops=FakeOps(tmp_path), blue_llm=blue_llm,
+                         holdout=hold, fixture=fix, fp_only=True)
+    out = capsys.readouterr().out
+    assert code == 0 and "open Blue replays" not in out and "prompt false positives" in out
+    for pk in ("on", "open"):
+        assert (tmp_path / "co" / f"fp-{pk}" / "fp_verdicts.jsonl").is_file()

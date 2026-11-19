@@ -447,6 +447,15 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
       access-control / disclosure attacks) without hurting CWE detection, but raises Blue's
       false-positive rate from 0 to ~10% on benign traffic. The taxonomy-vs-coverage trade-off
       is now measured.
+- **D43 audit scope (option B, Nov 19):** full audits for Gate B (D16) and Gate B-freeplay
+  (binary) only; Gate B-deepseek and Gate B-evasion stay RAW / unaudited (raw detection 100%;
+  an audit only shrinks the denominator, so the rate cannot change; type-correct unaudited).
+- **D44 Blue roles (Nov 19):** original Blue is the default defender everywhere; open Blue
+  (v3-open) is a replay-only analysis result (coverage-vs-FP), never pooled. Stage 7: a
+  dashboard bundle of the free-play replay with open vs original Blue (no build now).
+- **2c FP (persisted, Nov 19):** original v2 0/57 (CP95% upper 6.3%); open v3-open 6/57 =
+  10.5% (CP95% [3.96%, 21.5%]). The 6: holdout xn05, xn08 (other), xh20 (CWE-89), xh23, xh28
+  (CWE-22); fixture n08 (other). Per-line verdicts persisted in the gate-6.3-C-open fp folders.
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

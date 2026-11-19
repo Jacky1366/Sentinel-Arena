@@ -26,6 +26,12 @@ Every file except this README is listed in `match.json` → `artifacts` with its
 `tests/test_gate_6_3_gateB_evasion_evidence.py` checks them. Re-running would make real,
 paid calls. The files here are never rewritten.
 
+## Audit (D43: RAW / unaudited)
+
+Per D43 (decided before auditing), Gate B-evasion is reported with RAW numbers and is
+**unaudited** (same rationale as Gate B-deepseek: raw detection 100%; an audit only shrinks
+the denominator). The scaffold below is retained but not filled.
+
 ## Label audit (D16, D36)
 
 FULL audit: every Red round. The scaffold is `data/golden/audits/20261119T082130Z-da57.jsonl` (all

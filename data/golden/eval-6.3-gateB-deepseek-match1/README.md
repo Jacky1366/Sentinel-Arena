@@ -27,6 +27,13 @@ Every file except this README is listed in `match.json` → `artifacts` with its
 the test-set registration. Re-running would make real, paid calls. The files here are never
 rewritten.
 
+## Audit (D43: RAW / unaudited)
+
+Per D43 (decided before auditing), Gate B-deepseek is reported with RAW numbers and is
+**unaudited**: raw detection is 100%, and an audit only removes rounds from the denominator,
+so it cannot change the detection rate; type-correctness stays unaudited. The scaffold below
+is retained but not filled.
+
 ## Label audit (D16, D36)
 
 FULL audit: every Red round. The scaffold is `data/golden/audits/20261119T071647Z-3ffc.jsonl` (all

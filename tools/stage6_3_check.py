@@ -470,7 +470,7 @@ def benign_fp(blue_llm, model, prompt_key, lines, run_dir) -> dict:
     open_mode = prompt_key == "open"
     run_dir.mkdir(parents=True, exist_ok=True)
     mid = run_match.new_match_id()
-    fps, n = [], 0
+    fps, n, verdicts = [], 0, []
     for i, line in enumerate(lines, start=1):
         r = blue_llm.complete("blue", model, system,
                               claude_engine.build_messages([line], system), run_dir=run_dir,
@@ -479,15 +479,22 @@ def benign_fp(blue_llm, model, prompt_key, lines, run_dir) -> dict:
         v, _ = claude_engine.validate_reply(r.text, r.stop_reason, 1, rules=True,
                                             open_mode=open_mode)
         label = v[1][0] if v else None
+        technique = v[1][3] if (v and open_mode) else None
         n += 1
-        if label is not None and label != "benign":
+        fp = label is not None and label != "benign"
+        verdicts.append({"prompt": prompt_key, "benign_id": line["_id"], "set": line["_set"],
+                         "verdict": label, "technique": technique, "false_positive": fp})
+        if fp:
             fps.append({"id": line["_id"], "set": line["_set"], "verdict": label})
+    # persist EVERY benign-line verdict (not only the FPs), so the FP count is auditable.
+    (run_dir / "fp_verdicts.jsonl").write_text(
+        "".join(json.dumps(x, sort_keys=True) + "\n" for x in verdicts), encoding="utf-8")
     return {"prompt": prompt_key, "fp": len(fps), "n": n, "detail": fps}
 
 
 def gate_c_open(prices: dict, root: Path | None = None, ops=None, library: Path = LIB_V5,
                 blue_llm=None, holdout: Path = HOLDOUT, fixture: Path = FIXTURE,
-                freeplay=None, deepseek=None) -> int:
+                freeplay=None, deepseek=None, fp_only: bool = False) -> int:
     """D42: open Blue (v3-open) by replay on the free-play (2a) and DeepSeek (2b) logs, plus
     the prompt-FP check (2c) for the original and open prompts over the holdout + fixture."""
     ops = ops or run_match.Ops()
@@ -510,7 +517,8 @@ def gate_c_open(prices: dict, root: Path | None = None, ops=None, library: Path 
             ok &= code in (0, 4)
         return rdir
 
-    for tag, logs in (("free-play (2a)", freeplay), ("deepseek (2b)", deepseek)):
+    for tag, logs in () if fp_only else (("free-play (2a)", freeplay),
+                                         ("deepseek (2b)", deepseek)):
         print(f"\n### open Blue replays — {tag}")
         for d in logs:
             rdir = open_replay(d)
@@ -552,6 +560,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="Gate A probe: override the candidate's effort (effort check)")
     ap.add_argument("--probe-freeplay", action="store_true",
                     help="Gate A probe: use Red prompt v3 + the free-play output schema (D41)")
+    ap.add_argument("--fp-only", action="store_true",
+                    help="Gate C-open: run only the prompt-FP check (2c), not the replays")
     ap.add_argument("--probe-half", choices=("both", "red", "blue"), default="both",
                     help="Gate A probe: run only the Red or only the Sonnet Blue call")
     ap.add_argument("--matches", type=Path, nargs="+", default=None, help="Gate C: Gate B folders")
@@ -629,7 +639,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.gate == "B-freeplay":
         return gate_b(prices, arm=FREEPLAY_ARM)
     if args.gate == "C-open":
-        return gate_c_open(prices)
+        return gate_c_open(prices, fp_only=args.fp_only)
     return gate_b(prices) if args.gate == "B" else gate_c(prices, args.matches)
 
 
