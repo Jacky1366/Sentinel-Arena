@@ -245,6 +245,10 @@ unchanged, and `replay.json` `blue_params.request.thinking` records it. The Haik
     designer-verified Nov 18.
   - Chinese public holidays count as peak, so cost is never under-reported.
   - Every DeepSeek line records `rate_window`. The `price_window` refusal is removed.
+- **Finding (2026-11-19): DeepSeek is the only provider that allowed a mid/high-tier model
+  as Red.** `deepseek-v4-pro` accepted Red prompt v1 at effort max. Its V4 Pro weights are
+  open, so provider-side safeguards constrain the API, not the published weights.
+  **Limitation:** the DeepSeek refusal shape is untested (deliberately not provoked).
 - **Design note: same-family arm.** An Anthropic Red against an Anthropic Blue is a
   same-family arm. Family effects could bias detection in either direction, so it is
   reported as a **separately labelled treatment** and **never pooled** with cross-family

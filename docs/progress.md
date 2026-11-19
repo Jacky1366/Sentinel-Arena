@@ -451,8 +451,11 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
       method / path / label). The full schema (all five fields, enums) was NOT checked: the
       probe kept the reply in memory only. Probes now print the proposal and a full schema
       check.
-    - Full-build checklist still open: usage vs dashboard, `json_schema` honoured, effort
-      honoured, refusal shape.
+    - **Dashboard (designer, Nov 19):** 1 request, 1,266 total tokens, matching our record
+      on the total. The UI shows no per-direction split.
+    - **Finding:** DeepSeek is the only provider that allowed a mid/high-tier model as Red.
+      V4 Pro is open weight, so provider-side safeguards constrain the API, not the weights.
+    - **Limitation:** the refusal shape is untested (deliberately not provoked).
 - **Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5): built on the fake provider.**
   - Red turn caching: 5-minute breakpoint on the latest user turn.
   - Refusals surface `stop_details`.

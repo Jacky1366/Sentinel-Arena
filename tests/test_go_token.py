@@ -36,6 +36,7 @@ PAID = [  # (tool module, argv, gate id)
     ("stage6_3_check", ["--gate", "C", "--matches", str(REPO / "data" / "golden"
                                                         / "train-6.1b-gate1-match1"),
                         "--real-calls"], "gate-6.3-C"),
+    ("stage6_3_check", ["--gate", "B-deepseek", "--real-calls"], "gate-6.3-B-deepseek"),
 ]
 
 

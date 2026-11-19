@@ -230,7 +230,7 @@ def test_probe_passes_on_clean_replies(tmp_path, capsys):
 
 def test_effort_values_are_the_api_values():
     # a second EFFORTS once narrowed config validation to minimal..high (Nov 18 fix)
-    assert lc.EFFORTS == ("low", "medium", "high", "xhigh", "max")
+    assert lc.EFFORTS == ("none", "low", "medium", "high", "xhigh", "max")
     base = lc.load_config()
     assert lc.with_effort(base, "red", "xhigh")["agents"]["red"]["request"]["effort"] == "xhigh"
     with pytest.raises(lc.ConfigError):
@@ -379,3 +379,82 @@ def test_red_schema_check_is_the_full_schema():
         .startswith("VIOLATES")  # body / rationale missing: AI Red's check would accept it
     assert g.red_schema_check(ok.replace("CWE-89", "CWE-999")).startswith("VIOLATES")
     assert g.red_schema_check("not json") == "NOT JSON"
+
+
+# ---- DeepSeek: effort check and Gate B-deepseek (fake provider) ---------------------------
+
+def test_probe_effort_override_for_the_effort_check(tmp_path, capsys):
+    from llm_fakes import FakeAdapter
+    from test_run_match_ai_vs_ai import RED_REPLY
+    prices = cost_stats.load_prices()
+    for effort in ("none", "high", "max"):
+        ds = FakeAdapter(provider="deepseek", text=RED_REPLY)
+        fac = lambda cfg, ds=ds: lc.LLMClient(config=cfg, prices=prices,  # noqa: E731
+                                              adapters={"deepseek": ds}, env={},
+                                              sleep=lambda s: None,
+                                              dotenv_path=REPO / "nonexistent" / "no.env")
+        assert g.probe(out_root=tmp_path / effort, client_factory=fac,
+                       red_model="deepseek-v4-pro", blue=False, red_effort=effort) == 0
+        assert [c["request"]["effort"] for c in ds.calls] == [effort]
+    out = capsys.readouterr().out
+    assert out.count("red reply schema: conforms") == 3  # the FULL schema, every reply
+    assert out.count("attack: ") == 3  # the proposal is printed
+
+
+class DeepSeekGateOps(GateOps):
+    """Gate B-deepseek on the fake provider: the Red client answers as provider deepseek."""
+
+    def llm_setup(self):
+        cfg, prices, ref = super().llm_setup()
+        prices = json.loads(json.dumps(prices))
+        prices["models"]["deepseek-v4-pro"] = cost_stats.load_prices()["models"]["deepseek-v4-pro"]
+        return cfg, prices, ref
+
+    def red_client(self, config, prices):
+        from llm_fakes import FakeAdapter
+        from test_run_match_ai_vs_ai import RED_REPLY
+        return lc.LLMClient(config=config, prices=prices,
+                            adapters={"deepseek": FakeAdapter(provider="deepseek",
+                                                              text=RED_REPLY)},
+                            env={}, sleep=lambda s: None,
+                            dotenv_path=REPO / "nonexistent" / "no.env",
+                            now=lambda: "2026-11-23T02:00:00.000Z")  # a peak window
+
+
+def test_gate_b_deepseek_offline(dirs, tmp_path, monkeypatch, capsys):
+    live, runs = dirs
+    monkeypatch.setattr(g, "BLUE_LIVE", "fake-small")
+    ids = iter(f"20261120T0400{i:02d}Z-dddd" for i in range(20))
+    monkeypatch.setattr(g.run_match, "new_match_id", lambda: next(ids))
+    ts = tmp_path / "test_set.json"
+    ts.write_text((REPO / "config" / "test_set.json").read_text())
+    sheets, audits = tmp_path / "sheets", tmp_path / "audits"
+    sheets.mkdir()
+    arm = {**g.DEEPSEEK_ARM, "seeds": (6311, 6312)}
+    code = g.gate_b(PRICES, sheet_dir=sheets, audits=audits, test_set=ts, arm=arm,
+                    ops=DeepSeekGateOps(live, answer=good_brain), live_dir=live, runs_dir=runs)
+    out = capsys.readouterr().out
+    assert code == 0, out
+    ds = sorted(p for p in runs.glob("2026*") if (p / "match.json").is_file())
+    ms_ = [json.loads((d / "match.json").read_text()) for d in ds]
+    assert [m["traffic"]["seed"] for m in ms_] == [6311, 6312]
+    for d, m in zip(ds, ms_):
+        assert m["purpose"] == "eval" and m["red_params"]["provider"] == "deepseek"
+        assert m["red_params"]["model"] == "deepseek-v4-pro"
+        assert m["red_params"]["request"]["reasoning_effort"] == "max"
+        assert m["red_params"]["request"]["max_output_tokens"] == 8192
+        assert m["red_params"]["caching"] == {"mode": "on", "ttl": "auto"}
+        assert m["red_params"]["sdk"]["package"] == "openai"
+        assert m["blue_params"]["library"]["sha256"] == g.LIB_V5_SHA
+        red_calls = [json.loads(l) for l in (d / "api_calls.jsonl").read_text().splitlines()
+                     if json.loads(l)["agent"] == "red"]
+        assert red_calls and all(c["rate_window"] == "peak" for c in red_calls)
+    assert set(json.loads(ts.read_text())["match_ids"]) >= {m["match_id"] for m in ms_}
+    assert next(sheets.glob("stage6_3_gateB_deepseek_*.md")).is_file()
+
+
+def test_red_provider_override_needs_ai_red(dirs):
+    code, d, out = go_match(dirs, RulesOps(dirs[0]), engine="claude", red_provider="deepseek")
+    assert code == 2 and d is None and "--red-provider needs --red ai" in out
+    with pytest.raises(lc.ConfigError):
+        lc.with_provider(lc.load_config(), "red", "fake")

@@ -1399,6 +1399,16 @@ exist or be empty, and must not be or lie inside any folder holding a `match.jso
   - the refusal shape: undocumented for the Responses API.
 - **Full-build checklist** before any scored DeepSeek match (Gate B-deepseek): all four
   items above verified, each recorded with its evidence.
+  - **Usage (designer, 2026-11-19):** the DeepSeek Usage page shows 1 request and 1,266
+    total tokens for the probe, which matches our record (502 + 764). The page shows totals
+    only, so the input / output split is matched on the total; the per-direction split is
+    not shown in the UI.
+  - **Effort and json_schema:** the effort check sends the same Red prompt v1 at effort
+    none / high / max, with the full Red schema check on each reply (results in
+    `docs/progress.md`).
+  - **Refusal shape: untested, and deliberately not provoked.** A limitation: a DeepSeek
+    refusal may surface as an unrecognized reply (a failed Red turn) rather than as
+    `stop_reason: refusal`.
 
 ## 6.10 Prompt caching (Stage 5.7, D18)
 

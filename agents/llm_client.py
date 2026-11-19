@@ -98,7 +98,7 @@ API_CALL_SCHEMA = Draft202012Validator(json.loads(
 
 
 THINKING = ("disabled", "adaptive", "between_tools")  # between_tools: Sonnet 5.5's "off"
-EFFORTS = ("low", "medium", "high", "xhigh", "max")
+EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")  # none: DeepSeek thinking off
 RULES_MODES = ("off", "shadow", "on")  # agents.blue.rules.mode (Stage 5.5)
 CACHING_MODES = ("off", "on")  # agents.<agent>.caching (Stage 5.7)
 # The only cache-write lifetimes config/prices.json has a price for (cache_write).
@@ -293,6 +293,18 @@ def with_thinking(cfg: dict, agent: str, thinking: str | None) -> dict:
         raise ConfigError(f"thinking must be one of {THINKING}, not {thinking!r}")
     out = json.loads(json.dumps(cfg))
     out["agents"][agent].setdefault("request", {})["thinking"] = thinking
+    return out
+
+
+def with_provider(cfg: dict, agent: str, provider: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.provider set (None: unchanged). Used for
+    --red-provider (Stage 6.3: a DeepSeek Red arm)."""
+    if provider is None:
+        return cfg
+    if provider not in KEY_ENV:
+        raise ConfigError(f"provider must be one of {tuple(KEY_ENV)}, not {provider!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["provider"] = provider
     return out
 
 

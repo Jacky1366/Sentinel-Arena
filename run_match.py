@@ -270,6 +270,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               red_engine: str = "scripted", red_model: str | None = None,
               red_effort: str | None = None, red_max_output_tokens: int | None = None,
+              red_provider: str | None = None,
               blue_rules_mode: str | None = None, blue_caching: str | None = None,
               red_caching: str | None = None, purpose: str = "dev",
               library: Path | None = None,
@@ -294,6 +295,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         if red_max_output_tokens is not None and red_engine != "ai":
             raise ValueError("--red-max-output-tokens needs --red ai (an AI-call setting)")
         llm_config = llm_client.with_max_output_tokens(llm_config, "red", red_max_output_tokens)
+        if red_provider is not None and red_engine != "ai":
+            raise ValueError("--red-provider needs --red ai (an AI-call setting)")
+        llm_config = llm_client.with_provider(llm_config, "red", red_provider)
         llm_config = llm_client.with_caching(llm_config, "blue", blue_caching)
         # AI clients are built here, before the lock or the Target is touched: a real
         # provider client without the GO token raises GoTokenError (a ValueError) and
@@ -551,6 +555,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--red-effort", choices=llm_client.EFFORTS, default=None,
                         help="ai: reasoning effort override (default: config/llm.json "
                              "agents.red.request.effort; Stage 6.3, D33)")
+    parser.add_argument("--red-provider", choices=tuple(llm_client.KEY_ENV), default=None,
+                        help="ai: Red provider override (default: config/llm.json "
+                             "agents.red.provider; Stage 6.3: deepseek)")
     parser.add_argument("--red-max-output-tokens", type=int, default=None,
                         help="ai: Red output budget override, reasoning included (default: "
                              "config/llm.json agents.red.max_output_tokens; Stage 6.3, D38)")
@@ -565,6 +572,7 @@ def main(argv: list[str] | None = None) -> int:
                         red_engine=args.red, red_model=args.red_model,
                         red_effort=args.red_effort,
                         red_max_output_tokens=args.red_max_output_tokens,
+                        red_provider=args.red_provider,
                         blue_rules_mode=args.blue_rules_mode,
                         blue_caching=args.blue_caching, red_caching=args.red_caching,
                         purpose=args.purpose, library=args.library)

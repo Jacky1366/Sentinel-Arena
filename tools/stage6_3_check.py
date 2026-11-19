@@ -58,6 +58,10 @@ TEST_SET = REPO / "config" / "test_set.json"
 PROFILE = [REPO / "data" / "golden" / f"train-6.1b-gate1-match{i}" for i in range(1, 6)]
 PROBE_LOG = REPO / "data" / "golden" / "scripted-baseline-benign-match" / "proxy.jsonl"
 SONNET_THINKING = "between_tools"
+# Gate B-deepseek (designer, Nov 19; conditional on the effort check): the same protocol as
+# Gate B with a DeepSeek Red, an additional treatment arm; new seeds.
+DEEPSEEK_ARM = {"model": "deepseek-v4-pro", "provider": "deepseek", "effort": "max",
+                "seeds": (6311, 6312, 6313), "sheet": "stage6_3_gateB_deepseek"}
 # Gate A Red candidates the designer named (Nov 18), probed one at a time, conditionally:
 # model -> (provider, effort). Anthropic Red is a SAME-FAMILY arm with the Anthropic Blue
 # (reported separately, never pooled with cross-family results).
@@ -191,7 +195,8 @@ def red_schema_check(text: str | None) -> str:
 
 
 def probe(out_root: Path | None = None, client_factory=None,
-          red_model: str | None = RED_MODEL, blue: bool = True) -> int:
+          red_model: str | None = RED_MODEL, blue: bool = True,
+          red_effort: str | None = None) -> int:
     """At most ONE Red proposal (dry run, nothing sent) for red_model at its candidate
     effort, and ONE Sonnet Blue call (prompt v2, thinking between_tools). Either half can
     be skipped (red_model None / blue False). A failed or refused call is never retried by
@@ -227,6 +232,7 @@ def probe(out_root: Path | None = None, client_factory=None,
     runs = []
     if red_model is not None:
         provider, effort = PROBE_CANDIDATES[red_model]
+        effort = red_effort or effort  # effort-verification check (contract 6.9b)
         cfg = gate_config(model=red_model, effort=effort, provider=provider,
                           max_output_tokens=PROBE_RED_MAX_OUTPUT)
         (root / "red").mkdir(parents=True)
@@ -282,15 +288,20 @@ def library_ok(path: Path = LIB_V5) -> list[str]:
 
 
 def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = None,
-           test_set: Path = TEST_SET, library: Path = LIB_V5, **run_kw) -> int:
-    """run_kw (tests only): ops / live_dir / runs_dir for run_match.run_match."""
+           test_set: Path = TEST_SET, library: Path = LIB_V5, arm: dict | None = None,
+           **run_kw) -> int:
+    """run_kw (tests only): ops / live_dir / runs_dir for run_match.run_match. arm: None
+    for the D38 Gate B, or DEEPSEEK_ARM (Gate B-deepseek)."""
+    arm = arm or {"model": RED_MODEL, "provider": None, "effort": RED_EFFORT,
+                  "seeds": SEEDS, "sheet": "stage6_3_gateB"}
     dirs, ok = [], True
-    for i, seed in enumerate(SEEDS, start=1):
-        print(f"\n##### eval match {i}/{len(SEEDS)} (seed {seed}, Red {RED_MODEL} effort "
-              f"{RED_EFFORT} max_output_tokens {RED_MAX_OUTPUT}, Blue {BLUE_LIVE} rules on, "
+    seeds = arm["seeds"]
+    for i, seed in enumerate(seeds, start=1):
+        print(f"\n##### eval match {i}/{len(seeds)} (seed {seed}, Red {arm['model']} effort "
+              f"{arm['effort']} max_output_tokens {RED_MAX_OUTPUT}, Blue {BLUE_LIVE} rules on, "
               f"library v5 read-only)")
-        code, d = run_match.run_match(seed=seed, red_engine="ai", red_model=RED_MODEL,
-                                      red_effort=RED_EFFORT,
+        code, d = run_match.run_match(seed=seed, red_engine="ai", red_model=arm["model"],
+                                      red_effort=arm["effort"], red_provider=arm["provider"],
                                       red_max_output_tokens=RED_MAX_OUTPUT,
                                       red_caching="on", engine="claude",
                                       blue_model=BLUE_LIVE, blue_rules_mode="on",
@@ -315,12 +326,12 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
         except audit_match.AuditError as exc:
             print(f"  {d.name}: {exc}")
     if dirs:
-        sheet = (sheet_dir or REPO / "docs" / "audits") / f"stage6_3_gateB_{dirs[0].name}.md"
+        sheet = (sheet_dir or REPO / "docs" / "audits") / f"{arm['sheet']}_{dirs[0].name}.md"
         sheet.write_text(audit_match.sheet(dirs, audits=audits), encoding="utf-8")
         print(f"  sheet {audit_match._rel(sheet)}")
     total = sum(json.loads((d / "match.json").read_text())["cost"]["total_usd"] for d in dirs)
-    good = ok and len(dirs) == len(SEEDS)
-    print(f"\nRESULT: {'PASS' if good else 'FAIL'} ({len(dirs)}/{len(SEEDS)} eval matches, "
+    good = ok and len(dirs) == len(seeds)
+    print(f"\nRESULT: {'PASS' if good else 'FAIL'} ({len(dirs)}/{len(seeds)} eval matches, "
           f"${total:.6f}). Next: the designer's full audit, then Gate C.")
     return 0 if good else 1
 
@@ -386,11 +397,13 @@ def gate_c(prices: dict, match_dirs: list[Path], root: Path | None = None, ops=N
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--gate", choices=("A", "B", "C"), required=True)
+    ap.add_argument("--gate", choices=("A", "B", "C", "B-deepseek"), required=True)
     ap.add_argument("--estimate", action="store_true", help="Gate A: zero-token cost estimate")
     ap.add_argument("--probe", action="store_true", help="Gate A: 2 real calls (token gate-6.3-A)")
     ap.add_argument("--probe-red", choices=sorted(PROBE_CANDIDATES), default=None,
                     help="Gate A probe: the ONE Red candidate to try (its effort is fixed)")
+    ap.add_argument("--probe-effort", choices=lc.EFFORTS, default=None,
+                    help="Gate A probe: override the candidate's effort (effort check)")
     ap.add_argument("--probe-half", choices=("both", "red", "blue"), default="both",
                     help="Gate A probe: run only the Red or only the Sonnet Blue call")
     ap.add_argument("--matches", type=Path, nargs="+", default=None, help="Gate C: Gate B folders")
@@ -410,13 +423,17 @@ def main(argv: list[str] | None = None) -> int:
     probe_red = None if args.probe_half == "blue" else (args.probe_red or RED_MODEL)
     probe_blue = args.probe_half != "red"
     a_plan = " + ".join(
-        ([f"1 {probe_red} Red proposal at effort {PROBE_CANDIDATES[probe_red][1]} (dry run)"]
+        ([f"1 {probe_red} Red proposal at effort "
+          f"{args.probe_effort or PROBE_CANDIDATES[probe_red][1]} (dry run)"]
          if probe_red else []) +
         ([f"1 {BLUE_STRONG} Blue call (thinking {SONNET_THINKING})"] if probe_blue else []))
     plan = {"A": f"probe: {a_plan}",
             "B": f"{len(SEEDS)} eval matches, Red {RED_MODEL} effort {RED_EFFORT} vs Blue "
                  f"{BLUE_LIVE} + library v5 (read-only), seeds {SEEDS}",
-            "C": f"{2 * len(args.matches or [])} replays: {BLUE_STRONG} + v5, {BLUE_LIVE} + v0000"}
+            "C": f"{2 * len(args.matches or [])} replays: {BLUE_STRONG} + v5, {BLUE_LIVE} + v0000",
+            "B-deepseek": f"{len(DEEPSEEK_ARM['seeds'])} eval matches, Red "
+                          f"{DEEPSEEK_ARM['model']} effort {DEEPSEEK_ARM['effort']} vs Blue "
+                          f"{BLUE_LIVE} + library v5 (read-only), seeds {DEEPSEEK_ARM['seeds']}"}
     print(f"Stage 6.3 Gate {args.gate}: {plan[args.gate]}")
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
@@ -428,8 +445,9 @@ def main(argv: list[str] | None = None) -> int:
     a_models = tuple(m for m in (probe_red, BLUE_STRONG if probe_blue else None) if m)
     problems = price_problems(prices, a_models if args.gate == "A" else
                               (RED_MODEL, BLUE_LIVE) if args.gate == "B" else
-                              (BLUE_STRONG, BLUE_LIVE))
-    if args.gate in ("B", "C"):
+                              (DEEPSEEK_ARM["model"], BLUE_LIVE) if args.gate == "B-deepseek"
+                              else (BLUE_STRONG, BLUE_LIVE))
+    if args.gate in ("B", "C", "B-deepseek"):
         problems += library_ok()
     if args.gate == "C":
         problems += check_sources(args.matches)
@@ -440,7 +458,9 @@ def main(argv: list[str] | None = None) -> int:
         print("REFUSED: the git tree is dirty; commit first.")
         return 2
     if args.gate == "A":
-        return probe(red_model=probe_red, blue=probe_blue)
+        return probe(red_model=probe_red, blue=probe_blue, red_effort=args.probe_effort)
+    if args.gate == "B-deepseek":
+        return gate_b(prices, arm=DEEPSEEK_ARM)
     return gate_b(prices) if args.gate == "B" else gate_c(prices, args.matches)
 
 
