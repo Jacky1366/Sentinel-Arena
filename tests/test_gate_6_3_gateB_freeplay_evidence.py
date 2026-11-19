@@ -71,4 +71,8 @@ def test_the_binary_audit_covers_every_red_round(name):
     reds = rows(GOLDEN / name / "red_attacks.jsonl")
     audit = rows(GOLDEN / "audits" / f"{mid}.freeplay.jsonl")
     assert sorted(a["round"] for a in audit) == sorted(r["round"] for r in reds)  # D36 full
-    assert all(a["attack_attempt"] == "unaudited" for a in audit)
+    # D41 binary audit (designer, 2026-11-19): round 1 (GET /) is ordinary browsing -> no;
+    # every other sent round is an attack attempt -> yes. All decided (none unaudited).
+    by = {a["round"]: a["attack_attempt"] for a in audit}
+    assert by[1] == "no" and all(v == "yes" for rn, v in by.items() if rn != 1)
+    assert all(a["auditor"] == "designer" for a in audit)

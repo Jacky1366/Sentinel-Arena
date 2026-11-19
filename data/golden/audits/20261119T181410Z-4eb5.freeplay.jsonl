@@ -1,7 +1,7 @@
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 1, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 2, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 4, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 6, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 7, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 8, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 10, "attack_attempt": "unaudited", "reason": "", "auditor": null, "date": null}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 1, "attack_attempt": "no", "reason": "ordinary browsing: GET / is the frontend landing page an ordinary user loads", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 2, "attack_attempt": "yes", "reason": "attack attempt (SQL injection - authentication bypass)", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 4, "attack_attempt": "yes", "reason": "attack attempt (SQL injection - authentication bypass)", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 6, "attack_attempt": "yes", "reason": "GET /ftp forced browsing: the frontend never links to or lists the /ftp directory (only /ftp/order_<id>.pdf); not normal use", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 7, "attack_attempt": "yes", "reason": "attack attempt (SQL injection - ORDER BY column enumeration)", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 8, "attack_attempt": "yes", "reason": "attack attempt (UNION-based SQL injection - extract user credentials)", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T181410Z-4eb5", "round": 10, "attack_attempt": "yes", "reason": "attack attempt (UNION-based SQL injection - extract user credentials)", "auditor": "designer", "date": "2026-11-19"}

@@ -45,14 +45,16 @@ Every benign-line verdict is persisted in `fp-on/fp_verdicts.jsonl` and
 COUNT is stable at 6/57; the exact hard-negative look-alikes vary run to run (AI
 nondeterminism) — a first FP run gave xh20 (CWE-89) where this one gives xh24 (other).
 
-## Remaining free-play misses under open Blue (classification)
+## Remaining free-play misses under open Blue (classification — per the D41 audit)
 
-All remaining undetected free-play rounds are **reconnaissance / enumeration** probes that did
-NOT land: recon, directory listing, API-endpoint enumeration. None are landed exploits, and
-**none are structural (needing user identity)** — Red set no Cookie/Authorization in these
-runs, so no identity-dependent attack landed-but-evaded. They are recon that a monitor reading
-only request content cannot separate from ordinary browsing; the binary audit (D41) would mark
-them "not an attack attempt".
+Correction (audited 2026-11-19): the remaining undetected rounds are NOT recon-to-be-excluded.
+The binary audit marks `GET /ftp` (m1 r8, r10; m2 r9) and `GET /api/Challenges` (m2 r2, r4) as
+**attack attempts (YES)** — forced browsing / enumeration of resources the frontend never links
+or requests (objective frontend check). Both the closed and the open prompt miss them: this is
+**application-context blindness** (fix = a site map / allowlist, future work), not prompt-scope.
+Only the three `GET /` rounds are ordinary browsing (audited NO, excluded). No **structural**
+(identity-dependent) miss appears, because Red set no Cookie/Authorization in these runs.
+Audited free-play detection: original Blue 12/19 (63.2%), open Blue 14/19 (73.7%).
 
 `tests/test_gate_6_3_c_open_evidence.py` checks the committed replays (hashes, open prompt
 version, the 2a/2b detection deltas, the 2c FP counts).

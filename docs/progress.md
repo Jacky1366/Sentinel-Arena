@@ -456,6 +456,26 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
 - **2c FP (persisted, Nov 19):** original v2 0/57 (CP95% upper 6.3%); open v3-open 6/57 =
   10.5% (CP95% [3.96%, 21.5%]). The 6: holdout xn05, xn08 (other), xh20 (CWE-89), xh23, xh28
   (CWE-22); fixture n08 (other). Per-line verdicts persisted in the gate-6.3-C-open fp folders.
+- **Audited results (designer, 2026-11-19; D43 scope).** Full audits for Gate B (D16) and
+  Gate B-freeplay (D41 binary); Gate B-deepseek / -evasion stay raw/unaudited.
+  - **Gate B:** audited detection **28/28 = 100%** (raw 28/30; the 2 invalid rounds — payload
+    in the URL fragment, never sent — are exactly the 2 raw misses). FP 0/17.
+  - **Gate B-deepseek / -evasion (raw):** detection 26/26 and 29/29 (100%), FP 0/17.
+  - **Gate B-freeplay (audited, 19 attack attempts; 3 `GET /` ordinary-browsing rounds
+    excluded):** original (default) Blue **12/19 = 63.2%**; open Blue (analysis) **14/19 =
+    73.7%**. Open recovers the two landed `other`-class attacks.
+  - **Correction to the earlier free-play note:** the remaining `GET /ftp` and
+    `GET /api/Challenges` misses are NOT recon-to-be-excluded — the audit marks them **attack
+    attempts (YES)** that BOTH Blues missed (forced browsing / enumeration). Objective
+    frontend checks: the frontend never links/lists `/ftp` (only `/ftp/order_<id>.pdf`) and
+    never requests `GET /api/Challenges` on ordinary pages.
+  - **Blindness taxonomy (three kinds):** (1) **prompt-scope** — definition narrower than the
+    attack space; fixed by widening (open Blue). (2) **application-context** — Blue doesn't
+    know what the site links; forced browsing / enumeration reads as ordinary; both Blues miss
+    it; fix = site map / allowlist (positive security model), future work. (3) **structural** —
+    needs a user identity (IDOR / auth); needs application authorization, not request content;
+    untested (Red sent no Cookie/Authorization).
+  - Cross-arm table: `data/golden/stats/stage6_3_summary.md`.
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

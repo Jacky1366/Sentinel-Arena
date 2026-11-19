@@ -73,3 +73,9 @@ def test_the_audit_covers_every_red_round(name):
     audit = rows(GOLDEN / "audits" / f"{mid}.jsonl")
     assert sorted(a["round"] for a in audit) == sorted(r["round"] for r in reds)  # D36: FULL
     assert all(a["match_id"] == mid for a in audit)
+    # D16 verdicts (designer, 2026-11-19): invalid only where the payload sat in the URL
+    # fragment and never reached the server (match1 r10, match2 r5); everything else valid.
+    inv = {r["round"] for r in audit if r["verdict"] == "invalid"}
+    expect = {"eval-6.3-gateB-match1": {10}, "eval-6.3-gateB-match2": {5},
+              "eval-6.3-gateB-match3": set()}[name]
+    assert inv == expect and all(a["auditor"] == "designer" for a in audit)

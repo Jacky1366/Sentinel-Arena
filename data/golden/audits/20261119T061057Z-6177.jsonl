@@ -1,10 +1,10 @@
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 1, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 2, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 3, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 4, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 5, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 6, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 7, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 8, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 9, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
-{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 10, "verdict": "unaudited", "reason": "", "auditor": null, "date": null}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 1, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 2, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 3, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 4, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 5, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 6, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 7, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 8, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 9, "verdict": "valid", "reason": "label describes the attack type (SQLi / XSS / traversal), per the D16 criteria, whatever the landing", "auditor": "designer", "date": "2026-11-19"}
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "round": 10, "verdict": "invalid", "reason": "payload is in the URL fragment (#/...), which the browser never sends to the server; nothing testable reached the proxy", "auditor": "designer", "date": "2026-11-19"}
