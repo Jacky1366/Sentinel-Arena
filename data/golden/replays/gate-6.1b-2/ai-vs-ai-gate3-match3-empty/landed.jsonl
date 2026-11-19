@@ -1,0 +1,10 @@
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 1, "request_id": "3fb9f187-5f20-461c-927e-53d0228570a7", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 2, "request_id": "01a31e04-2af4-4e71-82b5-4479cb97d59e", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": ["Error Handling"]}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 3, "request_id": "2495ea04-5b82-41ca-8e38-30ceca958adb", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 4, "request_id": "3f1389ac-d4ac-4821-94a2-43d01d83a8e1", "label": "CWE-79", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 5, "request_id": "02d235be-e22c-4a1e-a97c-3246c891a218", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 6, "request_id": "57896d06-b152-4058-8f9a-90ee9d90640a", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 7, "request_id": "42718f6e-0374-48f4-bcef-15972571cf86", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 8, "request_id": "172a9d53-19d3-42c6-b39f-a6752224a464", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 9, "request_id": "e87b68f8-746e-477d-a167-1a0e1239bec1", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261114T072621Z-a41b", "round": 10, "request_id": "7e89a580-c156-455d-a76d-e26e987abaa2", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": []}

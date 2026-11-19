@@ -26,7 +26,7 @@ file artifacts defined in a data contract.
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
-| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | GO token (Nov 18); Gate 1 PASS ($0.015), audits all valid, library v5 (19 rules), M5 prediction recorded; Gate 2 awaiting GO; branch `stage6.1b-gates` |
+| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 
@@ -416,6 +416,30 @@ Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on th
     log_seq  21 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 9
     log_seq  22 CWE-22  lib-0012,lib-0013    attack CWE-22 round 10
 ```
+
+- **Gate 2, M5 (Nov 18, GO, `ARENA_GO=gate-6.1b-2`, commit `fe37b2f`): PASS, $0.007764.**
+  The 3 Gate 3 sources were replayed with v0000 (empty) and v5 (19 rules), all else
+  identical. Evidence: `data/golden/replays/gate-6.1b-2/` (README).
+
+  | | empty (v0000) | library (v5) | prediction |
+  |---|---|---|---|
+  | AI calls | 70 | **52** (−18) | ~63 (cost prediction) |
+  | Blue cost | $0.004831 | **$0.002933** (−39%) | ≈ $0.0043, below rules-off $0.0052 |
+  | lines answered by the library | 0 | **27** (9 / 8 / 10) | **27** (9 / 8 / 10): exact |
+  | lines answered by in-match rules | 9 | 0 | n/a |
+  | detection raw / audited | 27/28 / 27/27 | identical | no change |
+  | FP | 0/51 | 0/51 | no new FP |
+
+  - **Line prediction: exactly right.** The library answered the same 27 lines (27 attack,
+    0 benign) that `--predict` listed.
+  - **Calls-saved prediction: wrong in size.** I predicted ~27 fewer calls; the real saving
+    was 18. The empty arm's own in-match rules already answered 9 of those lines (3 per
+    match), so the library replaces those rule answers instead of AI calls. The library
+    arm invented no in-match rules at all.
+  - **Cost prediction:** the direction was right and the size was conservative.
+    $0.002933 / 52 calls, below both the estimate ($0.0043 / ~63) and rules-off cached
+    ($0.0052). As the caveat said, that base came from different sources.
+  - **Holdout (TEST, offline):** 0 hits for all 19 library rules on the 40-entry holdout.
 
 ### Stage 6.1a — Rule library, retention, variants, offline benign data (body)
 Step 0 plan `docs/plans/stage6_1_step0.md`, approved Nov 17 with amendments; decisions
