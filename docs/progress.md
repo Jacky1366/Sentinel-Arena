@@ -381,6 +381,16 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
   - Gate A total spend: $0.005399. Every 400 was rejected before generation, with no usage
     recorded.
   - Proposed Red `max_output_tokens` for Luna at high: 8192 (reasoning below).
+- **Finding (backlog, designer Nov 18): Gemini as a third-provider Red.**
+  - OpenAI's cyber safeguards refused every stronger OpenAI model tried (gpt-6.1-sol,
+    gpt-6.1-terra, gpt-5.6-sol) without Daybreak access.
+  - Gemini would keep the Red and Blue vendors separate, but there is no adapter: the key
+    name and schema enums are placeholders only.
+  - Estimated at ~1–1.5 days plus a paid usage check: key isolation including the Vertex
+    switch variables, request and structured-output mapping, reasoning tokens counted as
+    output, safety-block mapping, mock-transport tests.
+  - D18 caveat: implicit caching can't be switched off.
+  - Not built now.
 
 ### Stage 6.2 + 6.4 — Autonomy table (M6) + dashboard MVP (M8)
 Plan `docs/plans/stage6_2_4_step0.md`, run end to end under the autonomy policy. Zero
