@@ -739,3 +739,17 @@ def test_failed_call_records_a_redacted_error_excerpt(tmp_path):
     assert not r.ok and line["error_type"] == "bad_request"
     assert "Boom bad thing" in line["error_excerpt"] and secret not in line["error_excerpt"]
     assert "[REDACTED]" in line["error_excerpt"]
+
+
+def test_probe_free_play_uses_prompt_v3_and_the_free_play_schema(tmp_path):
+    from llm_fakes import FakeAdapter
+    oa = FakeAdapter(provider="openai", text=FREEPLAY_REPLY)
+    an = FakeAdapter(provider="anthropic")
+    fac = lambda cfg: lc.LLMClient(config=cfg, prices=cost_stats.load_prices(),  # noqa: E731
+                                   adapters={"openai": oa, "anthropic": an}, env={},
+                                   sleep=lambda s: None,
+                                   dotenv_path=REPO / "nonexistent" / "no.env")
+    assert g.probe(out_root=tmp_path / "p", client_factory=fac, red_model="gpt-6.1-sol",
+                   blue=False, free_play=True) == 0
+    assert oa.calls[0]["system"] == ai_red.RED_PROMPTS["3"]
+    assert oa.calls[0]["output_schema"] is ai_red.FREEPLAY_OUTPUT_SCHEMA

@@ -209,7 +209,7 @@ def red_schema_check(text: str | None) -> str:
 
 def probe(out_root: Path | None = None, client_factory=None,
           red_model: str | None = RED_MODEL, blue: bool = True,
-          red_effort: str | None = None) -> int:
+          red_effort: str | None = None, free_play: bool = False) -> int:
     """At most ONE Red proposal (dry run, nothing sent) for red_model at its candidate
     effort, and ONE Sonnet Blue call (prompt v2, thinking between_tools). Either half can
     be skipped (red_model None / blue False). A failed or refused call is never retried by
@@ -249,7 +249,9 @@ def probe(out_root: Path | None = None, client_factory=None,
         cfg = gate_config(model=red_model, effort=effort, provider=provider,
                           max_output_tokens=PROBE_RED_MAX_OUTPUT)
         (root / "red").mkdir(parents=True)
-        red = ai_red.AIRed(make(cfg), red_model, root / "red", mid, round_cap=1)
+        pv = ai_red.FREEPLAY_PROMPT_VERSION if free_play else ai_red.RED_PROMPT_VERSION
+        red = ai_red.AIRed(make(cfg), red_model, root / "red", mid, round_cap=1,
+                           prompt_version=pv)
         p = red.propose(None, 1)
         runs.append(("red", root / "red", cfg, f"effort {effort}"))
     if blue:
@@ -458,6 +460,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="Gate A probe: the ONE Red candidate to try (its effort is fixed)")
     ap.add_argument("--probe-effort", choices=lc.EFFORTS, default=None,
                     help="Gate A probe: override the candidate's effort (effort check)")
+    ap.add_argument("--probe-freeplay", action="store_true",
+                    help="Gate A probe: use Red prompt v3 + the free-play output schema (D41)")
     ap.add_argument("--probe-half", choices=("both", "red", "blue"), default="both",
                     help="Gate A probe: run only the Red or only the Sonnet Blue call")
     ap.add_argument("--matches", type=Path, nargs="+", default=None, help="Gate C: Gate B folders")
@@ -523,7 +527,8 @@ def main(argv: list[str] | None = None) -> int:
         print("REFUSED: the git tree is dirty; commit first.")
         return 2
     if args.gate == "A":
-        return probe(red_model=probe_red, blue=probe_blue, red_effort=args.probe_effort)
+        return probe(red_model=probe_red, blue=probe_blue, red_effort=args.probe_effort,
+                     free_play=args.probe_freeplay)
     if args.gate == "B-deepseek":
         return gate_b(prices, arm=DEEPSEEK_ARM)
     if args.gate == "B-evasion":
