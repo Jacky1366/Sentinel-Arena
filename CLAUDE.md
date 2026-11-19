@@ -122,6 +122,7 @@ benign/fixture_v2_offline.draft.json  TRAIN offline CWE-22 look-alikes (6, D31);
 benign/fixture_v2_offline.jsonl  TRAIN offline fixture, sealed Nov 18 (+ .meta.json)
 runner/arena_client.py  THE shared HTTP sender (Red, benign, probes): same headers, no UA
 runner/schedule.py      seeded interleaving; preserves Red order AND benign order
+runner/go_token.py      the GO token: every --real-calls tool needs ARENA_GO=<gate id> (6.1b)
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
 red/scripted_red.py     write labeled record, then fire one attack (one step at a time); write_and_send shared with AI Red
 red/ai_red.py           AI Red (5.6): fixed prompt (RED_PROMPT_VERSION), one proposal per slot, reply validation (OpenAI)
@@ -241,6 +242,7 @@ tests/test_promote_rules.py promotion end to end + every refusal (D26, D27, D30)
 tests/test_train_test_wall.py  writer unreachable from match/replay code; leak test over every library file
 tests/test_holdout_set.py   offline benign drafts, mocked capture + seal, drift check
 tests/test_stage6_1_gates_offline.py  gate tool refusals, prediction, Gates 1-2 on the fake provider
+tests/test_go_token.py      every paid entry point refuses without ARENA_GO=<its gate id>
 ```
 
 ## How to run the stack
@@ -316,6 +318,10 @@ asking" in your report. Escalate only if unsure which category a step falls in.
   4. Offline tests never replay test-set matches (`tests/test_stage6_1_gates_offline.py`
      swaps in non-test golden folders and fails on any test-set replay). Only the real
      6.1b gates (Gate 2, `--predict`) touch the Gate 3 matches, each after a GO.
+- **Never chain a commit after tests with `;`.** Use `&&`, or run the tests, check the
+  result, then commit (a failing suite once preceded a commit, Nov 18).
+- **Paid runs need the GO token:** `ARENA_GO=<gate id>` for that one command, set only after
+  the designer's GO for that gate (`docs/ops.md`, `runner/go_token.py`). Tests never set it.
 - Only `tools/promote_rules.py` may write a rule library (D26); never import `library/` from
   match, replay, Blue or Judge code (tests/test_train_test_wall.py). Never use golden or
   holdout data to select or tune rules (S6-1).

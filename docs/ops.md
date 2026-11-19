@@ -95,6 +95,27 @@ sets an obviously fake one itself. `tests/test_key_hygiene.py` checks the guard:
 with the real config, prices and adapters is refused. Do not remove or weaken this
 fixture.
 
+## The GO token: paid runs need `ARENA_GO` (Stage 6.1b)
+
+Every paid entry point (a tool run with `--real-calls` / `--real-call`) also requires
+`ARENA_GO=<gate id>` in the environment for that one command, for example:
+
+```bash
+ARENA_GO=gate-6.1b-1 .venv/bin/python tools/stage6_1_check.py --gate 1 --real-calls
+```
+
+Without it, or with any other value, the tool prints the refusal and exits 2 **before**
+constructing `Ops`, touching Docker or building an AI client (`runner/go_token.py`). It is
+set only after the designer's GO for that gate id, and never stored in `.env`.
+
+- **Gate ids:**
+  - 6.1b: `gate-6.1b-1` (`stage6_1_check --gate 1`) and `gate-6.1b-2` (`--gate 2`).
+  - Earlier stages: `gate-5.4-1`, `gate-5.4-2`, `gate-5.5`, `gate-5.6-1`, `gate-5.6-2`,
+    `gate-5.7-1`, `gate-5.7-2`, `gate-5.7-2b` and `gate-5.7-3`.
+- **Tests:** they never set it, and `tests/conftest.py` removes every `ARENA_*` variable.
+  `tests/test_go_token.py` proves every paid tool refuses without it, and that a new
+  `--real-calls` tool cannot be added without the check.
+
 ## Secret scanning (two layers)
 
 1. **Local: gitleaks pre-commit hook** (`.githooks/pre-commit`). It scans the staged

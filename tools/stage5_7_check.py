@@ -44,6 +44,7 @@ import audit_match  # noqa: E402
 import four_facts  # noqa: E402
 import replay_blue  # noqa: E402
 import run_match  # noqa: E402
+from runner import go_token  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
 from stats import match_stats as ms  # noqa: E402
 
@@ -221,6 +222,10 @@ def main(argv: list[str] | None = None) -> int:
               f"caching on (both), seed {SEED}")
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
+        return 2
+    refusal = go_token.check((f"gate-5.7-2{'' if args.rules_mode == 'on' else 'b'}" if args.gate == 2 else "gate-5.7-3"))
+    if refusal:
+        print(refusal)
         return 2
     if run_match.Ops().git_info()["dirty"]:
         print("REFUSED: the git tree is dirty; commit first.")

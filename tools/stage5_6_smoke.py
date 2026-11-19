@@ -24,6 +24,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 import run_match  # noqa: E402
+from runner import go_token  # noqa: E402
 from agents import llm_client as lc  # noqa: E402
 from red import ai_red, red_guard  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
@@ -37,6 +38,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.real_call:
         print("refusing: pass --real-call (one real, paid OpenAI call; Gate 1 needs the "
               "designer's GO). Nothing is sent to the Target.")
+        return 2
+    refusal = go_token.check("gate-5.6-1")
+    if refusal:
+        print(refusal)
         return 2
 
     cfg = copy.deepcopy(lc.load_config())

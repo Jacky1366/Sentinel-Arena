@@ -40,6 +40,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 import run_match  # noqa: E402
+from runner import go_token  # noqa: E402
 from rules import engine, hotload, library as rule_library  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
 from stats import match_stats as ms  # noqa: E402
@@ -254,6 +255,10 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
+        return 2
+    refusal = go_token.check(f"gate-6.1b-{args.gate}")
+    if refusal:
+        print(refusal)
         return 2
     if run_match.Ops().git_info()["dirty"]:
         print("REFUSED: the git tree is dirty; commit first.")

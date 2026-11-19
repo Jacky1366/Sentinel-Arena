@@ -29,6 +29,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 import run_match  # noqa: E402
+from runner import go_token  # noqa: E402
 from agents import llm_client as lc  # noqa: E402
 from blue import claude_engine as ce  # noqa: E402
 from blue import run_blue  # noqa: E402
@@ -54,6 +55,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.real_call:
         print("refusing: pass --real-call (one real, paid Anthropic call; Gate 1 needs "
               "the designer's GO)")
+        return 2
+    refusal = go_token.check("gate-5.4-1")
+    if refusal:
+        print(refusal)
         return 2
 
     cfg = copy.deepcopy(lc.load_config())
