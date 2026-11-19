@@ -277,6 +277,18 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
 - The smoke test's request (f) may solve a challenge. `run_match.py` resets the
   Target itself and refuses to run unless 0 challenges are solved.
 
+## Autonomy policy (designer-approved)
+
+Ask for the designer's GO only when a step:
+1. spends money (any real provider call or gate),
+2. reads test-set data (config/test_set.json matches, holdout), or
+3. changes what counts as evidence (retention criteria, Judge scoring, taxonomy,
+   train/test split, audit rules).
+
+Everything else — implementation choices, test moves/refactors, docs, schema bumps,
+pure-code sub-stages — decide yourself, apply it, and list it under "Decided without
+asking" in your report. Escalate only if unsure which category a step falls in.
+
 ## Working notes
 
 - Python 3.11+. Always run Python via the project venv: `.venv/bin/python`

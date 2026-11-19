@@ -387,10 +387,6 @@ change to `data/golden/`.
   - **Disclosure accepted.** The mutator was sanity-checked once, offline and read-only, on
     the golden Gate 3 rules (TEST data). That surfaced three bugs and the D24 point; nothing
     was selected or tuned with it.
-  - **Test-set rule.** Protected data = the `config/test_set.json` matches + the holdout.
-    Committed read-only integrity tests have a standing GO. Any new code, test or run that
-    reads test-set data needs a GO. The offline gate tests use non-test folders (CLAUDE.md,
-    `docs/stage6_decisions.md`).
   - **Incident (Nov 18, disclosed).** One test run replayed the Gate 3 test matches through
     the offline gate tests: read-only, fake Blue, nothing selected or tuned. Those tests now
     use non-test folders and guard against test-set replays.

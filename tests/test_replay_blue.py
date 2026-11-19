@@ -18,6 +18,7 @@ from llm_fakes import REPO
 from test_run_match_rules import RulesOps, broad, dirs, go  # noqa: F401 (fixture)
 from test_blue_rules import union_brain
 from test_run_match_failure import FakeOps
+import run_match  # noqa: E402
 from tools import audit_match, replay_blue  # noqa: E402
 
 GOLDEN = sorted(p.parent for p in (REPO / "data" / "golden").glob("*/match.json"))
@@ -116,14 +117,30 @@ def test_scripted_replay_of_every_golden_folder_leaves_it_untouched(golden, tmp_
         assert key(rdir / "verdicts.jsonl") == key(golden / "verdicts.jsonl")
 
 
-def test_the_source_audit_applies_to_a_replay(tmp_path):
-    golden = REPO / "data" / "golden" / "ai-red-luna-gate2-match3"
-    code, rdir, _ = do_replay(golden, tmp_path / "r", FakeOps(tmp_path), engine="scripted")
+def test_the_source_audit_applies_to_a_replay(dirs, tmp_path):
+    """A synthetic AI-Red match (fake pipeline, never test-set data) with one round audited
+    invalid: its replay finds the source's audit and the audited view drops that round."""
+    from test_promote_rules import TrainOps
+    live, runs = dirs
+    lines: list[str] = []
+    code, src = run_match.run_match(ops=TrainOps(live, answer=broad), live_dir=live,
+                                    runs_dir=runs, engine="claude", blue_rules_mode="on",
+                                    out=lines.append)
+    assert code == 0, lines
+    audits, golden = tmp_path / "audits", tmp_path / "golden_audits"
+    p = audit_match.scaffold(src, audits=audits, golden_dir=golden)
+    rows = [json.loads(l) for l in p.read_text().splitlines()]
+    bad = rows[0]["round"]
+    for r in rows:
+        r.update(verdict="invalid" if r["round"] == bad else "valid", reason="test",
+                 auditor="designer", date="2026-11-18")
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    code, rdir, _ = do_replay(src, tmp_path / "r", FakeOps(tmp_path), engine="scripted")
     assert code == 0
-    s = audit_match.summary(rdir)
-    assert s["match_id"] == "20261113T053039Z-4645"
-    assert s["audit_file"] == "data/golden/audits/20261113T053039Z-4645.jsonl"
-    assert s["audited_excludes_label_invalid"] == [9] and s["audited"] is not None
+    s = audit_match.summary(rdir, audits=audits, golden=golden)
+    assert s["match_id"] == json.loads((src / "match.json").read_text())["match_id"]
+    assert s["audit_file"].endswith(f"{s['match_id']}.jsonl")
+    assert s["audited_excludes_label_invalid"] == [bad] and s["audited"] is not None
     assert s["audited"]["detection"]["den"] == s["raw"]["detection"]["den"] - 1
 
 
@@ -152,6 +169,9 @@ def test_refuses_a_non_empty_output_folder(tmp_path):
     assert "not empty" in refused(REPO / "data" / "golden" / "scripted-baseline-match", out)
 
 
+NON_TEST = REPO / "data" / "golden" / "scripted-baseline-benign-match"  # not test-set data
+
+
 def copy_match(src: Path, dst: Path) -> Path:
     dst.mkdir(parents=True)
     for p in src.iterdir():
@@ -161,14 +181,14 @@ def copy_match(src: Path, dst: Path) -> Path:
 
 
 def test_refuses_a_tampered_source(tmp_path):
-    d = copy_match(REPO / "data" / "golden" / "ai-red-luna-gate2-match1", tmp_path / "m")
+    d = copy_match(NON_TEST, tmp_path / "m")
     with (d / "proxy.jsonl").open("a") as fh:
         fh.write("\n")
     assert "was changed" in refused(d, tmp_path / "out")
 
 
 def test_refuses_a_failed_source(tmp_path):
-    d = copy_match(REPO / "data" / "golden" / "ai-red-luna-gate2-match1", tmp_path / "m")
+    d = copy_match(NON_TEST, tmp_path / "m")
     m = json.loads((d / "match.json").read_text())
     m.update(status="failed", failed_step="blue", error="x")
     (d / "match.json").write_text(json.dumps(m))
