@@ -35,11 +35,15 @@ verdicts on CWE attacks and labelled them exactly as the original prompt did.
 | prompt | FP | detail |
 |---|---|---|
 | original v2 | **0/57** | — |
-| open v3-open | **6/57** | holdout: xn05 (other), xn08 (other), xh20 (CWE-89), xh23 (CWE-22), xh28 (CWE-22); fixture: n08 (other) |
+| open v3-open | **6/57 = 10.5%**, CP95% [3.96%, 21.5%] | holdout: xn05, xn08, xh24 (other), xh23, xh28 (CWE-22); fixture: n08 (other) |
 
-Widening the definition costs false positives: open Blue flags 6 ordinary requests as attacks
-(2 as `other`, 3 as CWEs on hard-negative look-alikes). This is the price of catching the
-`other`-class attacks, and it is on benign traffic the original prompt passes cleanly.
+Widening the definition costs false positives: open Blue flags ~10% of ordinary requests as
+attacks (CP 95% CI [3.96%, 21.5%]); original v2 is 0/57 (CP95% upper 6.3%). This is the price
+of catching the `other`-class attacks, on benign traffic the original prompt passes cleanly.
+Every benign-line verdict is persisted in `fp-on/fp_verdicts.jsonl` and
+`fp-open/fp_verdicts.jsonl` (persisted 2026-11-19 under gate-6.3-C-open `--fp-only`). The FP
+COUNT is stable at 6/57; the exact hard-negative look-alikes vary run to run (AI
+nondeterminism) — a first FP run gave xh20 (CWE-89) where this one gives xh24 (other).
 
 ## Remaining free-play misses under open Blue (classification)
 
