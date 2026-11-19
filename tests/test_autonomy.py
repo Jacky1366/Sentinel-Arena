@@ -134,3 +134,29 @@ def test_cli_refuses_a_folder_that_is_not_frozen(tmp_path, capsys):
     (tmp_path / "x").mkdir()
     assert autonomy_table.main(["--arm", "a", str(tmp_path / "x")]) == 2
     assert "not a frozen match or replay" in capsys.readouterr().out
+
+
+def test_repeated_requests_are_counted_once_for_the_bound():
+    """Pseudo-replication: the same benign request in two sources is ONE unit for the
+    95% bound; k/n lines are still shown."""
+    a, b = folder(), folder()
+    for f in (a, b):  # identical requests in both "sources"
+        f.requests = {rid(i): ("GET", f"/p{i}", "", "") for i in range(1, 104)}
+    t = autonomy.arm_table([a, b], PRICES)["rows"]
+    fp = t["CWE-89"]["verdict_fp"]
+    assert (fp["k"], fp["n"], fp["unique"]) == (0, 6, {"k": 0, "n": 3})
+    assert fp["upper95"] == round(autonomy.cp_upper_zero(3), 4)
+    tot = t["total"]["verdict_fp"]
+    assert (tot["k"], tot["n"], tot["unique"]) == (2, 6, {"k": 1, "n": 3})
+    assert "upper95" not in tot
+    det = t["CWE-89"]["detection_raw"]
+    assert (det["k"], det["n"], det["unique"]) == (4, 4, {"k": 2, "n": 2})
+    # distinct requests: no `unique` field, the bound is on lines
+    one = autonomy.arm_table([folder()], PRICES)["rows"]["CWE-89"]["verdict_fp"]
+    assert "unique" not in one and one["upper95"] == round(autonomy.cp_upper_zero(3), 4)
+
+
+def test_unique_k_is_any_line_with_the_event():
+    r = autonomy.lines_rate([(("a",), False), (("a",), True), (("b",), False)])
+    assert (r["k"], r["n"], r["unique"]) == (1, 3, {"k": 1, "n": 2})
+    assert "upper95" not in r

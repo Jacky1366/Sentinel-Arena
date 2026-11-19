@@ -29,6 +29,9 @@ them is escalated. Zero tokens: no provider call anywhere in this stage.*
       (Red too, in live matches).
 - **Rates.** Every rate is `k/n`. For `0/n` the exact Clopper–Pearson 95% upper bound,
   1 − 0.025^(1/n), is shown too.
+  *Amended by the designer before merge:* lines that repeat a request across sources are
+  pseudo-replicated, so rates also show unique requests and the bound uses them (contract
+  §6.13).
 - **Library FP table:** for each library rule, its hits on the holdout (TEST, read-only
   per the designer's GO; expected 0/40), on `fixture_v1` (17) and on
   `fixture_v2_offline` (6).

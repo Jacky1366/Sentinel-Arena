@@ -37,4 +37,13 @@ def test_headline_numbers():
     assert all(t["verdict_fp"]["k"] == 0 for t in tot.values())
     assert all(r["holdout_v1"]["k"] == 0 and r["holdout_v1"]["n"] == 40
                for r in doc["library_fp"]["rules"].values())
-    assert autonomy.fmt_rate(tot["rules off"]["verdict_fp"]) == "0/51 (0%) ≤7.0%"
+    # pseudo-replication: the 51 benign lines are 17 fixture requests x 3 sources; the
+    # bound is on the 17 unique requests (designer, 2026-11-18)
+    fp = tot["rules off"]["verdict_fp"]
+    assert (fp["k"], fp["n"], fp["unique"]) == (0, 51, {"k": 0, "n": 17})
+    assert autonomy.fmt_rate(fp) == "0/51 (0%) · 0/17 unique ≤19.5%"
+    # the holdout keeps its 40 independent entries
+    assert all("unique" not in r["holdout_v1"] and r["holdout_v1"]["upper95"] == 0.0881
+               for r in doc["library_fp"]["rules"].values())
+    md = (STATS / "autonomy_6.1b.md").read_text()
+    assert md.count("*Lines vs unique requests:") == 3

@@ -17,8 +17,13 @@ CWE-22 / total:
   ai_calls, cost_usd CWE row: Blue calls attributed to a line via log_seq_first (chunk
                      size 1, D4); total row: every sent call of every agent (Red too)
 
-Every rate is k/n; for k = 0 the exact Clopper-Pearson 95% (two-sided) upper bound,
-1 - 0.025^(1/n), is added. Nothing here judges: every input is a Judge or Blue artifact.
+Every rate is k/n LINES; for k = 0 the exact Clopper-Pearson 95% (two-sided) upper bound,
+1 - 0.025^(1/n), is added. PSEUDO-REPLICATION (designer, 2026-11-18): when the same request
+(method, path, query, body) appears on several lines of an arm (e.g. the 17 fixture benign
+requests sent once in each source), the lines are not independent. The rate then also
+carries `unique` {k, n}: n = distinct requests, k = distinct requests with the event on at
+least one of their lines; and the bound is computed on the unique requests (0/17 -> 19.5%,
+not 0/51 -> 7.0%). Nothing here judges: every input is a Judge or Blue artifact.
 """
 
 from __future__ import annotations
@@ -45,6 +50,7 @@ class Folder:
     audit_rows: list[dict]           # D16 audit lines ([] when none)
     scripted: set[int] = field(default_factory=set)   # valid by construction
     anomalies: list[dict] = field(default_factory=list)
+    requests: dict[str, tuple] = field(default_factory=dict)  # request_id -> request key
 
 
 def cp_upper_zero(n: int) -> float:
@@ -52,15 +58,30 @@ def cp_upper_zero(n: int) -> float:
     return 1.0 - 0.025 ** (1.0 / n)
 
 
-def rate(k: int, n: int) -> dict:
+def rate(k: int, n: int, unique: tuple[int, int] | None = None) -> dict:
+    """k/n lines; `unique` (k, n) over distinct requests when lines repeat a request.
+    The 95% upper bound (k = 0 only) uses the independent unit: unique requests if given."""
     out = {"k": k, "n": n, "pct": None if n == 0 else round(100.0 * k / n, 1)}
-    if k == 0 and n > 0:
-        out["upper95"] = round(cp_upper_zero(n), 4)
+    uk, un = (k, n) if unique is None else unique
+    if unique is not None and un != n:
+        out["unique"] = {"k": uk, "n": un}
+    if uk == 0 and un > 0:
+        out["upper95"] = round(cp_upper_zero(un), 4)
     return out
 
 
-def _sum(rates: list[ms.Rate]) -> tuple[int, int]:
-    return sum(r.num for r in rates), sum(r.den for r in rates)
+def lines_rate(lines: list[tuple[tuple, bool]]) -> dict:
+    """(request key, event) per counted line -> rate with the unique-request view."""
+    keys: dict[tuple, bool] = {}
+    for key, ev in lines:
+        keys[key] = keys.get(key, False) or ev
+    return rate(sum(ev for _, ev in lines), len(lines),
+                (sum(keys.values()), len(keys)))
+
+
+def _key(f: Folder, request_id: str) -> tuple:
+    """The request itself (method, path, query, body); falls back to the line's id."""
+    return f.requests.get(request_id, (f.name, request_id))
 
 
 def _audited(f: Folder) -> list[dict] | None:
@@ -74,12 +95,24 @@ def _labels(f: Folder) -> dict[str, str]:
     return out
 
 
-def _coverage(verdicts: list[dict]) -> dict:
-    rule = [v for v in verdicts if v.get("source") == "rule"]  # 0.1 rows: no source
-    lib = sum(v.get("rule_origin") == "library" for v in rule)
-    n = len(verdicts)
-    return {"rule": rate(len(rule), n), "library": rate(lib, n),
-            "match": rate(len(rule) - lib, n)}
+def _coverage(verdicts: list[tuple[tuple, dict]]) -> dict:
+    is_rule = lambda v: v.get("source") == "rule"  # noqa: E731 (0.1 rows: no source)
+    is_lib = lambda v: is_rule(v) and v.get("rule_origin") == "library"  # noqa: E731
+    return {"rule": lines_rate([(k, is_rule(v)) for k, v in verdicts]),
+            "library": lines_rate([(k, is_lib(v)) for k, v in verdicts]),
+            "match": lines_rate([(k, is_rule(v) and not is_lib(v)) for k, v in verdicts])}
+
+
+def _det_lines(f: Folder, rounds: list[dict]) -> list[tuple[tuple, bool]]:
+    """match_stats.detection_rate's lines: orphans and instrument failures excluded."""
+    return [(_key(f, r["request_id"]), r["detected"] is True) for r in rounds
+            if r.get("detected_reason") not in ("orphan", "instrument_failure")]
+
+
+def _type_lines(f: Folder, rounds: list[dict]) -> list[tuple[tuple, bool]]:
+    """match_stats.type_accuracy's lines: detected rounds only."""
+    return [(_key(f, r["request_id"]), r["type_correct"] is True) for r in rounds
+            if r["detected"] is True]
 
 
 def arm_table(folders: list[Folder], prices: dict) -> dict:
@@ -89,19 +122,18 @@ def arm_table(folders: list[Folder], prices: dict) -> dict:
     audit_complete = all(a is not None for a in audited)
     for cwe in (*CWES, "total"):
         keep = (lambda r: True) if cwe == "total" else (lambda r, c=cwe: r["label"] == c)
-        det = _sum([ms.detection_rate([r for r in f.rounds if keep(r)]) for f in folders])
-        typ = _sum([ms.type_accuracy([r for r in f.rounds if keep(r)]) for f in folders])
-        det_a = _sum([ms.detection_rate([r for r in a if keep(r)]) for a in audited]) \
-            if audit_complete else None
-        fp_n = sum(ms.fp_rate(f.benign).den for f in folders)
-        fp_k = sum(1 for f in folders for b in f.benign if b["fp_reason"] is None
-                   and b["false_positive"] is True and (cwe == "total" or b["verdict"] == cwe))
+        det = [x for f in folders for x in _det_lines(f, [r for r in f.rounds if keep(r)])]
+        typ = [x for f in folders for x in _type_lines(f, [r for r in f.rounds if keep(r)])]
+        det_a = [x for f, a in zip(folders, audited)
+                 for x in _det_lines(f, [r for r in a if keep(r)])] if audit_complete else None
+        fp = [(_key(f, b["request_id"]), b["false_positive"] is True
+               and (cwe == "total" or b["verdict"] == cwe))
+              for f in folders for b in f.benign if b["fp_reason"] is None]
         verdicts, calls, usd = [], 0, 0.0
         for f in folders:
             labels = _labels(f)
-            vs = [v for v in f.verdicts
-                  if cwe == "total" or labels.get(v["request_id"]) == cwe]
-            verdicts += vs
+            verdicts += [(_key(f, v["request_id"]), v) for v in f.verdicts
+                         if cwe == "total" or labels.get(v["request_id"]) == cwe]
             if cwe == "total":
                 s = cost_mod.summarize(f.calls, prices)
                 calls += s["attempts"]
@@ -113,9 +145,9 @@ def arm_table(folders: list[Folder], prices: dict) -> dict:
                         and seq_label.get(c.get("log_seq_first")) == cwe:
                     calls += 1
                     usd += cost_mod.call_cost(c, prices)["usd"]
-        rows[cwe] = {"detection_raw": rate(*det),
-                     "detection_audited": None if det_a is None else rate(*det_a),
-                     "type_correct": rate(*typ), "verdict_fp": rate(fp_k, fp_n),
+        rows[cwe] = {"detection_raw": lines_rate(det),
+                     "detection_audited": None if det_a is None else lines_rate(det_a),
+                     "type_correct": lines_rate(typ), "verdict_fp": lines_rate(fp),
                      "rule_coverage": _coverage(verdicts),
                      "ai_calls": calls, "cost_usd": round(usd, 6)}
     counts: Counter = Counter()
@@ -153,6 +185,8 @@ def fmt_rate(r: dict | None) -> str:
     if r["n"] == 0:
         return "0/0"
     s = f"{r['k']}/{r['n']} ({r['pct']:.0f}%)"
+    if "unique" in r:
+        s += f" · {r['unique']['k']}/{r['unique']['n']} unique"
     if "upper95" in r:
         s += f" ≤{100 * r['upper95']:.1f}%"
     return s
@@ -161,8 +195,9 @@ def fmt_rate(r: dict | None) -> str:
 def markdown(doc: dict) -> str:
     out = [f"# {doc['title']}", "",
            f"*Generated by `tools/autonomy_table.py` (table version {doc['table_version']}, "
-           f"zero tokens). Every rate is k/n; for 0/n, `≤x%` is the exact Clopper–Pearson "
-           f"95% upper bound. Definitions: `stats/autonomy.py`, contract §6.13.*", ""]
+           f"zero tokens). Every rate is k/n lines; for 0/n, `≤x%` is the exact Clopper–Pearson "
+           f"95% upper bound on the independent unit (unique requests where lines repeat "
+           f"a request). Definitions: `stats/autonomy.py`, contract §6.13.*", ""]
     for name, arm in doc["arms"].items():
         out += [f"## {name}", "", f"Folders: {', '.join(f'`{x}`' for x in arm['folders'])}",
                 "", "| | detection raw | detection audited | type-correct | verdict FP | "
@@ -175,6 +210,17 @@ def markdown(doc: dict) -> str:
                        f"{fmt_rate(r['verdict_fp'])} | {fmt_rate(cov['rule'])} "
                        f"({cov['library']['k']} / {cov['match']['k']}) | {r['ai_calls']} | "
                        f"${r['cost_usd']:.6f} |")
+        if any("unique" in x for r in arm["rows"].values()
+               for x in (r["detection_raw"], r["detection_audited"] or {}, r["type_correct"],
+                         r["verdict_fp"], *r["rule_coverage"].values())):
+            out += ["", "*Lines vs unique requests: identical requests repeat across this "
+                        "arm's sources (the 17 fixture benign requests are sent once in "
+                        "each, and a few identical Red attacks recur), so those lines are "
+                        "not independent. Cells show `k/n` lines, then `k/n unique` "
+                        "requests (k = requests with the event on at least one of their "
+                        "lines), and the 95% bound uses the unique requests (0/17 → "
+                        "≤19.5%, not 0/51 → ≤7.0%). The holdout bounds below use its 40 "
+                        "independent entries.*"]
         t = arm["tripwires"]
         out += ["", f"Tripwires (existing checks, read-only): counts {t['counts']}; "
                     f"anomalies {t['anomalies'] or '{}'}", ""]

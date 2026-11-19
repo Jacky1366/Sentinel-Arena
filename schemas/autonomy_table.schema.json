@@ -116,6 +116,25 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "unique": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "k",
+            "n"
+          ],
+          "description": "distinct requests (method, path, query, body) when lines repeat a request across the arm's sources; k = distinct requests with the event on at least one line; upper95 is then computed on these",
+          "properties": {
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
         }
       }
     },
@@ -282,6 +301,25 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "unique": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "k",
+            "n"
+          ],
+          "description": "distinct requests (method, path, query, body) when lines repeat a request across the arm's sources; k = distinct requests with the event on at least one line; upper95 is then computed on these",
+          "properties": {
+            "k": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "n": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         }
       }

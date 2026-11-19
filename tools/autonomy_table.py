@@ -62,7 +62,10 @@ def load_folder(d: Path, audits: Path | None = None, golden: Path | None = None
                            verdicts=_jl(d / "verdicts.jsonl"),
                            calls=_jl(d / "api_calls.jsonl"), audit_rows=rows,
                            scripted=audit_match.scripted_rounds(d),
-                           anomalies=_jl(d / "anomalies.jsonl"))
+                           anomalies=_jl(d / "anomalies.jsonl"),
+                           requests={l["request_id"]: (l["method"], l["path"], l["query"],
+                                                       l["body"])
+                                     for l in _jl(d / "proxy.jsonl") if l.get("request_id")})
 
 
 def build(arms: list[tuple[str, list[Path]]], title: str, library: Path | None = None,

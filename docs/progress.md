@@ -349,9 +349,15 @@ tokens: no provider call.
 
   | arm (3 Gate 3 sources) | detection raw / audited | verdict FP | rule coverage (library / match) | AI calls | cost |
   |---|---|---|---|---|---|
-  | rules off | 27/28 / 27/27 | 0/51 (≤7.0%) | 0/79 | 79 | $0.003945 |
-  | rules on, empty v0000 | 27/28 / 27/27 | 0/51 (≤7.0%) | 9/79 (0 / 9) | 70 | $0.004831 |
-  | rules on, library v5 | 27/28 / 27/27 | 0/51 (≤7.0%) | 27/79 (27 / 0) | 52 | $0.002933 |
+  | rules off | 27/28 / 27/27 | 0/51 lines · 0/17 unique (≤19.5%) | 0/79 | 79 | $0.003945 |
+  | rules on, empty v0000 | 27/28 / 27/27 | 0/51 lines · 0/17 unique (≤19.5%) | 9/79 (0 / 9) | 70 | $0.004831 |
+  | rules on, library v5 | 27/28 / 27/27 | 0/51 lines · 0/17 unique (≤19.5%) | 27/79 (27 / 0) | 52 | $0.002933 |
+
+  - **Pseudo-replication (designer fix, Nov 18).** The 51 benign lines are the same 17
+    fixture requests sent once in each source, and a few identical Red attacks also recur
+    (25 unique of 28 attack lines). So every rate also shows `k/n unique` requests, and
+    the 95% bound is computed on unique requests: 0/17 → ≤19.5%, not 0/51 → ≤7.0%. The
+    holdout keeps its 40 independent entries (≤8.8%).
 
   - Per CWE, the library arm answers 15/15 CWE-89, 5/5 CWE-79 and 7/8 CWE-22 attack lines
     from library rules.
@@ -367,10 +373,15 @@ tokens: no provider call.
     source and `rule_origin`, a timeline (L = library rule, R = in-match rule), rules and
     tripwires. No world map (S6-5).
   - Demo bundles: Gate 1 train match 1 and the Gate 2 library arm (Gate 3 match 1).
-- **Tripwires (Should): not done.** Moving the existing checks into `anomalies.jsonl` would
-  change Judge output and break the byte-for-byte re-scoring of committed evidence
-  (`JUDGE_VERSION` bump plus golden re-scores, which is policy category 3). The table and
-  the dashboard show the existing counts and anomalies read-only instead.
+- **Tripwires (Should): cut** (designer, Nov 18), recorded as limitation 13.
+- **Finding: with the library, the remaining AI calls go almost all to benign lines.**
+  - With library v5, all 27 audited-valid attack lines are answered by rules. Of the 52
+    remaining AI calls, 51 go to benign lines; the other one is the label-invalid round
+    (Gate 3 match 2, round 8).
+  - Rules can only say "attack", never "safe", so every benign line still costs an AI call.
+  - Allowlist ("safe") rules would cut cost further, but they open an evasion path: an
+    attack shaped to match an allowlist rule would skip the AI entirely.
+  - Future work, a deliberate trade-off; not in Stage 6.
 
 ### Stage 6.1b — Gate 1 (train matches), audits, promotion, M5 prediction
 Branch `stage6.1b-gates`.
@@ -980,6 +991,12 @@ These are honest boundaries of the instrument, recorded in the contract:
 12. **Rules and scripted Blue differ in small ways** (Part F): rules cannot match
    across fields, and RE2's `\b`, `\s`, `\d` are ASCII-only where Python's are
    Unicode-aware. Not seen in the golden data; relevant once AI Red varies inputs.
+13. **Tripwires are not centralised in `anomalies.jsonl`** (Stage 6 Should item, cut by the
+    designer on Nov 18). The existing checks stay where they are, as counts in the
+    terminal summary and stats (orphan, snapshot_missing, instrument_failure, …) and as
+    anomaly lines (`benign_solved_challenge`, `label_mismatch`, `rule_source_benign`).
+    Centralising them would change Judge output and need a `JUDGE_VERSION` bump plus
+    golden re-scores. The autonomy table and the dashboard show both read-only.
 
 ## Stage 6 tripwires (harness self-checks)
 

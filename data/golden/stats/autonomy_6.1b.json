@@ -31,7 +31,11 @@
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
@@ -60,42 +64,70 @@
           "detection_raw": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "detection_audited": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "type_correct": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             },
             "library": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             },
             "match": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             }
           },
           "ai_calls": 5,
@@ -105,42 +137,70 @@
           "detection_raw": {
             "k": 7,
             "n": 8,
-            "pct": 87.5
+            "pct": 87.5,
+            "unique": {
+              "k": 5,
+              "n": 6
+            }
           },
           "detection_audited": {
             "k": 7,
             "n": 7,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 5,
+              "n": 5
+            }
           },
           "type_correct": {
             "k": 7,
             "n": 7,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 5,
+              "n": 5
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 0,
               "n": 8,
               "pct": 0.0,
-              "upper95": 0.3694
+              "unique": {
+                "k": 0,
+                "n": 6
+              },
+              "upper95": 0.4593
             },
             "library": {
               "k": 0,
               "n": 8,
               "pct": 0.0,
-              "upper95": 0.3694
+              "unique": {
+                "k": 0,
+                "n": 6
+              },
+              "upper95": 0.4593
             },
             "match": {
               "k": 0,
               "n": 8,
               "pct": 0.0,
-              "upper95": 0.3694
+              "unique": {
+                "k": 0,
+                "n": 6
+              },
+              "upper95": 0.4593
             }
           },
           "ai_calls": 8,
@@ -150,42 +210,70 @@
           "detection_raw": {
             "k": 27,
             "n": 28,
-            "pct": 96.4
+            "pct": 96.4,
+            "unique": {
+              "k": 24,
+              "n": 25
+            }
           },
           "detection_audited": {
             "k": 27,
             "n": 27,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 24,
+              "n": 24
+            }
           },
           "type_correct": {
             "k": 27,
             "n": 27,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 24,
+              "n": 24
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 0,
               "n": 79,
               "pct": 0.0,
-              "upper95": 0.0456
+              "unique": {
+                "k": 0,
+                "n": 42
+              },
+              "upper95": 0.0841
             },
             "library": {
               "k": 0,
               "n": 79,
               "pct": 0.0,
-              "upper95": 0.0456
+              "unique": {
+                "k": 0,
+                "n": 42
+              },
+              "upper95": 0.0841
             },
             "match": {
               "k": 0,
               "n": 79,
               "pct": 0.0,
-              "upper95": 0.0456
+              "unique": {
+                "k": 0,
+                "n": 42
+              },
+              "upper95": 0.0841
             }
           },
           "ai_calls": 79,
@@ -235,7 +323,11 @@
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
@@ -262,42 +354,70 @@
           "detection_raw": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "detection_audited": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "type_correct": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             },
             "library": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             },
             "match": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             }
           },
           "ai_calls": 5,
@@ -307,40 +427,68 @@
           "detection_raw": {
             "k": 7,
             "n": 8,
-            "pct": 87.5
+            "pct": 87.5,
+            "unique": {
+              "k": 5,
+              "n": 6
+            }
           },
           "detection_audited": {
             "k": 7,
             "n": 7,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 5,
+              "n": 5
+            }
           },
           "type_correct": {
             "k": 7,
             "n": 7,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 5,
+              "n": 5
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 4,
               "n": 8,
-              "pct": 50.0
+              "pct": 50.0,
+              "unique": {
+                "k": 3,
+                "n": 6
+              }
             },
             "library": {
               "k": 0,
               "n": 8,
               "pct": 0.0,
-              "upper95": 0.3694
+              "unique": {
+                "k": 0,
+                "n": 6
+              },
+              "upper95": 0.4593
             },
             "match": {
               "k": 4,
               "n": 8,
-              "pct": 50.0
+              "pct": 50.0,
+              "unique": {
+                "k": 3,
+                "n": 6
+              }
             }
           },
           "ai_calls": 4,
@@ -350,40 +498,68 @@
           "detection_raw": {
             "k": 27,
             "n": 28,
-            "pct": 96.4
+            "pct": 96.4,
+            "unique": {
+              "k": 24,
+              "n": 25
+            }
           },
           "detection_audited": {
             "k": 27,
             "n": 27,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 24,
+              "n": 24
+            }
           },
           "type_correct": {
             "k": 27,
             "n": 27,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 24,
+              "n": 24
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 9,
               "n": 79,
-              "pct": 11.4
+              "pct": 11.4,
+              "unique": {
+                "k": 8,
+                "n": 42
+              }
             },
             "library": {
               "k": 0,
               "n": 79,
               "pct": 0.0,
-              "upper95": 0.0456
+              "unique": {
+                "k": 0,
+                "n": 42
+              },
+              "upper95": 0.0841
             },
             "match": {
               "k": 9,
               "n": 79,
-              "pct": 11.4
+              "pct": 11.4,
+              "unique": {
+                "k": 8,
+                "n": 42
+              }
             }
           },
           "ai_calls": 70,
@@ -433,7 +609,11 @@
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
@@ -460,40 +640,68 @@
           "detection_raw": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "detection_audited": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "type_correct": {
             "k": 5,
             "n": 5,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 4,
+              "n": 4
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 5,
               "n": 5,
-              "pct": 100.0
+              "pct": 100.0,
+              "unique": {
+                "k": 4,
+                "n": 4
+              }
             },
             "library": {
               "k": 5,
               "n": 5,
-              "pct": 100.0
+              "pct": 100.0,
+              "unique": {
+                "k": 4,
+                "n": 4
+              }
             },
             "match": {
               "k": 0,
               "n": 5,
               "pct": 0.0,
-              "upper95": 0.5218
+              "unique": {
+                "k": 0,
+                "n": 4
+              },
+              "upper95": 0.6024
             }
           },
           "ai_calls": 0,
@@ -503,40 +711,68 @@
           "detection_raw": {
             "k": 7,
             "n": 8,
-            "pct": 87.5
+            "pct": 87.5,
+            "unique": {
+              "k": 5,
+              "n": 6
+            }
           },
           "detection_audited": {
             "k": 7,
             "n": 7,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 5,
+              "n": 5
+            }
           },
           "type_correct": {
             "k": 7,
             "n": 7,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 5,
+              "n": 5
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 7,
               "n": 8,
-              "pct": 87.5
+              "pct": 87.5,
+              "unique": {
+                "k": 5,
+                "n": 6
+              }
             },
             "library": {
               "k": 7,
               "n": 8,
-              "pct": 87.5
+              "pct": 87.5,
+              "unique": {
+                "k": 5,
+                "n": 6
+              }
             },
             "match": {
               "k": 0,
               "n": 8,
               "pct": 0.0,
-              "upper95": 0.3694
+              "unique": {
+                "k": 0,
+                "n": 6
+              },
+              "upper95": 0.4593
             }
           },
           "ai_calls": 1,
@@ -546,40 +782,68 @@
           "detection_raw": {
             "k": 27,
             "n": 28,
-            "pct": 96.4
+            "pct": 96.4,
+            "unique": {
+              "k": 24,
+              "n": 25
+            }
           },
           "detection_audited": {
             "k": 27,
             "n": 27,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 24,
+              "n": 24
+            }
           },
           "type_correct": {
             "k": 27,
             "n": 27,
-            "pct": 100.0
+            "pct": 100.0,
+            "unique": {
+              "k": 24,
+              "n": 24
+            }
           },
           "verdict_fp": {
             "k": 0,
             "n": 51,
             "pct": 0.0,
-            "upper95": 0.0698
+            "unique": {
+              "k": 0,
+              "n": 17
+            },
+            "upper95": 0.1951
           },
           "rule_coverage": {
             "rule": {
               "k": 27,
               "n": 79,
-              "pct": 34.2
+              "pct": 34.2,
+              "unique": {
+                "k": 24,
+                "n": 42
+              }
             },
             "library": {
               "k": 27,
               "n": 79,
-              "pct": 34.2
+              "pct": 34.2,
+              "unique": {
+                "k": 24,
+                "n": 42
+              }
             },
             "match": {
               "k": 0,
               "n": 79,
               "pct": 0.0,
-              "upper95": 0.0456
+              "unique": {
+                "k": 0,
+                "n": 42
+              },
+              "upper95": 0.0841
             }
           },
           "ai_calls": 52,
