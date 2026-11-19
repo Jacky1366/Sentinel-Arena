@@ -431,7 +431,22 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     unchanged); the core Judge is unchanged.
   - Gate-6.3-C-open: open-Blue replays of the free-play (2a) + deepseek (2b) logs, and the
     prompt-FP check (2c, original vs open) over the holdout + fixture.
-  - Waiting for the GO on gate-6.3-C-open.
+  - **Gate-6.3-C-open (GO, Nov 19): PASS, $0.014219** (Haiku only). Evidence
+    `data/golden/replays/gate-6.3-C-open/`. (Run 1 failed on a schema gap — open `other` in
+    fact4a / round_record / anomaly — fixed and archived under incidents; run 2 passed.)
+    - **2a free-play (main):** open Blue recovered BOTH landed `other`-class attacks original
+      Blue missed (match2 r8 broken access control → sensitive data exposure; r10 information
+      disclosure → sensitive file). No detections lost. Remaining free-play misses are recon /
+      enumeration that did not land — none structural (Red set no Cookie/Authorization).
+    - **2b taxonomy (deepseek):** widening did NOT hurt — detection and type-correct unchanged
+      (8/9/9 both), zero `other` verdicts on CWE attacks.
+    - **2c prompt FP (holdout + fixture, 57 benign):** original v2 0/57; open v3-open 6/57
+      (2 `other`, 3 CWE on hard-negative look-alikes, 1 fixture). Widening buys the `other`
+      catches at the cost of false positives on benign traffic.
+    - **Finding:** an open definition closes the taxonomy blind spot (catches the landed
+      access-control / disclosure attacks) without hurting CWE detection, but raises Blue's
+      false-positive rate from 0 to ~10% on benign traffic. The taxonomy-vs-coverage trade-off
+      is now measured.
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

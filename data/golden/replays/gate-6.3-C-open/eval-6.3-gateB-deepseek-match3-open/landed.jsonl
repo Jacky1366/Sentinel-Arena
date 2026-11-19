@@ -1,0 +1,9 @@
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 1, "request_id": "fb8294c5-159a-432b-a9b9-a6ba2e38eda6", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 2, "request_id": "a9d2ac12-dad3-4000-a71d-8c8a2a8d5aae", "label": "CWE-79", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 3, "request_id": "61ffe2b6-4b1c-414f-bf32-77bbd046187b", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": ["Error Handling"]}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 4, "request_id": "b361081f-da18-4117-81ed-ecc8ebc1a721", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 5, "request_id": "7f7d6412-f8f1-460a-aa09-3b22bd3d8739", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 6, "request_id": "7bd3d7ff-c352-4435-911b-16bf201babfc", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 7, "request_id": "2bcd5377-2e14-4a62-9fa0-600ec97eefec", "label": "CWE-89", "landed": true, "landed_reason": null, "newly_solved": ["Login Admin"]}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 8, "request_id": "6e5b9aca-f422-45c3-909e-560d73cca1e1", "label": "CWE-79", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T074153Z-5288", "round": 9, "request_id": "a8fe80a1-6a0e-43cb-9c3c-6c2cb1d6bacf", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": []}

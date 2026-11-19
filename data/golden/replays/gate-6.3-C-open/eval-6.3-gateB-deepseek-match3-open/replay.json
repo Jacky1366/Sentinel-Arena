@@ -1,0 +1,274 @@
+{
+  "schema_version": "0.3",
+  "replay_id": "20261119T190059Z-16e5",
+  "started_at": "2026-11-19T19:00:59.839Z",
+  "finished_at": "2026-11-19T19:01:17.742Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.7.0",
+  "source": {
+    "match_id": "20261119T074153Z-5288",
+    "path": "data/golden/eval-6.3-gateB-deepseek-match3",
+    "match_json_sha256": "a1bdf1695f0d3d59fedeab33b651920909e2359e599e7edc1c48cceb63e90d78",
+    "status": "completed",
+    "judge_version": "0.7.0",
+    "blue_engine": "claude",
+    "red_engine": "ai",
+    "artifacts": {
+      "anomalies.jsonl": {
+        "sha256": "5eadee89c4dd0f61f821000cb0aada0b493fa0cba81bdb7c8812aa7231fedfe8",
+        "bytes": 243
+      },
+      "api_calls.jsonl": {
+        "sha256": "27ee13ea23beab1262811b30ce2dc7e5abe92cc6e11640d7ca67a818c635f2eb",
+        "bytes": 17567
+      },
+      "benign_requests.jsonl": {
+        "sha256": "2450190eaaf0111067eda8b72412f0bfc885826ee2f4a1fd76495c0479799e65",
+        "bytes": 3815
+      },
+      "benign_results.jsonl": {
+        "sha256": "429b343ff4e826cfbf4844829efa0d3d26fb1d5369e317645917b436839661ec",
+        "bytes": 4258
+      },
+      "challenge_snapshots.jsonl": {
+        "sha256": "a6e99147495a792c76a55b6107e2594b874ac9599a0130ee0426ddfcf39333dd",
+        "bytes": 5028
+      },
+      "landed.jsonl": {
+        "sha256": "29314fe732ccad705b3ae46745ab0a4424c59addcc65aaebc9480c0328dfc76d",
+        "bytes": 1922
+      },
+      "library.json": {
+        "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+        "bytes": 17436
+      },
+      "proxy.jsonl": {
+        "sha256": "d889f86c6570b54f9f582a878f06c2481c16eac88384c7542a79a5078e0bb22e",
+        "bytes": 5204
+      },
+      "red_attacks.jsonl": {
+        "sha256": "3f3c4e0dc9daf0c07448a07808c786aa4e780d1a27803bd2945999760f492e2c",
+        "bytes": 5072
+      },
+      "red_unsent.jsonl": {
+        "sha256": "d8f348bfb33ddab3bc433ce500cc71fdccc2b4f6b2e8682650909526423b08cc",
+        "bytes": 562
+      },
+      "rounds.jsonl": {
+        "sha256": "d379ef43fe45039b902c86ec4fcd719be3a22281dda43a593fc91609681c733a",
+        "bytes": 2928
+      },
+      "rule_rejections.jsonl": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "rule_results.jsonl": {
+        "sha256": "138829ed89f33692547d5d3cd2862a3d1b0bffe2ee6537166ed49521a67c9b07",
+        "bytes": 447
+      },
+      "rules.jsonl": {
+        "sha256": "bfb79082367e55926360eefdc2863592d929308f8ddbf879d7fe0c72d097263e",
+        "bytes": 361
+      },
+      "verdicts.jsonl": {
+        "sha256": "73380e6ecde96db27dc6aeaed0d287889319e34199a9eba0b4a696528b248f90",
+        "bytes": 10037
+      }
+    },
+    "copied": [
+      "benign_requests.jsonl",
+      "challenge_snapshots.jsonl",
+      "proxy.jsonl",
+      "red_attacks.jsonl",
+      "red_unsent.jsonl"
+    ]
+  },
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "3-open",
+    "system_prompt_sha256": "4561f150b92f05938835f57ab85c8981c2c831bc2d9f869975b594f4abf2c41b",
+    "rules": {
+      "mode": "on",
+      "max_rules": 10
+    },
+    "caching": {
+      "mode": "on",
+      "ttl": "5m"
+    },
+    "library": {
+      "path": "data/library/rule_library_v0005.json",
+      "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+      "library_version": 5,
+      "entries": 19
+    },
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "git": {
+    "commit": "724979c6450e7c3dc82ff66c4f9fef4432397e59",
+    "dirty": false
+  },
+  "models": {
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    }
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "87887d57515d1d705f741e6f7447e12c7e3f10625393b6a1f3def0f1a0c0a86e",
+    "as_of": "2026-11-18"
+  },
+  "cost": {
+    "total_usd": 0.001044,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.003365,
+    "attempts": 18,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 1555,
+      "cached_input": 37386,
+      "cache_write": 0,
+      "output": 1029
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.001044,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003365,
+        "attempts": 18,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1555,
+          "cached_input": 37386,
+          "cache_write": 0,
+          "output": 1029
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.001044,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003365,
+        "attempts": 18,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1555,
+          "cached_input": 37386,
+          "cache_write": 0,
+          "output": 1029
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "5eadee89c4dd0f61f821000cb0aada0b493fa0cba81bdb7c8812aa7231fedfe8",
+      "bytes": 243
+    },
+    "api_calls.jsonl": {
+      "sha256": "84e9608703de68ef8a2964a39ac1a5dc9b059349c67f03f1d449bd2bf506aa0e",
+      "bytes": 10334
+    },
+    "benign_requests.jsonl": {
+      "sha256": "2450190eaaf0111067eda8b72412f0bfc885826ee2f4a1fd76495c0479799e65",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "08fa84b6172e38ed4de511e10599f66e00a08e55cd5ac8d003ef4a2e79bdb500",
+      "bytes": 4259
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "a6e99147495a792c76a55b6107e2594b874ac9599a0130ee0426ddfcf39333dd",
+      "bytes": 5028
+    },
+    "landed.jsonl": {
+      "sha256": "29314fe732ccad705b3ae46745ab0a4424c59addcc65aaebc9480c0328dfc76d",
+      "bytes": 1922
+    },
+    "library.json": {
+      "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+      "bytes": 17436
+    },
+    "proxy.jsonl": {
+      "sha256": "d889f86c6570b54f9f582a878f06c2481c16eac88384c7542a79a5078e0bb22e",
+      "bytes": 5204
+    },
+    "red_attacks.jsonl": {
+      "sha256": "3f3c4e0dc9daf0c07448a07808c786aa4e780d1a27803bd2945999760f492e2c",
+      "bytes": 5072
+    },
+    "red_unsent.jsonl": {
+      "sha256": "d8f348bfb33ddab3bc433ce500cc71fdccc2b4f6b2e8682650909526423b08cc",
+      "bytes": 562
+    },
+    "rounds.jsonl": {
+      "sha256": "d379ef43fe45039b902c86ec4fcd719be3a22281dda43a593fc91609681c733a",
+      "bytes": 2928
+    },
+    "rule_rejections.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rule_results.jsonl": {
+      "sha256": "138829ed89f33692547d5d3cd2862a3d1b0bffe2ee6537166ed49521a67c9b07",
+      "bytes": 447
+    },
+    "rules.jsonl": {
+      "sha256": "bfb79082367e55926360eefdc2863592d929308f8ddbf879d7fe0c72d097263e",
+      "bytes": 361
+    },
+    "verdicts.jsonl": {
+      "sha256": "b63e2c05a449083e970a7957921afbef4d36945fad09dd85b2cf8a28ca491b44",
+      "bytes": 9604
+    }
+  }
+}
