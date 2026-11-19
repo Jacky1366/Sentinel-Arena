@@ -245,7 +245,8 @@
                   "enum": [
                     null,
                     "disabled",
-                    "adaptive"
+                    "adaptive",
+                    "between_tools"
                   ]
                 },
                 "effort": {

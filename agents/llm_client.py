@@ -96,7 +96,7 @@ API_CALL_SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "api_call.schema.json").read_text(encoding="utf-8")))
 
 
-THINKING = ("disabled", "adaptive")
+THINKING = ("disabled", "adaptive", "between_tools")  # between_tools: Sonnet 5.5's "off"
 EFFORTS = ("low", "medium", "high", "xhigh", "max")
 RULES_MODES = ("off", "shadow", "on")  # agents.blue.rules.mode (Stage 5.5)
 CACHING_MODES = ("off", "on")  # agents.<agent>.caching (Stage 5.7)
@@ -253,9 +253,6 @@ def agent_request(cfg: dict, agent: str) -> dict:
 def agent_caching(cfg: dict, agent: str) -> str:
     """"off" | "on" (Stage 5.7). A cost setting, held constant within a comparison."""
     return cfg["agents"][agent].get("caching", "off")
-
-
-EFFORTS = ("minimal", "low", "medium", "high")
 
 
 def with_effort(cfg: dict, agent: str, effort: str | None) -> dict:

@@ -4,6 +4,7 @@ decisions D33-D37.
 
     .venv/bin/python tools/stage6_3_check.py --gate A --estimate            # zero token
     .venv/bin/python tools/stage6_3_check.py --gate A --probe --real-calls  # 2 calls (gate-6.3-A)
+        [--probe-red gpt-6.1-terra] [--probe-half red|blue]       # one candidate / one half
     .venv/bin/python tools/stage6_3_check.py --gate B --real-calls          # 3 eval matches (gate-6.3-B)
     .venv/bin/python tools/stage6_3_check.py --gate C --matches D1 D2 D3 --real-calls  # 6 replays (gate-6.3-C)
 
@@ -51,6 +52,10 @@ EMPTY = LIB_DIR / "rule_library_v0000.json"
 TEST_SET = REPO / "config" / "test_set.json"
 PROFILE = [REPO / "data" / "golden" / f"train-6.1b-gate1-match{i}" for i in range(1, 6)]
 PROBE_LOG = REPO / "data" / "golden" / "scripted-baseline-benign-match" / "proxy.jsonl"
+SONNET_THINKING = "between_tools"
+# Gate A Red candidates the designer named (Nov 18), probed one at a time, conditionally.
+PROBE_CANDIDATES = {"gpt-6.1-sol": "medium", "gpt-6.1-terra": "medium",
+                    "gpt-5.6-sol": "medium", "gpt-6-luna": "high"}
 OUTPUT_MULTS = (1, 3)  # Sol at effort medium: reasoning tokens unknown until the probe
 
 
@@ -132,20 +137,35 @@ def print_estimate(e: dict) -> None:
         print(f"  PRICE NOT VERIFIED: {p}")
 
 
-def gate_config(base: dict | None = None) -> dict:
-    """The D33 Red treatment over the config: Sol at effort medium, caching on (Gate 3)."""
+def gate_config(base: dict | None = None, model: str | None = None,
+                effort: str | None = None) -> dict:
+    """The D33 Red treatment over the config: Sol at effort medium, caching on (Gate 3).
+    model / effort override it for a Gate A candidate probe only."""
     cfg = base if base is not None else lc.load_config()
     cfg = lc.with_caching(cfg, "red", "on")
-    cfg = lc.with_effort(cfg, "red", RED_EFFORT)
+    cfg = lc.with_effort(cfg, "red", effort or RED_EFFORT)
     cfg = json.loads(json.dumps(cfg))
-    cfg["agents"]["red"]["model"] = RED_MODEL
+    cfg["agents"]["red"]["model"] = model or RED_MODEL
     return cfg
 
 
-def probe(out_root: Path | None = None, client_factory=None) -> int:
-    """ONE Sol Red proposal (dry run, nothing sent) + ONE Sonnet Blue call (prompt v2)."""
+def sonnet_config(base: dict | None = None) -> dict:
+    """Blue for the Sonnet arm: the Blue config with caching on and thinking OFF in the
+    form Sonnet 5.5 accepts (`between_tools`; it rejects `disabled`, Gate A probe 2)."""
+    cfg = lc.with_caching(base if base is not None else lc.load_config(), "blue", "on")
+    cfg = json.loads(json.dumps(cfg))
+    cfg["agents"]["blue"].setdefault("request", {})["thinking"] = SONNET_THINKING
+    return cfg
+
+
+def probe(out_root: Path | None = None, client_factory=None,
+          red_model: str | None = RED_MODEL, blue: bool = True) -> int:
+    """At most ONE Red proposal (dry run, nothing sent) for red_model at its candidate
+    effort, and ONE Sonnet Blue call (prompt v2, thinking between_tools). Either half can
+    be skipped (red_model None / blue False). A failed or refused call is never retried by
+    the probe; its key-redacted error or refusal text is printed, never written to disk."""
     base_make = client_factory or (lambda cfg: lc.LLMClient(config=cfg))
-    errors: list[str] = []  # the client's key-redacted error text, never written to disk
+    notes: list[str] = []
 
     class _Seen:
         def __init__(self, client):
@@ -156,39 +176,51 @@ def probe(out_root: Path | None = None, client_factory=None) -> int:
 
         def complete(self, *a, **kw):
             r = self._c.complete(*a, **kw)
+            agent = a[0] if a else kw.get("agent")
             if not r.ok and r.error:
-                errors.append(f"{a[0] if a else kw.get('agent')}: {r.error}")
+                notes.append(f"error {agent}: {r.error}")
+            elif r.ok and r.stop_reason == "refusal":
+                notes.append(f"refusal {agent}: {(r.text or '')[:500]}")
             return r
 
     def make(cfg):
         return _Seen(base_make(cfg))
     mid = run_match.new_match_id()
     root = out_root or REPO / "data" / "runs" / f"probe-6.3-{mid}"
-    red_dir, blue_dir = root / "red", root / "blue"
-    red_dir.mkdir(parents=True)
-    blue_dir.mkdir(parents=True)
-    cfg = gate_config()
-    red = ai_red.AIRed(make(cfg), RED_MODEL, red_dir, mid, round_cap=1)
-    p = red.propose(None, 1)
-    bcfg = lc.with_caching(lc.load_config(), "blue", "on")
-    _, system, _, schema = claude_engine.PROMPTS["on"]
-    line = claude_engine.read_judged_lines(PROBE_LOG)[0]
-    make(bcfg).complete("blue", BLUE_STRONG, system, claude_engine.build_messages([line], system),
-                        run_dir=blue_dir, log_seq_first=1, log_seq_last=1, match_id=mid,
-                        output_schema=schema)
+    runs = []
+    if red_model is not None:
+        effort = PROBE_CANDIDATES[red_model]
+        cfg = gate_config(model=red_model, effort=effort)
+        (root / "red").mkdir(parents=True)
+        red = ai_red.AIRed(make(cfg), red_model, root / "red", mid, round_cap=1)
+        p = red.propose(None, 1)
+        runs.append(("red", root / "red", cfg, f"effort {effort}"))
+    if blue:
+        bcfg = sonnet_config()
+        (root / "blue").mkdir(parents=True)
+        _, system, _, schema = claude_engine.PROMPTS["on"]
+        line = claude_engine.read_judged_lines(PROBE_LOG)[0]
+        make(bcfg).complete("blue", BLUE_STRONG, system,
+                            claude_engine.build_messages([line], system),
+                            run_dir=root / "blue", log_seq_first=1, log_seq_last=1,
+                            match_id=mid, output_schema=schema)
+        runs.append(("blue", root / "blue", bcfg, f"thinking {SONNET_THINKING}"))
     ok = True
-    for agent, d in (("red", red_dir), ("blue", blue_dir)):
+    for agent, d, c_cfg, setting in runs:
         for c in jl(d / lc.API_CALLS):
-            print(f"  {agent} {c['model']} ok={c['ok']} stop={c.get('stop_reason')} in "
-                  f"{c.get('input_tokens')} cached {c.get('cached_input_tokens')} write "
+            print(f"  {agent} {c['model']} ({setting}) ok={c['ok']} stop={c.get('stop_reason')} "
+                  f"in {c.get('input_tokens')} cached {c.get('cached_input_tokens')} write "
                   f"{c.get('cache_write_tokens')} out {c.get('output_tokens')} "
-                  f"(max_output_tokens {lc.agent_max_output_tokens(cfg if agent == 'red' else bcfg, agent)})")
-            ok &= c["ok"] is True and c.get("stop_reason") not in ("max_tokens", "max_output_tokens",
-                                                                     "incomplete")
-    print(f"  Red proposal: {p.kind}{'' if p.kind != 'instrument_failure' else ' ' + str(p.reason)}")
-    for e in errors:  # already redacted by llm_client (keys never reach here)
-        print(f"  error {e}")
-    print(f"RESULT: {'PASS' if ok else 'CHECK'} -> {root.relative_to(REPO) if root.is_relative_to(REPO) else root}")
+                  f"(max_output_tokens {lc.agent_max_output_tokens(c_cfg, agent)})")
+            ok &= c["ok"] is True and c.get("stop_reason") not in (
+                "max_tokens", "max_output_tokens", "incomplete", "refusal")
+    if red_model is not None:
+        print(f"  Red proposal: {p.kind}"
+              f"{'' if p.kind == 'attack' else ' ' + str(p.reason)}")
+    for n in notes:  # already redacted by llm_client (keys never reach here)
+        print(f"  {n}")
+    shown = root.relative_to(REPO) if root.is_relative_to(REPO) else root
+    print(f"RESULT: {'PASS' if ok else 'CHECK'} -> {shown}")
     return 0 if ok else 1
 
 
@@ -311,6 +343,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--gate", choices=("A", "B", "C"), required=True)
     ap.add_argument("--estimate", action="store_true", help="Gate A: zero-token cost estimate")
     ap.add_argument("--probe", action="store_true", help="Gate A: 2 real calls (token gate-6.3-A)")
+    ap.add_argument("--probe-red", choices=sorted(PROBE_CANDIDATES), default=None,
+                    help="Gate A probe: the ONE Red candidate to try (its effort is fixed)")
+    ap.add_argument("--probe-half", choices=("both", "red", "blue"), default="both",
+                    help="Gate A probe: run only the Red or only the Sonnet Blue call")
     ap.add_argument("--matches", type=Path, nargs="+", default=None, help="Gate C: Gate B folders")
     ap.add_argument("--real-calls", action="store_true",
                     help="actually run (REAL, PAID calls; designer GO only)")
@@ -325,7 +361,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.gate == "C" and not args.matches:
         print("REFUSED: Gate C needs --matches <the 3 Gate B match folders>")
         return 2
-    plan = {"A": f"probe: 1 {RED_MODEL} Red proposal (dry run) + 1 {BLUE_STRONG} Blue call",
+    probe_red = None if args.probe_half == "blue" else (args.probe_red or RED_MODEL)
+    probe_blue = args.probe_half != "red"
+    a_plan = " + ".join(
+        ([f"1 {probe_red} Red proposal at effort {PROBE_CANDIDATES[probe_red]} (dry run)"]
+         if probe_red else []) +
+        ([f"1 {BLUE_STRONG} Blue call (thinking {SONNET_THINKING})"] if probe_blue else []))
+    plan = {"A": f"probe: {a_plan}",
             "B": f"{len(SEEDS)} eval matches, Red {RED_MODEL} effort {RED_EFFORT} vs Blue "
                  f"{BLUE_LIVE} + library v5 (read-only), seeds {SEEDS}",
             "C": f"{2 * len(args.matches or [])} replays: {BLUE_STRONG} + v5, {BLUE_LIVE} + v0000"}
@@ -337,7 +379,8 @@ def main(argv: list[str] | None = None) -> int:
     if refusal:
         print(refusal)
         return 2
-    problems = price_problems(prices, (RED_MODEL, BLUE_STRONG) if args.gate == "A" else
+    a_models = tuple(m for m in (probe_red, BLUE_STRONG if probe_blue else None) if m)
+    problems = price_problems(prices, a_models if args.gate == "A" else
                               (RED_MODEL, BLUE_LIVE) if args.gate == "B" else
                               (BLUE_STRONG, BLUE_LIVE))
     if args.gate in ("B", "C"):
@@ -351,7 +394,7 @@ def main(argv: list[str] | None = None) -> int:
         print("REFUSED: the git tree is dirty; commit first.")
         return 2
     if args.gate == "A":
-        return probe()
+        return probe(red_model=probe_red, blue=probe_blue)
     return gate_b(prices) if args.gate == "B" else gate_c(prices, args.matches)
 
 

@@ -219,3 +219,73 @@ def test_probe_passes_on_clean_replies(tmp_path, capsys):
     assert "RESULT: PASS" in out and "error " not in out
     red = [json.loads(l) for l in (tmp_path / "p" / "red" / lc.API_CALLS).read_text().splitlines()]
     assert red[0]["model"] == "gpt-6.1-sol" and red[0]["ok"] is True
+
+
+def test_effort_values_are_the_api_values():
+    # a second EFFORTS once narrowed config validation to minimal..high (Nov 18 fix)
+    assert lc.EFFORTS == ("low", "medium", "high", "xhigh", "max")
+    base = lc.load_config()
+    assert lc.with_effort(base, "red", "xhigh")["agents"]["red"]["request"]["effort"] == "xhigh"
+    with pytest.raises(lc.ConfigError):
+        lc.with_effort(base, "red", "minimal")
+
+
+def test_sonnet_arm_turns_thinking_off_with_between_tools():
+    cfg = g.sonnet_config(lc.load_config())
+    assert cfg["agents"]["blue"]["request"] == {"thinking": "between_tools", "effort": "low"}
+    assert cfg["agents"]["blue"]["caching"] == "on"
+    kw = lc.anthropic_request_kwargs(lc.agent_request(cfg, "blue"), None)
+    assert kw["thinking"] == {"type": "between_tools"}  # no other field alongside it
+    assert lc.load_config()["agents"]["blue"]["request"]["thinking"] == "disabled"  # Haiku
+
+
+def _adapters_factory(oa, an):
+    return lambda cfg: lc.LLMClient(config=cfg, prices=cost_stats.load_prices(),
+                                    adapters={"openai": oa, "anthropic": an}, env={},
+                                    sleep=lambda s: None,
+                                    dotenv_path=REPO / "nonexistent" / "no.env")
+
+
+@pytest.mark.parametrize("model", ["gpt-6.1-terra", "gpt-5.6-sol", "gpt-6-luna"])
+def test_probe_one_red_candidate_only(tmp_path, capsys, model):
+    from llm_fakes import FakeAdapter
+    from test_run_match_ai_vs_ai import RED_REPLY
+    oa, an = FakeAdapter(provider="openai", text=RED_REPLY), FakeAdapter(provider="anthropic")
+    assert g.probe(out_root=tmp_path / "p", client_factory=_adapters_factory(oa, an),
+                   red_model=model, blue=False) == 0
+    assert len(oa.calls) == 1 and an.calls == [] and not (tmp_path / "p" / "blue").exists()
+    assert oa.calls[0]["model"] == model
+    assert oa.calls[0]["request"]["effort"] == g.PROBE_CANDIDATES[model]
+    assert f"effort {g.PROBE_CANDIDATES[model]}" in capsys.readouterr().out
+
+
+def test_probe_blue_only_sends_between_tools(tmp_path, capsys):
+    from llm_fakes import FakeAdapter
+    oa, an = FakeAdapter(provider="openai"), FakeAdapter(provider="anthropic")
+    assert g.probe(out_root=tmp_path / "p", client_factory=_adapters_factory(oa, an),
+                   red_model=None) == 0
+    assert oa.calls == [] and len(an.calls) == 1
+    assert an.calls[0]["model"] == "claude-sonnet-5-5"
+    assert an.calls[0]["request"]["thinking"] == "between_tools"
+    assert "Red proposal" not in capsys.readouterr().out
+
+
+def test_probe_prints_a_safety_refusal_and_never_retries(tmp_path, capsys):
+    from llm_fakes import FakeAdapter
+
+    class Refusing(FakeAdapter):
+        def call(self, **kw):
+            self.calls.append(kw)
+            return lc.Reply(text="I can't help with that.", usage=self.usage,
+                            stop_reason="refusal")
+    oa, an = Refusing(provider="openai"), FakeAdapter(provider="anthropic")
+    assert g.probe(out_root=tmp_path / "p", client_factory=_adapters_factory(oa, an),
+                   red_model="gpt-6.1-terra", blue=False) == 1
+    out = capsys.readouterr().out
+    assert len(oa.calls) == 1 and "refusal red: I can't help with that." in out
+    assert "RESULT: CHECK" in out
+
+
+def test_probe_cli_accepts_only_the_named_candidates():
+    with pytest.raises(SystemExit):
+        g.main(["--gate", "A", "--probe", "--probe-red", "gpt-6.2-astra"])

@@ -1105,8 +1105,10 @@ agent) and the default `model` (`null` = no AI for that agent yet), `timeout_s`,
 `max_output_tokens`, `chars_per_token`, and `caps` (the global `provider_caching` key
 of Stages 5.1–5.6 is gone; a config that still has it is refused). Per agent, optionally (Stage 5.4): `max_output_tokens`
 (overrides the global value, also in the worst-case estimate), `request`
-(`{thinking: disabled|adaptive, effort: low|medium|high|xhigh|max}`; nothing else, in
-particular no sampling parameters) and `chunk_size` (Blue; ≥ 1, > 1 only for unscored
+(`{thinking: disabled|adaptive|between_tools, effort: low|medium|high|xhigh|max}`; nothing
+else, in particular no sampling parameters; `between_tools` is how thinking is turned off on
+Claude Sonnet 5.5, which rejects `disabled` (Stage 6.3 Gate A); additive in match.json 0.8 and
+replay.json 0.3) and `chunk_size` (Blue; ≥ 1, > 1 only for unscored
 runs). For Blue (Stage 5.5): `rules` `{mode: off|shadow|on, max_rules: int ≥ 0}` (§5.2;
 default mode `off`; only Blue may have it) and `max_output_tokens` 512 in all three modes
 (256 in Stage 5.4; raised so a reply carrying a three-condition rule is not cut off, and
