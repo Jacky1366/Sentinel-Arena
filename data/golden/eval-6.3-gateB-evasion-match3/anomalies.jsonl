@@ -1,0 +1,1 @@
+{"schema_version": "0.1", "match_id": "20261119T084926Z-a819", "kind": "benign_solved_challenge", "request_id": "be9e5f22-f149-4cdd-afbf-74fa72e360ff", "detail": {"benign_id": "h06", "newly_solved": [], "expected_solves": ["Error Handling"]}}

@@ -1,0 +1,9 @@
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 1, "request_id": "3b7d8e5c-a879-4f00-a207-b380e08a8ad6", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 2, "request_id": "00479022-d920-45e3-9ff2-eb2aa10f247c", "label": "CWE-22", "landed": false, "landed_reason": null, "newly_solved": ["Error Handling"]}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 3, "request_id": "ff89dd21-d148-4c29-9865-e5ee31b50be6", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 4, "request_id": "3b2434c9-a2ef-4fba-882f-089a36636350", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 6, "request_id": "dee776de-5037-4648-a439-5da3e0b2ab01", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 7, "request_id": "784db044-5bbc-431a-8fc7-2d2b6d392fa9", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 8, "request_id": "4c9f4abf-edd7-49a7-90e2-d9d79afcd32b", "label": "CWE-89", "landed": false, "landed_reason": null, "newly_solved": ["Database Schema"]}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 9, "request_id": "0a6a28b6-c4fd-4339-ab6d-8393f60a2e58", "label": "CWE-79", "landed": null, "landed_reason": "not_measurable", "newly_solved": []}
+{"schema_version": "0.1", "match_id": "20261119T083408Z-2665", "round": 10, "request_id": "e2ff1dd4-d16a-4353-a760-13f1b8bfa72c", "label": "CWE-89", "landed": true, "landed_reason": null, "newly_solved": ["Login Admin"]}

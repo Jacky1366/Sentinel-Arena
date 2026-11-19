@@ -1,0 +1,315 @@
+{
+  "schema_version": "0.8",
+  "match_id": "20261119T083408Z-2665",
+  "started_at": "2026-11-19T08:34:08.981Z",
+  "finished_at": "2026-11-19T08:49:26.085Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.7.0",
+  "purpose": "eval",
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "2",
+    "system_prompt_sha256": "cf440507f4463f38dc4aefba40ec7cb3736c654fff71c9aacd700d6eeb614027",
+    "rules": {
+      "mode": "on",
+      "max_rules": 10
+    },
+    "caching": {
+      "mode": "on",
+      "ttl": "5m"
+    },
+    "library": {
+      "path": "data/library/rule_library_v0005.json",
+      "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+      "library_version": 5,
+      "entries": 19
+    },
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "red_engine": "ai",
+  "red_params": {
+    "provider": "deepseek",
+    "model": "deepseek-v4-pro",
+    "round_cap": 10,
+    "prompt_version": "2",
+    "system_prompt_sha256": "a826b6f40b203a6d6e93225b834460d64d6dc576e84963f6b9e74c1f7cbaa66b",
+    "caching": {
+      "mode": "on",
+      "ttl": "auto"
+    },
+    "sdk": {
+      "package": "openai",
+      "version": "3.41.0"
+    },
+    "request": {
+      "max_output_tokens": 8192,
+      "timeout_s": 180,
+      "reasoning_effort": "max",
+      "output_format": "json_schema",
+      "store": false,
+      "temperature": null,
+      "temperature_note": "not set; run-to-run variation is expected"
+    },
+    "feedback_body_chars": 500,
+    "guard": {
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "max_path_chars": 2048,
+      "max_body_chars": 4096
+    }
+  },
+  "red_source": null,
+  "git": {
+    "commit": "8e647921d0ddd0339535c01f8264baf3e13e805c",
+    "dirty": false
+  },
+  "traffic": {
+    "seed": 6322,
+    "seed_source": "cli",
+    "benign_set": {
+      "path": "benign/benign_set.json",
+      "sha256": "1ea7c40c9c16423016bd1c25e8f89107c3e2312df630e5103d20de0a6f493d59",
+      "set_version": "1"
+    },
+    "schedule": [
+      "red:1",
+      "benign:n01",
+      "benign:n02",
+      "red:2",
+      "benign:n03",
+      "benign:n04",
+      "benign:n05",
+      "red:3",
+      "red:4",
+      "red:5",
+      "red:6",
+      "benign:n06",
+      "red:7",
+      "red:8",
+      "red:9",
+      "benign:n07",
+      "benign:n08",
+      "benign:n09",
+      "benign:n10",
+      "benign:n11",
+      "red:10",
+      "benign:h01",
+      "benign:h02",
+      "benign:h03",
+      "benign:h04",
+      "benign:h05",
+      "benign:h06"
+    ]
+  },
+  "images": {
+    "juice_shop": {
+      "image": "bkimminich/juice-shop:v20.3.0",
+      "image_id": "sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27",
+      "repo_digest": "bkimminich/juice-shop@sha256:cea5a4af4aacee498c491491af0408934ec81d004035c0a02ef3e54395e3bf27"
+    },
+    "nginx": {
+      "image": "nginx:1.30.6-alpine",
+      "image_id": "sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949",
+      "repo_digest": "nginx@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949"
+    }
+  },
+  "models": {
+    "red": {
+      "provider": "deepseek",
+      "model": "deepseek-v4-pro"
+    },
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    },
+    "analyst": null
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "87887d57515d1d705f741e6f7447e12c7e3f10625393b6a1f3def0f1a0c0a86e",
+    "as_of": "2026-11-18"
+  },
+  "cost": {
+    "total_usd": 0.137117,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.019687,
+    "attempts": 29,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 4959,
+      "cached_input": 45512,
+      "cache_write": 1796,
+      "output": 34288
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.001339,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.002865,
+        "attempts": 19,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1638,
+          "cached_input": 32328,
+          "cache_write": 1796,
+          "output": 1254
+        }
+      },
+      "red": {
+        "usd": 0.135778,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.016823,
+        "attempts": 10,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 3321,
+          "cached_input": 13184,
+          "cache_write": 0,
+          "output": 33034
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.001339,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.002865,
+        "attempts": 19,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1638,
+          "cached_input": 32328,
+          "cache_write": 1796,
+          "output": 1254
+        }
+      },
+      "deepseek-v4-pro": {
+        "usd": 0.135778,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.016823,
+        "attempts": 10,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 3321,
+          "cached_input": 13184,
+          "cache_write": 0,
+          "output": 33034
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "34a2cb568bd0f61bf3401613d12aa2f725655573e0aece3efa3ff5d56de2e0dd",
+      "bytes": 243
+    },
+    "api_calls.jsonl": {
+      "sha256": "24b0672a672ce553e3d4be9a21aa5e705016cbe42596648214cc6b213ffe8b49",
+      "bytes": 16930
+    },
+    "benign_requests.jsonl": {
+      "sha256": "3bd00933963634c98b7ec340a45321527f7747da8c1b858317f8a2e7585a05b8",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "cd5f8e6c4ae47882f0da3691bcfdb5caa7a76dd6569f3999677cfb51dd5cba9d",
+      "bytes": 4258
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "409dca72ec8b9ebaeaa1fbc209f587d2652387e1347f4620cd3c25c29668f0b6",
+      "bytes": 5483
+    },
+    "landed.jsonl": {
+      "sha256": "6a06190e6c725aa72d3d4b5ab794812def65e12edab487af455ffa9db8d09151",
+      "bytes": 1929
+    },
+    "library.json": {
+      "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+      "bytes": 17436
+    },
+    "proxy.jsonl": {
+      "sha256": "1e97fecf4580abc4273e7276d0f581d5d7d9ca3820eafb3b6786c2e8d910b005",
+      "bytes": 5395
+    },
+    "red_attacks.jsonl": {
+      "sha256": "ceafe1aa2dac220456484e5b40bd8e5f0637166b45d6c0ecd179970b539c4695",
+      "bytes": 5015
+    },
+    "red_unsent.jsonl": {
+      "sha256": "b06637e20e296a4f0555b8e3a58577c6b5418b8eb396d7702cd66ff21237a0cb",
+      "bytes": 199
+    },
+    "rounds.jsonl": {
+      "sha256": "21ea5e2ea93bdbb60728cc1385917d89008ea998ea0c7f9e089c0f7920f79416",
+      "bytes": 2933
+    },
+    "rule_rejections.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rule_results.jsonl": {
+      "sha256": "9d900ae8c6c06a5ff1c3ed77d2e6fd24527685e71a60efc74d8536ca00c02eab",
+      "bytes": 895
+    },
+    "rules.jsonl": {
+      "sha256": "e2455581a9cb5a54f6078dca60a935b8ef39de732cd71514be29cdc8e53fac1d",
+      "bytes": 733
+    },
+    "verdicts.jsonl": {
+      "sha256": "e99ab507992e6eda4827e840efd7a5eba37742cdeb53ddef09987197ce298ddf",
+      "bytes": 10109
+    }
+  }
+}
