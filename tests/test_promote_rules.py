@@ -192,8 +192,8 @@ def test_refuses_a_dev_match(env):
     _nothing_written(env)
 
 
-@pytest.mark.parametrize("name", ["ai-vs-ai-gate3-match1", "ai-red-luna-gate2-match1",
-                                  "scripted-baseline-benign-match"])
+@pytest.mark.parametrize("name", ["scripted-baseline-match", "claude-blue-haiku-first-match",
+                                  "scripted-baseline-benign-match"])  # non-test folders
 def test_refuses_every_golden_match(env, name):
     code, out = env.promote(REPO / "data" / "golden" / name)
     assert code == 2 and "data/golden" in out

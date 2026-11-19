@@ -291,10 +291,17 @@ docker compose down             # stop (the log in data/runs/live/ is kept)
   capture + seal) pending the designer's GO; D24 amendment approved Nov 18 (`encoding_only`
   excluded from (d); new criterion (d′) `encoding_fragile`).
   Plan `docs/plans/stage6_1_step0.md`, decisions `docs/stage6_decisions.md`.
-- **Never run anything on `data/golden/` or on any test-set data (`config/test_set.json`
-  matches, the sealed holdout) without the designer's explicit GO, including read-only
-  debugging.** Several committed tests and gate tools read golden folders; run those only
-  after a GO (designer rule, 2026-11-18).
+- **Test-set data rule (designer, 2026-11-18, revised the same day):**
+  1. Protected data = the TEST SET only: the match ids in `config/test_set.json` and the
+     holdout set (`benign/holdout_v1.*`). Other golden folders (scripted baselines, the
+     first Claude Blue match, gate-5.5 / gate-5.7 replays) are not test data.
+  2. Committed read-only integrity tests (hash / re-score / unchanged-folder checks) have a
+     standing GO and stay in the default suite.
+  3. Any NEW code, test, debugging or exploratory run that reads test-set data needs the
+     designer's explicit GO first.
+  4. Offline tests never replay test-set matches (`tests/test_stage6_1_gates_offline.py`
+     swaps in non-test golden folders and fails on any test-set replay). Only the real
+     6.1b gates (Gate 2, `--predict`) touch the Gate 3 matches, each after a GO.
 - Only `tools/promote_rules.py` may write a rule library (D26); never import `library/` from
   match, replay, Blue or Judge code (tests/test_train_test_wall.py). Never use golden or
   holdout data to select or tune rules (S6-1).

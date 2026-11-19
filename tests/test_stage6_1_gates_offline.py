@@ -1,6 +1,11 @@
 """tools/stage6_1_check.py offline (Stage 6.1): the refusals (no --real-calls, unsealed
 offline files, missing --library), the zero-token prediction, and Gates 1 and 2 driven
-end to end on FakeOps + the fake provider (no network, no Docker, no money)."""
+end to end on FakeOps + the fake provider (no network, no Docker, no money).
+
+TEST-SET WALL (designer rule, 2026-11-18): these tests never read a test-set match. The
+gate's Gate 3 sources are swapped for NON-test golden folders (autouse fixture), and every
+replay and prediction is checked against config/test_set.json. Only the real 6.1b gates
+(Gate 2, --predict) touch the Gate 3 matches, each after a designer GO."""
 
 from __future__ import annotations
 
@@ -18,6 +23,33 @@ from llm_fakes import PRICES, FakeAdapter, lc
 from rules import library as rule_library  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
 from tools import stage6_1_check as gate  # noqa: E402
+
+
+TEST_IDS = set(json.loads((REPO / "config" / "test_set.json").read_text())["match_ids"])
+NON_TEST_SOURCES = ["scripted-baseline-benign-match", "claude-blue-haiku-first-match"]
+
+
+def _match_id(d):
+    return json.loads((d / "match.json").read_text())["match_id"]
+
+
+@pytest.fixture(autouse=True)
+def non_test_sources(monkeypatch):
+    """Point the gate at non-test golden folders, and fail on any test-set read."""
+    assert not {_match_id(gate.GOLDEN / s) for s in NON_TEST_SOURCES} & TEST_IDS
+    monkeypatch.setattr(gate, "SOURCES", list(NON_TEST_SOURCES))
+    real_replay = gate.replay_blue.replay
+
+    def guarded_replay(source, *a, **kw):
+        assert _match_id(source) not in TEST_IDS, f"test-set match replayed: {source}"
+        return real_replay(source, *a, **kw)
+    monkeypatch.setattr(gate.replay_blue, "replay", guarded_replay)
+
+
+def test_the_gate_itself_still_targets_the_gate3_matches():
+    """The real tool's sources are unchanged (read from the module source, no data read)."""
+    src = (REPO / "tools" / "stage6_1_check.py").read_text()
+    assert 'SOURCES = ["ai-vs-ai-gate3-match1", "ai-vs-ai-gate3-match2", "ai-vs-ai-gate3-match3"]' in src
 
 
 def run(argv, capsys):
@@ -42,11 +74,12 @@ def test_gates_refuse_without_real_calls(capsys, monkeypatch):
 
 def test_prediction_is_zero_token_and_reads_only_frozen_files(tmp_path, capsys):
     lib_path = make_library(tmp_path, ("20261120T010000Z-aaaa", [
-        rule(1, cwe="CWE-22", pattern="../", field="path", ci=False),
-        rule(2, cwe="CWE-89", pattern="or 1=1", field="query")]))[-1]
+        rule(1, cwe="CWE-22", pattern="%2500", field="path", ci=False),
+        rule(2, cwe="CWE-89", pattern="or 1=1", field="body")]))[-1]
     lib = rule_library.load(lib_path)
     pred = gate.predict(lib)
-    assert set(pred) == set(gate.SOURCES)
+    assert set(pred) == set(gate.SOURCES) == set(NON_TEST_SOURCES)
+    assert all(pred[s] for s in pred)  # the library answers lines in every source
     assert all(h["rule_ids"][0].startswith("lib-") for hits in pred.values() for h in hits)
     code, out = run(["--predict", "--library", str(lib_path)], capsys)
     assert code == 0 and "answered by the library" in out
@@ -96,7 +129,7 @@ def test_gate1_offline_runs_train_matches_and_scaffolds_scoped_audits(dirs, tmp_
 
 def test_gate2_offline_compares_empty_and_library(tmp_path, monkeypatch, capsys):
     lib_path = make_library(tmp_path / "lib", ("20261120T010000Z-aaaa", [
-        rule(1, cwe="CWE-22", pattern="../", field="path", ci=False)]))[-1]
+        rule(1, cwe="CWE-22", pattern="%2500", field="path", ci=False)]))[-1]
     monkeypatch.setattr(gate, "holdout_hits", lambda lib: {e.library_id: []
                                                            for e in lib.entries})
     live = tmp_path / "live"
@@ -116,6 +149,9 @@ def test_gate2_offline_compares_empty_and_library(tmp_path, monkeypatch, capsys)
         assert {json.loads(x)["schema_version"]
                 for x in (edir / "verdicts.jsonl").read_text().splitlines()} == {"0.4"}
         assert l_["blue_params"]["library"]["entries"] == 1
+        ldir = tmp_path / "out" / f"{s}-library"
+        assert any(json.loads(x)["rule_origin"] == "library"
+                   for x in (ldir / "verdicts.jsonl").read_text().splitlines())
         drop = ("library",)
         assert {k: v for k, v in e["blue_params"].items() if k not in drop} == \
                {k: v for k, v in l_["blue_params"].items() if k not in drop}  # all else equal

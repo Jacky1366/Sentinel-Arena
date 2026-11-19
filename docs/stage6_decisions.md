@@ -132,10 +132,31 @@ the single definition, imported by `red/red_guard.py` and `judge/variants.py`; `
 imports `red/` (tested). `tools/verify_red_guard.py` checks that definition against the real
 nginx. Behaviour unchanged.
 
-**Standing rule (designer, 2026-11-18).** Nothing is run on `data/golden/` or on any
-test-set data (the matches in `config/test_set.json`, the sealed holdout) without the
-designer's explicit GO. This includes read-only debugging, and committed tests or tools
-whose inputs include those folders.
+**Standing rule: test-set data (designer, 2026-11-18; first worded too broadly and replaced
+the same day).**
+1. Protected data = the test set only: the match ids in `config/test_set.json` and the
+   holdout set. Other golden folders (scripted baselines, the first Claude Blue match,
+   gate-5.5 / gate-5.7 replays) are not test data.
+2. Committed read-only integrity tests (hash / re-score / unchanged-folder checks) have a
+   standing GO and stay in the default suite.
+3. Any NEW code, test, debugging or exploratory run that reads test-set data needs the
+   designer's explicit GO first.
+4. `tests/test_stage6_1_gates_offline.py` does not replay test-set matches. Its inputs are
+   non-test golden folders, and it fails if a test-set match is replayed. Only the real
+   6.1b gates (Gate 2, `--predict`) touch Gate 3, each with a GO.
+
+**Incident, 2026-11-18 (disclosed).** While verifying criterion (d′), the test suite was run
+with the golden-reading files skipped. The skip was found by searching for `data/golden`,
+which missed paths written as `REPO / "data" / "golden"`. So `test_stage6_1_gates_offline.py`
+ran, and its offline Gate 2 and `--predict` tests replayed the three Gate 3 test-set matches.
+- The run was read-only, with a fake Blue (fake provider) and a synthetic one-rule library.
+- Nothing was selected or tuned, and no output was used for any decision.
+- The tests check that the golden folders are unchanged.
+
+Fixes, the same day:
+- That test now uses non-test folders and guards against test-set replays.
+- The 6.1a library replay test in `tests/test_replay_blue.py` and the golden-refusal test in
+  `tests/test_promote_rules.py` moved to non-test folders too.
 
 ## Implementation notes (Stage 6.1a, 2026-11-17)
 
@@ -155,7 +176,7 @@ whose inputs include those folders.
   `handler=` with another self-firing vector (`img src=x onerror`, `svg onload`, `body onload`,
   `details open ontoggle`, `input autofocus onfocus`), keeping the sink and the field's
   encoding. Reported to the designer.
-- **Mutator sanity check on golden rules, disclosed.** While building the mutator, it was run
+- **Mutator sanity check on golden rules, disclosed** (accepted by the designer 2026-11-18). While building the mutator, it was run
   once (read-only, offline) on the Stage 5 rules stored in the golden Gate 3 folders to check
   it produced well-formed variants. That run exposed three objective bugs, all fixed: the
   `=` of `q=` being encoded, word boundaries after `%XX` escapes, and the X1 equivalence

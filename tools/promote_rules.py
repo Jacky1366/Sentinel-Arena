@@ -8,7 +8,8 @@ Refuses (exit 2, nothing written) unless ALL of these hold (D26):
   - the folder is a frozen MATCH (match.json; a replay folder is never a source) with
     schema_version 0.8+, purpose "train", status completed, from a clean tree
     (git.dirty false), and every file it reads matches its match.json sha256
-  - the match is not test data: not in config/test_set.json, not under data/golden/
+  - the match is not test data (not in config/test_set.json) and not a committed golden
+    match (not under data/golden/)
   - pre-registration (D27): every sealed file in config/test_set.json has its sha256, the
     file on disk matches it, AND it exists with that hash at the match's recorded git
     commit (`git show <commit>:<path>`): no train match can predate the seal
@@ -100,8 +101,8 @@ def check_match(match_dir: Path, test_set: dict) -> dict:
     if not mpath.is_file():
         raise Refused(f"{match_dir} is not a frozen match (no match.json)")
     if match_dir == GOLDEN.resolve() or GOLDEN.resolve() in match_dir.parents:
-        raise Refused(f"{match_dir} is under data/golden/: committed matches are test data "
-                      f"(S6-1)")
+        raise Refused(f"{match_dir} is under data/golden/: committed golden matches are never "
+                      f"a library source (S6-1)")
     m = json.loads(mpath.read_text(encoding="utf-8"))
     errors = run_match.validate_manifest(m)
     if errors:

@@ -121,9 +121,9 @@ def promote_all(match_dirs: list[Path]) -> int:
 
 # -- prediction (zero token) -----------------------------------------------------------
 
-def predict(lib: rule_library.Library, sources=SOURCES) -> dict[str, list[dict]]:
+def predict(lib: rule_library.Library, sources=None) -> dict[str, list[dict]]:
     out = {}
-    for src in sources:
+    for src in SOURCES if sources is None else sources:
         d = GOLDEN / src
         red = {a["request_id"]: a for a in jl(d / "red_attacks.jsonl")}
         benign = {b["request_id"]: b for b in jl(d / "benign_requests.jsonl")}

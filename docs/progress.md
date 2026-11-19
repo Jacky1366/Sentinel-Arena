@@ -387,8 +387,13 @@ change to `data/golden/`.
   - **Disclosure accepted.** The mutator was sanity-checked once, offline and read-only, on
     the golden Gate 3 rules (TEST data). That surfaced three bugs and the D24 point; nothing
     was selected or tuned with it.
-  - **Standing rule.** Nothing runs on `data/golden/` or any test-set data without the
-    designer's explicit GO, including read-only debugging (CLAUDE.md).
+  - **Test-set rule.** Protected data = the `config/test_set.json` matches + the holdout.
+    Committed read-only integrity tests have a standing GO. Any new code, test or run that
+    reads test-set data needs a GO. The offline gate tests use non-test folders (CLAUDE.md,
+    `docs/stage6_decisions.md`).
+  - **Incident (Nov 18, disclosed).** One test run replayed the Gate 3 test matches through
+    the offline gate tests: read-only, fake Blue, nothing selected or tuned. Those tests now
+    use non-test folders and guard against test-set replays.
 - **An empty library is a loaded library** (bug found by the offline Gate 2 test and
   fixed). M5's empty arm loads v0000 and writes 0.4 verdicts like the library arm.
 - **Cleanup.** Unrelated external schedule lines removed from this file (designer-approved).

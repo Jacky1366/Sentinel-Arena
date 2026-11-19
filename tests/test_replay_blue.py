@@ -233,30 +233,34 @@ def test_gate_report_prints_numbers_and_every_rule(dirs, tmp_path, capsys):
 
 # ---- Stage 6.1: a library is loaded READ-ONLY (S6-3) ------------------------------
 
-GATE3 = REPO / "data" / "golden" / "ai-vs-ai-gate3-match1"
+# A NON-test golden folder (designer rule, 2026-11-18: no new test reads test-set matches).
+SRC61 = REPO / "data" / "golden" / "scripted-baseline-benign-match"
 
 
 def _lib(tmp_path):
     from test_rule_library import make_library, rule
     return make_library(tmp_path / "lib", ("20261120T010000Z-aaaa",
-                                           [rule(1, cwe="CWE-22", pattern="../", field="path",
+                                           [rule(1, cwe="CWE-22", pattern="%2500", field="path",
                                                  ci=False)]))[-1]
 
 
-def test_replay_of_test_data_with_a_library_never_writes_it_back(tmp_path):
-    """A golden (test) match replayed with a library and rule invention on: the library
-    file is byte-identical afterwards, no new library version appears, the golden folder
-    is untouched; the rules invented while replaying stay in the replay folder only."""
+def test_replay_with_a_library_never_writes_it_back(tmp_path):
+    """A golden match replayed with a library and rule invention on (as M5 replays the test
+    matches): the library file is byte-identical afterwards, no new library version
+    appears, the golden folder is untouched; the rules invented while replaying stay in the
+    replay folder only."""
+    test_ids = json.loads((REPO / "config" / "test_set.json").read_text())["match_ids"]
+    assert json.loads((SRC61 / "match.json").read_text())["match_id"] not in test_ids
     lib = _lib(tmp_path)
     lib_dir_before = tree(lib.parent)
-    golden_before = tree(GATE3)
+    golden_before = tree(SRC61)
     live = tmp_path / "live"
     live.mkdir()
-    code, rdir, out = do_replay(GATE3, tmp_path / "replay", RulesOps(live, answer=broad),
+    code, rdir, out = do_replay(SRC61, tmp_path / "replay", RulesOps(live, answer=broad),
                                 engine="claude", rules_mode="on", library=lib)
     assert code == 0, out
     assert tree(lib.parent) == lib_dir_before
-    assert tree(GATE3) == golden_before
+    assert tree(SRC61) == golden_before
     m = json.loads((rdir / "replay.json").read_text())
     assert SCHEMA.is_valid(m) and m["schema_version"] == "0.3"
     assert m["blue_params"]["library"]["sha256"] == hashlib.sha256(lib.read_bytes()).hexdigest()
@@ -268,6 +272,6 @@ def test_replay_of_test_data_with_a_library_never_writes_it_back(tmp_path):
 
 
 def test_replay_library_needs_claude(tmp_path):
-    code, rdir, out = do_replay(GATE3, tmp_path / "replay", FakeOps(tmp_path), engine="scripted",
+    code, rdir, out = do_replay(SRC61, tmp_path / "replay", FakeOps(tmp_path), engine="scripted",
                                 library=_lib(tmp_path))
     assert code == 2 and rdir is None and "--library needs --engine claude" in out
