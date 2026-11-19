@@ -25,7 +25,7 @@ file artifacts defined in a data contract.
 | 5.5 | Blue rule invention (off / shadow / on), hot-load, replay mode (D17) | Nov 13–19 (Stage 5) | Done: gate accepted Nov 13 (12/12 replays, $0.057; evidence `data/golden/replays/gate-5.5/`); merged |
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
-| 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); Gate 0 (holdout capture + seal) pending GO; branch `stage6.1a-rule-library` |
+| 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
 | 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Not started (each gate after a separate GO) |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
@@ -392,6 +392,20 @@ change to `data/golden/`.
     use non-test folders and guard against test-set replays.
 - **An empty library is a loaded library** (bug found by the offline Gate 2 test and
   fixed). M5's empty arm loads v0000 and writes 0.4 verdicts like the library arm.
+- **Gate 0 (Nov 18, zero tokens).**
+  - Both drafts were approved unedited and captured once through the shared client,
+    outside any match, on a freshly reset Target. The Target was reset again afterwards
+    (0 solved).
+  - Sealed: `benign/holdout_v1.jsonl` (40, sha256 `50668018…`) and
+    `benign/fixture_v2_offline.jsonl` (6, `6f6f786d…`), hashes in `config/test_set.json`.
+    Seal and hashes went in one commit.
+  - xh12 logs as the single value `q=Tom+%26+Jerry+mug`.
+  - HTTP 500s, recorded in the `.meta.json` statuses:
+    - xh01 (apostrophe in search) and xh04 (apostrophe in the login email): consistent
+      with Juice Shop's injectable SQL failing on a quote; the requests are benign text.
+    - xh15, xh27, yh05: `POST /api/Feedbacks` (cause not investigated).
+  - Offline data is never sent in a match and HTTP status is not part of how it is used,
+    so the 500s change nothing.
 - **Cleanup.** Unrelated external schedule lines removed from this file (designer-approved).
 
 ### Stage 5.7 — Prompt caching + first AI-vs-AI matches (Stage 5 finale)
@@ -770,7 +784,7 @@ These are honest boundaries of the instrument, recorded in the contract:
    and could write rules that avoid them. Stage 6.1 adds a never-sent holdout
    (`benign/holdout_v1.jsonl`, 40 entries, TEST data) and a small never-sent TRAIN
    fixture of CWE-22 look-alikes (`benign/fixture_v2_offline.jsonl`, D31); both are
-   drafted and are captured and sealed at Gate 0 (contract §6.12).
+   captured and sealed at Gate 0 on Nov 18 (contract §6.12).
 10. **Decoding is content-type agnostic** (inherited from Stage 3, kept). Bodies
    are URL-decoded even when they are JSON (now including `unquote_plus`), so a
    literal `%27` inside a JSON value also yields a form containing `'`. It passes
@@ -836,9 +850,8 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
 
 ## Next
 - **Stage 6** (issue #5; decisions `docs/stage6_decisions.md`):
-  - **6.1a** body built on the fake provider (Nov 17). Next: designer review of the
-    holdout / fixture-v2 drafts (D24 amendment approved Nov 18, criterion (d′) added), then
-    Gate 0 (zero-token capture + seal + commit), then wrap-up and PR.
+  - **6.1a** done: body built on the fake provider (Nov 17); drafts approved, Gate 0
+    capture + seal committed (Nov 18); PR open.
   - **6.1b** Gate 1 (5 train matches, ≈ $0.015) and Gate 2 (M5, 6 replays, ≈ $0.010),
     each after a separate GO from a clean committed tree.
   - Later: M6 autonomy table, M7 flagship gate (target Nov 26), M8 dashboard.

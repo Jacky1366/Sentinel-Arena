@@ -1233,8 +1233,8 @@ D1 layer 1 sends in every match, so an AI Blue (5.5) will have seen these exact
 lines and could write rules that avoid them. Stage 6.1 adds a never-sent holdout set
 (`benign/holdout_v1.jsonl`, TEST data, §6.12) for offline scoring only, and a small never-sent
 TRAIN fixture of CWE-22 look-alikes (`benign/fixture_v2_offline.jsonl`, D31) read only by
-retention (§5.4). *Status 2026-11-17: both drafted; captured and sealed at Gate 0 (this
-line is updated on seal).* (2) Decoding is content-type agnostic: a literal `%27`
+retention (§5.4). *Status 2026-11-18: both captured and sealed at Gate 0
+(holdout sha256 `50668018…`, fixture v2 `6f6f786d…`; full hashes in `config/test_set.json`).* (2) Decoding is content-type agnostic: a literal `%27`
 inside a JSON value also yields a form containing `'`. (3) Additive forms can add
 false positives as well as detections: the hand rule `union\s+\w+` hits benign
 `h01` only through the `+`-decoded form `union jack`.

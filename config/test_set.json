@@ -13,12 +13,12 @@
     {
       "path": "benign/holdout_v1.jsonl",
       "role": "test",
-      "sha256": null
+      "sha256": "5066801817c8f1940accc89dba1a3513f2d241f8441029340e80b5a45534945e"
     },
     {
       "path": "benign/fixture_v2_offline.jsonl",
       "role": "train",
-      "sha256": null
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
     }
   ]
 }

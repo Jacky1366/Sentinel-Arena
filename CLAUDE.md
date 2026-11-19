@@ -117,7 +117,9 @@ benign/send_benign.py   load/validate the set; write benign record, then send on
 benign/verification.json  empirical verification record of the set (fresh Target per entry)
 benign/fixture_v1.jsonl fact-4b fixture: golden benign proxy lines, verbatim (+ .meta.json sha256)
 benign/holdout_v1.draft.json  TEST holdout draft (40); sealed as holdout_v1.jsonl at Gate 0 (never sent in a match)
+benign/holdout_v1.jsonl       TEST holdout, sealed Nov 18 (+ .meta.json; sha256 in config/test_set.json)
 benign/fixture_v2_offline.draft.json  TRAIN offline CWE-22 look-alikes (6, D31); sealed with the holdout
+benign/fixture_v2_offline.jsonl  TRAIN offline fixture, sealed Nov 18 (+ .meta.json)
 runner/arena_client.py  THE shared HTTP sender (Red, benign, probes): same headers, no UA
 runner/schedule.py      seeded interleaving; preserves Red order AND benign order
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
@@ -300,7 +302,7 @@ asking" in your report. Escalate only if unsure which category a step falls in.
   `referencing.Registry` that contains both (see `tests/test_schemas.py`).
 - **Stage 6.1a (Nov 17):** rule library, retention, variant mutator, offline benign drafts,
   M5 tooling, built on the fake provider; branch `stage6.1a-rule-library`. Gate 0 (holdout
-  capture + seal) pending the designer's GO; D24 amendment approved Nov 18 (`encoding_only`
+  capture + seal) done Nov 18; D24 amendment approved Nov 18 (`encoding_only`
   excluded from (d); new criterion (d′) `encoding_fragile`).
   Plan `docs/plans/stage6_1_step0.md`, decisions `docs/stage6_decisions.md`.
 - **Test-set data rule (designer, 2026-11-18, revised the same day):**
