@@ -204,6 +204,8 @@ data/golden/replays/gate-6.1b-2/  Stage 6.1b Gate 2 (M5) evidence: 3 Gate 3 sour
 data/golden/stats/      committed autonomy tables (autonomy_6.1b.{md,json}: the three M5 arms)
 data/golden/replays/gate-6.1b-2b/  Stage 6.1b Gate 2b evidence: the same 3 sources, rules off (prompt v1) + README (never rewritten)
 data/golden/replays/gate-6.3-C/  Stage 6.3 Gate C evidence: 3 Gate B eval sources x {Sonnet + v5 (between_tools), Haiku + v0000} + README (never rewritten)
+data/golden/replays/gate-6.3-C-open/  Stage 6.3 D42 open-Blue evidence: 6 v3-open replays (free-play + deepseek) + FP check + README (never rewritten)
+data/golden/incidents/     archived failed / instrument-failure runs (never deleted, never in test_set.json)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -269,6 +271,8 @@ tests/test_export_dashboard.py  bundles copied from artifacts, cost totals, demo
 tests/test_stage6_3_offline.py  6.3: red effort, purpose eval, promotion refuses eval, estimate, Gates B/C offline
 tests/test_gate_6_3_gateB_evidence.py  committed Gate B eval matches: hashes, D38 config, test-set registration, full audit scaffold
 tests/test_gate_6_3_gateB_deepseek_evidence.py  committed Gate B-deepseek eval matches: hashes, DeepSeek config, rate windows, test-set registration, full audit
+tests/test_gate_6_3_gateB_freeplay_evidence.py  committed Gate B-freeplay eval matches: hashes, prompt v3 config, challenge catalog, binary audit
+tests/test_gate_6_3_c_open_evidence.py  committed open-Blue (D42) replays: hashes, v3-open prompt, 2a recovery of landed other-class misses, 2b taxonomy unchanged
 tests/test_gate_6_3_gateB_evasion_evidence.py  committed Gate B-evasion eval matches: hashes, prompt v2 sha, timeout, test-set registration, full audit
 tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
