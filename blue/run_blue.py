@@ -113,7 +113,8 @@ def run(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
 def run_output(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
                client: llm_client.LLMClient | None = None, model: str | None = None,
                unscored: bool = False, rules_mode: str | None = None,
-               library: Path | None = None) -> claude_engine.BlueOutput:
+               library: Path | None = None,
+               blue_prompt: str | None = None) -> claude_engine.BlueOutput:
     """Verdicts plus, for claude in rules mode shadow / on, the rules and rejections.
     rules_mode None = config agents.blue.rules.mode."""
     if engine == "scripted":
@@ -132,7 +133,7 @@ def run_output(engine: str, proxy_log: Path, match_id: str, run_dir: Path, *,
                                   blue_model(client.cfg, model), run_dir,
                                   chunk_size=blue_chunk_size(client.cfg), unscored=unscored,
                                   rules_mode=rules["mode"], max_rules=rules["max_rules"],
-                                  library=lib)
+                                  library=lib, prompt_key=blue_prompt)
 
 
 def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = None) -> int:
@@ -149,6 +150,8 @@ def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = No
     parser.add_argument("--library", type=Path, default=None,
                         help="claude engine, rules mode on: a rule library file to preload, "
                              "read-only (Stage 6.1)")
+    parser.add_argument("--blue-prompt", choices=["open"], default=None,
+                        help="claude, rules on: the open Blue prompt (D42, replay analysis)")
     parser.add_argument("--match-id", default="m001")
     parser.add_argument("--run-dir", type=Path, default=LIVE,
                         help="run directory: reads <run-dir>/proxy.jsonl, writes "
@@ -163,7 +166,8 @@ def main(argv: list[str] | None = None, client: llm_client.LLMClient | None = No
 
     output = run_output(args.engine, args.proxy_log, args.match_id, args.run_dir,
                         client=client, model=args.model, unscored=args.unscored,
-                        rules_mode=args.rules_mode, library=args.library)
+                        rules_mode=args.rules_mode, library=args.library,
+                        blue_prompt=args.blue_prompt)
     verdicts = output.verdicts
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as fh:

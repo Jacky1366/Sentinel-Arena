@@ -753,3 +753,79 @@ def test_probe_free_play_uses_prompt_v3_and_the_free_play_schema(tmp_path):
                    blue=False, free_play=True) == 0
     assert oa.calls[0]["system"] == ai_red.RED_PROMPTS["3"]
     assert oa.calls[0]["output_schema"] is ai_red.FREEPLAY_OUTPUT_SCHEMA
+
+
+# ---- Open Blue replay (D42): widened definition, `other` + technique -----------------------
+
+from blue import claude_engine as _ce  # noqa: E402
+from tools import replay_blue as _rb  # noqa: E402
+
+
+def _open_reply(view):
+    import json as _j
+    body = view.get("body", "") + view.get("query", "")
+    if "OR 1=1" in body or "or 1=1" in body:
+        return _j.dumps({"verdicts": [{"index": 1, "label": "CWE-89"}]})
+    if "basket" in view.get("path", ""):
+        return _j.dumps({"verdicts": [{"index": 1, "label": "other", "technique": "IDOR",
+                                       "rationale": "accessing another user's resource"}]})
+    return _j.dumps({"verdicts": [{"index": 1, "label": "benign"}]})
+
+
+def test_open_blue_prompt_builds_and_differs_from_v2():
+    assert _ce.PROMPT_VERSION_V3_OPEN == "3-open"
+    assert "other" in _ce.OPEN_LABELS and _ce.OPEN_LABELS[-1] == "benign"
+    assert _ce.SYSTEM_PROMPT_V3_OPEN != _ce.SYSTEM_PROMPT_V2
+    assert "ordinary user is not meant to access" in _ce.SYSTEM_PROMPT_V3_OPEN
+    # the live Blue prompts are unchanged
+    assert _ce.PROMPTS["on"][1] == _ce.SYSTEM_PROMPT_V2
+    # open schema: label enum has other; technique is a flat string
+    item = _ce.PROMPTS["open"][3]["properties"]["verdicts"]["items"]
+    assert "other" in item["properties"]["label"]["enum"]
+    assert item["properties"]["technique"] == {"type": "string"}
+
+
+def test_validate_reply_open_accepts_other_and_technique():
+    import json as _j
+    ok = _j.dumps({"verdicts": [{"index": 1, "label": "other", "technique": "JWT forgery"}]})
+    v, d = _ce.validate_reply(ok, "end_turn", 1, rules=True, open_mode=True)
+    assert d is None and v[1][0] == "other" and v[1][3] == "JWT forgery"
+    # the extra `technique` key is rejected by the normal (non-open) parser as invalid_shape
+    v2, d2 = _ce.validate_reply(ok, "end_turn", 1, rules=True, open_mode=False)
+    assert v2 is None and d2 == "invalid_shape"
+    # and a bare `other` label (no technique) is unknown to the normal parser
+    bare = _j.dumps({"verdicts": [{"index": 1, "label": "other"}]})
+    v2b, d2b = _ce.validate_reply(bare, "end_turn", 1, rules=True, open_mode=False)
+    assert v2b is None and d2b == "unknown_label"
+    # technique only kept with `other`
+    cwe = _j.dumps({"verdicts": [{"index": 1, "label": "CWE-89", "technique": "x"}]})
+    v3, _ = _ce.validate_reply(cwe, "end_turn", 1, rules=True, open_mode=True)
+    assert v3[1][0] == "CWE-89" and v3[1][3] is None
+
+
+def test_open_blue_replay_records_other_and_prompt_version(dirs, tmp_path):
+    from test_run_match_rules import RulesOps
+    live, runs = dirs
+    # a live match (original Blue) with an IDOR-style line present via the scripted traffic
+    code, src = run_match.run_match(ops=RulesOps(live, answer=good_brain), live_dir=live,
+                                    runs_dir=runs, engine="claude", blue_rules_mode="on",
+                                    out=lambda *_: None)
+    assert code == 0
+    code, rdir = _rb.replay(src, tmp_path / "open", ops=RulesOps(live, answer=_open_reply),
+                            engine="claude", rules_mode="on", out_fn=lambda *_: None,
+                            blue_prompt="open")
+    assert code == 0 and rdir is not None
+    rep = json.loads((rdir / "replay.json").read_text())
+    assert rep["blue_params"]["prompt_version"] == "3-open"
+    assert rep["blue_params"]["system_prompt_sha256"] == _ce.SYSTEM_PROMPT_V3_OPEN_SHA256
+    assert rep["blue_params"]["rules"]["mode"] == "on"  # rules still on
+    # the original source match used the unchanged v2 prompt
+    assert json.loads((src / "match.json").read_text())["blue_params"]["prompt_version"] == "2"
+
+
+def test_open_blue_replay_needs_rules_on(tmp_path):
+    from test_run_match_failure import FakeOps
+    code, rdir = _rb.replay(REPO / "data" / "golden" / "scripted-baseline-match",
+                            out=tmp_path / "r", ops=FakeOps(tmp_path), engine="scripted",
+                            blue_prompt="open", out_fn=lambda *_: None)
+    assert code == 2 and rdir is None  # scripted + open -> refused

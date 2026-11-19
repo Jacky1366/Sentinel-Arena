@@ -194,7 +194,7 @@ class Ops:
 
     def blue(self, match_dir: Path, match_id: str, engine: str, client=None,
              model: str | None = None, rules_mode: str | None = None,
-             library: Path | None = None) -> None:
+             library: Path | None = None, blue_prompt: str | None = None) -> None:
         argv = ["--engine", engine, "--match-id", match_id, "--run-dir", str(match_dir)]
         if model is not None:
             argv += ["--model", model]
@@ -202,6 +202,8 @@ class Ops:
             argv += ["--rules-mode", rules_mode]
         if library is not None:
             argv += ["--library", str(library)]
+        if blue_prompt is not None:
+            argv += ["--blue-prompt", blue_prompt]
         run_blue.main(argv, client=client)
 
     def judge_rounds(self, match_dir: Path) -> None:

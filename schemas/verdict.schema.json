@@ -40,6 +40,7 @@
         "CWE-79",
         "CWE-22",
         "benign",
+        "other",
         null
       ]
     },
@@ -94,6 +95,14 @@
     },
     "reason": {
       "type": "string"
+    },
+    "technique": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 64,
+      "description": "Open Blue (D42, replay-only) only: a short technique string, present with the `other` verdict. Absent otherwise."
     }
   },
   "allOf": [

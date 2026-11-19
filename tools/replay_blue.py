@@ -129,7 +129,8 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
            rules_mode: str | None = None, model: str | None = None,
            ops: run_match.Ops | None = None, out_fn=print,
            caching: str | None = None, library: Path | None = None,
-           thinking: str | None = None) -> tuple[int, Path | None]:
+           thinking: str | None = None, blue_prompt: str | None = None
+           ) -> tuple[int, Path | None]:
     """Replay Blue + the Judge. Returns (exit code, replay dir or None if refused)."""
     ops = ops or run_match.Ops()
     try:
@@ -145,6 +146,8 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         config = llm_client.with_caching(config, "blue", caching)
         if thinking is not None and engine != "claude":
             raise Refused("--thinking needs --engine claude (an AI-call setting)")
+        if blue_prompt is not None and engine != "claude":
+            raise Refused("--blue-prompt needs --engine claude (D42 open Blue)")
         try:
             config = llm_client.with_thinking(config, "blue", thinking)
         except llm_client.ConfigError as exc:
@@ -158,9 +161,12 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
                 raise Refused(f"agents.blue.chunk_size is {chunk}: scored runs are one line "
                               f"per call (D4)")
             want = claude_engine.rules_config(config, rules_mode)["mode"]
+            if blue_prompt == "open" and want != "on":
+                raise Refused("--blue-prompt open (D42) needs rules mode on and library v5")
             lib = run_match.load_library(library, engine, want) if library else None
             blue_params = claude_engine.blue_params(config, blue_m, chunk, rules_mode,
-                                                    lib.params() if lib is not None else None)
+                                                    lib.params() if lib is not None else None,
+                                                    prompt_key=blue_prompt)
             models = {"blue": {"provider": blue_params["provider"], "model": blue_m}}
             mode = blue_params["rules"]["mode"]
         else:
@@ -194,6 +200,8 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         step = "blue"
         if engine == "claude":
             extra = {"library": snapshot} if snapshot is not None else {}
+            if blue_prompt is not None:
+                extra["blue_prompt"] = blue_prompt
             ops.blue(out, mid, engine, blue_llm, blue_m, mode, **extra)
         else:
             ops.blue(out, mid, engine)
@@ -264,9 +272,12 @@ def main(argv: list[str] | None = None) -> int:
                          "(Stage 6.1; copied into the replay folder as library.json)")
     ap.add_argument("--thinking", choices=llm_client.THINKING, default=None,
                     help="claude: thinking override (Sonnet 5.5 needs between_tools for off)")
+    ap.add_argument("--blue-prompt", choices=["open"], default=None,
+                    help="claude, rules on: the open Blue prompt (D42, replay analysis)")
     args = ap.parse_args(argv)
     code, _ = replay(args.match, args.out, args.engine, args.rules_mode, args.model,
-                     caching=args.caching, library=args.library, thinking=args.thinking)
+                     caching=args.caching, library=args.library, thinking=args.thinking,
+                     blue_prompt=args.blue_prompt)
     return code
 
 

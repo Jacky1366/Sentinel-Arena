@@ -1436,7 +1436,10 @@ def test_verdict_enum_matches_full_taxonomy():
     # Blue's verdict is one of the four taxonomy values (or null in 0.2: no verdict).
     assert sorted(SCHEMAS["verdict_v0_1"]["properties"]["verdict"]["enum"]) == sorted(TAXONOMY)
     enum = SCHEMAS["verdict"]["properties"]["verdict"]["enum"]
-    assert None in enum and sorted(x for x in enum if x is not None) == sorted(TAXONOMY)
+    # Open Blue (D42, replay-only) adds `other` as a Blue-only extension; config/taxonomy.json,
+    # rules and the live prompts stay the four taxonomy values.
+    assert None in enum
+    assert sorted(x for x in enum if x is not None) == sorted([*TAXONOMY, "other"])
 
 
 def test_verdict_0_2_shapes_valid():
@@ -1457,7 +1460,7 @@ def test_round_record_verdict_enum_is_taxonomy_plus_null():
     # The round record also allows null (no-verdict / orphan rounds, contract 6).
     enum = SCHEMAS["round_record"]["properties"]["verdict"]["enum"]
     assert None in enum
-    assert sorted(v for v in enum if v is not None) == sorted(TAXONOMY)
+    assert sorted(v for v in enum if v is not None) == sorted([*TAXONOMY, "other"])  # D42
 
 
 def test_challenge_map_keys_match_taxonomy_cwes():
