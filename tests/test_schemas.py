@@ -1309,7 +1309,8 @@ def test_api_call_refusal_and_failure_shapes_valid():
 
 # Only the designer verifies a price (Stage 5.4: Haiku 5.5, Sonnet 5.5; Stage 5.6:
 # gpt-6-luna — all checked 2026-11-12).
-DESIGNER_VERIFIED = {"claude-haiku-5-5", "claude-sonnet-5-5", "gpt-6-luna"}
+DESIGNER_VERIFIED = {"claude-haiku-5-5": "2026-11-12", "claude-sonnet-5-5": "2026-11-12",
+                     "gpt-6-luna": "2026-11-12", "gpt-6.1-sol": "2026-11-18"}
 
 
 def test_committed_price_table_is_valid_and_only_designer_verified():
@@ -1318,12 +1319,18 @@ def test_committed_price_table_is_valid_and_only_designer_verified():
     for name, entry in {**prices["models"], **prices["placeholders"]}.items():
         assert entry["verified"] is (name in DESIGNER_VERIFIED), name
         if entry["verified"]:  # a verified entry names who verified it, when, and where
-            assert entry["source"].startswith("designer-verified 2026-11-12 against "), name
+            assert entry["source"].startswith(
+                f"designer-verified {DESIGNER_VERIFIED[name]} against "), name
+            assert entry["as_of"] == DESIGNER_VERIFIED[name], name
     # Stage 5.6: luna is priced and designer-verified; placeholders is empty.
     assert prices["placeholders"] == {}
     luna = prices["models"]["gpt-6-luna"]
     assert [t["max_prompt_tokens"] for t in luna["tiers"]] == [272000, None]
     assert luna["tiers"][0]["cache_write"] == 0.125 and luna["tiers"][1]["output"] == 0.75
+    # Stage 6.3 Gate A: Sol verified with both context tiers (30-minute cache write).
+    sol = prices["models"]["gpt-6.1-sol"]
+    assert [(t["max_prompt_tokens"], t["input"], t["cached_input"], t["cache_write"], t["output"])
+            for t in sol["tiers"]] == [(272000, 2.0, 0.1, 2.5, 10.0), (None, 4.0, 0.2, 5.0, 15.0)]
 
 
 @pytest.mark.parametrize("match_id,ok", [

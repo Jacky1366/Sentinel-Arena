@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "as_of": "2026-11-12",
+  "as_of": "2026-11-18",
   "currency": "USD",
   "unit": "per_million_tokens",
   "models": {
@@ -39,7 +39,8 @@
           "cache_write": 2.5,
           "output": 10
         }
-      ]
+      ],
+      "note": "re-confirmed unchanged by the designer 2026-11-18 (0.10 cache read since the Oct 7 cut)"
     },
     "claude-opus-5-5": {
       "provider": "anthropic",
@@ -58,16 +59,23 @@
     },
     "gpt-6.1-sol": {
       "provider": "openai",
-      "as_of": "2026-11-08",
-      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
-      "verified": false,
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official OpenAI pricing page (developers.openai.com/api/docs/pricing, Standard): Short (<=272K input tokens, whole request) 2.00 input / 10.00 output, cached 0.10; Long (>272K) 4.00 / 15.00, cached 0.20. cache_write is the 30-minute write price (2.50 short / 5.00 long; read off the same page by the implementer the same day); 12-hour writes (5.00 / 10.00) are not priced here: if a response ever reports 12-hour cache writes, stop with unpriced_usage. Same list price as claude-sonnet-5-5 (genuine, not a copy).",
+      "verified": true,
       "tiers": [
         {
-          "max_prompt_tokens": null,
-          "input": 2,
+          "max_prompt_tokens": 272000,
+          "input": 2.0,
           "cached_input": 0.1,
           "cache_write": 2.5,
-          "output": 10
+          "output": 10.0
+        },
+        {
+          "max_prompt_tokens": null,
+          "input": 4.0,
+          "cached_input": 0.2,
+          "cache_write": 5.0,
+          "output": 15.0
         }
       ]
     },
