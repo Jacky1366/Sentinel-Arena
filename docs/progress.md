@@ -525,7 +525,17 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
   - Red: deepseek-v4-pro, effort max, 16384 tokens, 300 s timeout, per-match cost cap $0.40.
   - Gate B-freeplay: `tools/stage6_3_check.py --gate B-freeplay`, token
     `gate-6.3-B-freeplay`, seeds 6331–6333; stops after a refused match.
-  - Waiting for the conditional GO.
+  - **First run (Nov 19 17:21 UTC, off-peak): FAILED on a BUILD BUG, not a refusal.** All 10
+    Red calls returned HTTP 400 (pre-generation, 0.3–0.9 s). Cause: the free-play output
+    schema had OPTIONAL `technique`/`headers`, but OpenAI/DeepSeek strict json_schema requires
+    every property in `required`; the fake adapter ignores the schema, so offline tests missed
+    it. Spend: Blue $0.00116 (DeepSeek 400s billed $0, like OpenAI pre-generation 400s). The
+    dead match (0 attacks) was cleaned up: test_set.json reverted, run + scaffold + sheet
+    removed.
+  - **Fix:** `FREEPLAY_OUTPUT_SCHEMA` made strict-compliant (technique/headers required but
+    nullable; headers carries both Cookie/Authorization nullable); a static strict-compliance
+    guard (`tests/test_ai_red.py`) now covers both Red schemas. Offline suite exit 0, 1812.
+  - Waiting for a GO to RE-RUN Gate B-freeplay with the fix.
 - **Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5): built on the fake provider.**
   - Red turn caching: 5-minute breakpoint on the latest user turn.
   - Refusals surface `stop_details`.

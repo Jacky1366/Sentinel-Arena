@@ -88,6 +88,11 @@ FREEPLAY_DIRECTIVE = (
 RED_PROMPTS = {"1": SYSTEM_PROMPT, "2": SYSTEM_PROMPT + "\n\n" + EVASION_DIRECTIVE,
                "3": SYSTEM_PROMPT + "\n\n" + FREEPLAY_DIRECTIVE}
 FREEPLAY_PROMPT_VERSION = "3"
+# Strict structured output (OpenAI / DeepSeek Responses, text.format strict: true) requires
+# EVERY property to be in `required` and additionalProperties:false at every level; an
+# "optional" field is expressed as required-but-nullable. So technique/headers are required
+# and nullable, and headers (when present) carries both Cookie and Authorization (nullable).
+# A nested object must satisfy strict too. validate_reply drops null headers / technique.
 FREEPLAY_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -95,13 +100,16 @@ FREEPLAY_OUTPUT_SCHEMA = {
         "path": {"type": "string"},
         "body": {"type": "string"},
         "label": {"type": "string", "enum": list(red_guard.FREEPLAY_LABELS)},
-        "technique": {"type": "string"},
-        "headers": {"type": "object",
-                    "properties": {h: {"type": "string"} for h in red_guard.FREEPLAY_HEADERS},
-                    "additionalProperties": False},
+        "technique": {"type": ["string", "null"]},
+        "headers": {
+            "type": ["object", "null"],
+            "properties": {h: {"type": ["string", "null"]} for h in red_guard.FREEPLAY_HEADERS},
+            "required": list(red_guard.FREEPLAY_HEADERS),
+            "additionalProperties": False,
+        },
         "rationale": {"type": "string"},
     },
-    "required": ["method", "path", "body", "label", "rationale"],
+    "required": ["method", "path", "body", "label", "technique", "headers", "rationale"],
     "additionalProperties": False,
 }
 RED_PROMPT_SHA256 = {v: hashlib.sha256(t.encode("utf-8")).hexdigest()
