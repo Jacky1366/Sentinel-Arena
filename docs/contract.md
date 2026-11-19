@@ -179,6 +179,14 @@ library rules and the above-root predicate moved to `rules/paths.py` (D32): **`J
 `match_rule`, `rule_rejection`, the prompts and their hashes, normalization v2. D30: a
 train match is audited (§6.8) only on the source rounds of its candidate rules.*
 
+*Revised 2026-11-18 (Stage 6.3, D33–D37):
+- `match.json` 0.8 `purpose` gains `eval` (additive; existing manifests stay valid);
+- `config/test_set.json` gains `test_purposes`;
+- `run_match.py --red-effort` overrides `agents.red.request.effort` and is recorded in
+  `red_params.request.reasoning_effort`, as before.
+
+No Judge change.*
+
 *Revised 2026-11-18 (Stage 6.2 + 6.4): two new read-only outputs:
 - the autonomy table (§6.13, `autonomy_table.schema.json`);
 - the dashboard bundle (§6.14, `dashboard_bundle.schema.json`).
@@ -958,7 +966,7 @@ frozen schema (`match_manifest_v0_1`…`v0_7`); validators dispatch on `schema_v
 | Field | Type | Rationale |
 |---|---|---|
 | `schema_version` | `"0.8"` | Versioning (`"0.1"` before Stage 5.1 … `"0.7"` in Stage 5.7, see above). |
-| `purpose` | `"dev"` \| `"train"` | (0.8) `run_match.py --purpose`, default `dev`. **Only a `train` match can feed the rule library** (§5.4, D26); `--purpose train` is refused on a dirty tree. Test data is never produced by `run_match.py`: it is the committed golden matches and the sealed holdout (§6.12). |
+| `purpose` | `"dev"` \| `"train"` \| `"eval"` | (0.8) `run_match.py --purpose`, default `dev`. **Only a `train` match can feed the rule library** (§5.4, D26). `eval` (Stage 6.3, D35; an additive enum value within 0.8) is a scored **TEST** match, pre-registered by purpose (§6.12 `test_purposes`) and never promoted. `--purpose train` and `--purpose eval` are refused on a dirty tree. Before 6.3, test data was only the committed golden matches and the sealed holdout. |
 | `match_id` | match_id (§0) | Equals the directory name; self-describing when copied out. |
 | `started_at` / `finished_at` | UTC ISO 8601 | Wall-clock span of the match. |
 | `status` | `"completed"` \| `"failed"` \| `"stopped"` | `failed`: a step raised. `stopped`: every step ran, but the AI body refused a call or saw usage it cannot price (`budget.stopped_by`). `completed`: neither. A failure wins over a stop. |
@@ -1435,6 +1443,10 @@ Two never-sent benign files, captured together by `tools/build_holdout.py`:
   two files above with their hashes (`null` until sealed). Test data never feeds the library:
   the promote tool and the writer refuse these matches, and a test fails if any library file
   names one.
+- **`test_purposes`** (Stage 6.3, D35; optional, `["eval"]`): every match whose `purpose` is
+  listed is TEST data from the moment it exists, so the flagship eval matches are
+  pre-registered before they run. `tools/promote_rules.py` refuses them by purpose.
+  Afterwards `tools/stage6_3_check.py --gate B` appends their ids to `match_ids`.
 
 ## 6.13 Autonomy table — `data/golden/stats/autonomy_*.{json,md}` (Stage 6.2, M6)
 

@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "_comment": "Test (scoring) data, S6-1: the 6 audited AI-Red golden matches (3 Stage 5.6 Gate 2, 3 Stage 5.7 Gate 3) and the sealed offline benign files. Never a source for the rule library (tools/promote_rules.py refuses them). fixture_v2_offline is TRAIN data, listed here only because it is sealed in the same commit as the holdout (D31); its sha256 is checked the same way.",
+  "_comment": "Test (scoring) data, S6-1: the 6 audited AI-Red golden matches (3 Stage 5.6 Gate 2, 3 Stage 5.7 Gate 3) and the sealed offline benign files. Never a source for the rule library (tools/promote_rules.py refuses them). fixture_v2_offline is TRAIN data, listed here only because it is sealed in the same commit as the holdout (D31); its sha256 is checked the same way. test_purposes: every match with one of these purposes is TEST data by construction (Stage 6.3, D35: the flagship eval matches, pre-registered before they run).",
   "match_ids": [
     "20261113T052633Z-77ac",
     "20261113T052837Z-01d4",
@@ -8,6 +8,9 @@
     "20261114T072114Z-1a3a",
     "20261114T072400Z-a58a",
     "20261114T072621Z-a41b"
+  ],
+  "test_purposes": [
+    "eval"
   ],
   "sealed": [
     {

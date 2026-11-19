@@ -176,6 +176,33 @@ Fixes, the same day:
 - *Not affected.* The test failure was noticed only after the Gate 0 commit (the suite and
   the commit were chained); the seal itself is unaffected.
 
+## Pre-approved 2026-11-18 (6.3 flagship gate, M7; plan `docs/plans/stage6_3_step0.md`)
+
+**D33 — One Red treatment variable, "Red strength."** `gpt-6.1-sol` at reasoning effort
+`medium`, model and effort together. Everything else is the Gate 3 configuration (Red prompt
+v1, round cap 10, D15 guard, caching on, `max_output_tokens` 2048). No diversity directive in
+6.3 (it would confound); it stays an open item.
+
+**D34 — Blue arms on the same frozen traffic.**
+- Haiku 5.5 live: rules on, caching on, library v5 READ-ONLY.
+- Sonnet 5.5 via replay (D17): library v5, thinking disabled, the same prompt and request.
+- Haiku 5.5 via replay with the EMPTY library v0000, to isolate library transfer.
+
+**D35 — The 6.3 matches are TEST data, pre-registered by purpose.**
+- `run_match.py --purpose eval` (clean tree required). `config/test_set.json`
+  `test_purposes: ["eval"]` makes every eval match test data before it runs, and Gate B
+  appends the match ids.
+- The promote tool refuses eval matches, and the writer refuses test-set ids.
+
+**D36 — Full D16 audit** of every Red round in the eval matches (they are scored), not only
+source rounds (`audit_scope` scopes train matches only).
+
+**D37 — Gates.** Each gate has its own `ARENA_GO` token and the designer's GO.
+- **A:** price verification for `gpt-6.1-sol` and `claude-sonnet-5-5` (designer-owned
+  `verified` flag), a zero-token `--estimate`, and an optional 2-call `--probe`.
+- **B:** 3 live eval matches, seeds 6301–6303.
+- **C:** Gate B's logs replayed with Sonnet + v5 and with Haiku + v0000.
+
 ## Implementation notes (Stage 6.1a, 2026-11-17)
 
 - **Formats.** Verdicts 0.4 (only with a library; 0.3 frozen as `verdict_v0_3`); `match.json`

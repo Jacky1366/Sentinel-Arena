@@ -28,6 +28,7 @@ file artifacts defined in a data contract.
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
 | 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits; Gate 2b rules-off arm ($0.0039): 79 calls / $0.003945 |
 | 6.2 + 6.4 | Autonomy table (M6) + dashboard MVP (M8) | Stage 6 | Built (Nov 18, zero tokens): `tools/autonomy_table.py` (+ committed 6.1b table), `tools/export_dashboard.py`, offline `dashboard/dist/index.html`; branch `stage6.2-4-autonomy-dashboard` |
+| 6.3 | Flagship gate (M7): Sol Red, Sonnet Blue, library transfer | Stage 6 (target Nov 26) | Tooling built on the fake provider (Nov 18); Gate A (prices + estimate) awaiting GO; branch `stage6.3-flagship` |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 
@@ -333,6 +334,22 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   stack after the normalization move (matches `20261109T041650Z-e736` /
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
+### Stage 6.3 — Flagship gate (M7): tooling
+Plan `docs/plans/stage6_3_step0.md`; decisions D33–D37 (pre-approved). Built and tested on
+the fake provider (zero tokens). Each gate needs its own GO and token.
+
+- **Treatment:** Red strength = `gpt-6.1-sol` at effort medium (`run_match.py --red-effort`),
+  everything else the Gate 3 configuration.
+- **Blue arms:** Haiku live + library v5 (read-only); Sonnet + v5 and Haiku + v0000 by replay.
+- **Test data by purpose:** `--purpose eval`; `config/test_set.json` `test_purposes`;
+  promotion refuses eval matches.
+- **Audits:** full D16 audits of eval matches.
+- **`tools/stage6_3_check.py`:** Gate A `--estimate` / `--probe`, Gate B, Gate C.
+- **Estimate (zero token)**, from the 5 committed Gate 1 train matches repriced:
+  - Gate B ≈ $0.09 (Sol output ×1) to $0.19 (×3);
+  - Gate C ≈ $0.08;
+  - worst case under the caps: $1.50 each.
 
 ### Stage 6.2 + 6.4 — Autonomy table (M6) + dashboard MVP (M8)
 Plan `docs/plans/stage6_2_4_step0.md`, run end to end under the autonomy policy. Zero

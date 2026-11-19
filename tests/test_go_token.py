@@ -31,6 +31,11 @@ PAID = [  # (tool module, argv, gate id)
     ("stage6_1_check", ["--gate", "1", "--real-calls"], "gate-6.1b-1"),
     ("stage6_1_check", ["--gate", "2", "--library", LIB0, "--real-calls"], "gate-6.1b-2"),
     ("stage6_1_check", ["--gate", "2b", "--real-calls"], "gate-6.1b-2b"),
+    ("stage6_3_check", ["--gate", "A", "--probe", "--real-calls"], "gate-6.3-A"),
+    ("stage6_3_check", ["--gate", "B", "--real-calls"], "gate-6.3-B"),
+    ("stage6_3_check", ["--gate", "C", "--matches", str(REPO / "data" / "golden"
+                                                        / "train-6.1b-gate1-match1"),
+                        "--real-calls"], "gate-6.3-C"),
 ]
 
 

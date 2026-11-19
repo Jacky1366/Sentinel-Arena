@@ -40,7 +40,7 @@ docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
-docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D32 (+ D24 amendment, criterion d′)
+docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D37 (+ D24 amendment, criterion d′)
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
@@ -174,6 +174,7 @@ tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
 tools/build_holdout.py        capture + seal the offline benign files outside any match (--capture = Gate 0, GO only; --check)
 tools/stage6_1_check.py       6.1b: Gate 1 (5 train matches) / --promote / --predict (zero token) / Gate 2 (M5 replays); GO only
+tools/stage6_3_check.py       6.3 flagship gate: A (--estimate zero token; --probe), B (3 eval matches, Sol Red), C (Sonnet / empty-library replays); GO + token only
 tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls + Red dry run, raw usage (--real-calls; GO only)
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
 dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
@@ -256,6 +257,7 @@ tests/test_gate_6_1b_gate2_evidence.py  committed M5 replays (gate-6.1b-2, -2b):
 tests/test_autonomy.py      autonomy table: every column, CP bound, audit nulls, CLI (non-test folders)
 tests/test_autonomy_6_1b_evidence.py  committed 6.1b table regenerates byte for byte
 tests/test_export_dashboard.py  bundles copied from artifacts, cost totals, demo bundles regenerate, dashboard offline
+tests/test_stage6_3_offline.py  6.3: red effort, purpose eval, promotion refuses eval, estimate, Gates B/C offline
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 

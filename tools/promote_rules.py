@@ -104,6 +104,9 @@ def check_match(match_dir: Path, test_set: dict) -> dict:
         raise Refused(f"{match_dir} is under data/golden/: committed golden matches are never "
                       f"a library source (S6-1)")
     m = json.loads(mpath.read_text(encoding="utf-8"))
+    if m.get("purpose") in test_set.get("test_purposes", []):  # D35: test by purpose
+        raise Refused(f"match {m.get('match_id')} has purpose {m.get('purpose')!r}: TEST data "
+                      f"by purpose (config/test_set.json test_purposes, D35)")
     errors = run_match.validate_manifest(m)
     if errors:
         raise Refused(f"{mpath} is schema-invalid: {errors}")

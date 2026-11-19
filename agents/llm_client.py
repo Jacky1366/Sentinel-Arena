@@ -255,6 +255,21 @@ def agent_caching(cfg: dict, agent: str) -> str:
     return cfg["agents"][agent].get("caching", "off")
 
 
+EFFORTS = ("minimal", "low", "medium", "high")
+
+
+def with_effort(cfg: dict, agent: str, effort: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.request.effort set (None: unchanged). Used for
+    --red-effort (Stage 6.3, D33: Red strength = model + effort together)."""
+    if effort is None:
+        return cfg
+    if effort not in EFFORTS:
+        raise ConfigError(f"effort must be one of {EFFORTS}, not {effort!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent].setdefault("request", {})["effort"] = effort
+    return out
+
+
 def with_caching(cfg: dict, agent: str, mode: str | None) -> dict:
     """A copy of cfg with agents.<agent>.caching set (None: unchanged, the config
     default). Used for --blue-caching / --red-caching / --caching overrides."""
