@@ -40,7 +40,7 @@ docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
-docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D37 (+ D24 amendment, criterion d′)
+docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D38 (+ D24 amendment, criterion d′; D34 amendment)
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)

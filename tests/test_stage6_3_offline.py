@@ -34,10 +34,12 @@ def no_real_ops(monkeypatch):
 def test_red_strength_is_model_plus_effort_and_nothing_else():
     base = lc.load_config()
     cfg = g.gate_config(base)
-    assert cfg["agents"]["red"]["model"] == "gpt-6.1-sol"
-    assert cfg["agents"]["red"]["request"]["effort"] == "medium"
+    assert cfg["agents"]["red"]["model"] == "gpt-6-luna"  # D38
+    assert cfg["agents"]["red"]["request"]["effort"] == "high"
+    assert cfg["agents"]["red"]["max_output_tokens"] == 8192  # part of the treatment
     assert cfg["agents"]["red"]["caching"] == "on"  # Gate 3 configuration
-    for k in ("max_output_tokens", "round_cap", "provider"):
+    assert base["agents"]["red"]["max_output_tokens"] == 2048  # not mutated
+    for k in ("round_cap", "provider"):
         assert cfg["agents"]["red"][k] == base["agents"]["red"][k]
     assert cfg["agents"]["blue"] == base["agents"]["blue"]
     assert base["agents"]["red"]["request"]["effort"] == "low"  # not mutated
@@ -117,7 +119,7 @@ def test_estimate_reprices_the_train_profile():
     paid = sum(json.loads((d / "match.json").read_text())["cost"]["by_agent"]["blue"]["usd"]
                for d in g.PROFILE) / len(g.PROFILE)
     assert e["per_match"]["blue_haiku"] == pytest.approx(paid, abs=2e-6)
-    assert e["per_match"]["red_sol_x3"] > e["per_match"]["red_sol_x1"] > 0
+    assert e["per_match"]["red_x3"] > e["per_match"]["red_x1"] > 0
     assert e["per_match"]["blue_sonnet"] > e["per_match"]["blue_haiku"]
     assert e["gate_b_worst"] == 1.5 and e["gate_c_worst"] == 1.5
     assert all("train-6.1b-gate1" in n for n in e["profile"])  # never test-set data
@@ -125,9 +127,9 @@ def test_estimate_reprices_the_train_profile():
 
 def test_price_problems_flags_unverified():
     prices = json.loads(json.dumps(cost_stats.load_prices()))
-    prices["models"]["gpt-6.1-sol"]["verified"] = False
-    assert any("gpt-6.1-sol" in p for p in g.price_problems(prices))
-    prices["models"]["gpt-6.1-sol"]["verified"] = True
+    prices["models"][g.RED_MODEL]["verified"] = False
+    assert any(g.RED_MODEL in p for p in g.price_problems(prices))
+    prices["models"][g.RED_MODEL]["verified"] = True
     assert g.price_problems(prices) == []
 
 
@@ -138,8 +140,8 @@ def test_gates_b_and_c_offline(dirs, tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(g, "RED_MODEL", "fake-small")
     monkeypatch.setattr(g, "BLUE_LIVE", "fake-small")
     monkeypatch.setattr(g, "BLUE_STRONG", "fake-small")
-    monkeypatch.setattr(g, "ARMS_C", (("sonnet-v5", "fake-small", "v5"),
-                                      ("haiku-empty", "fake-small", "empty")))
+    monkeypatch.setattr(g, "ARMS_C", (("sonnet-v5", "fake-small", "v5", "between_tools"),
+                                      ("haiku-empty", "fake-small", "empty", None)))
     monkeypatch.setattr(g, "SEEDS", (6301, 6302))
     ids = iter(f"20261120T0300{i:02d}Z-cccc" for i in range(20))
     monkeypatch.setattr(g.run_match, "new_match_id", lambda: next(ids))
@@ -156,7 +158,8 @@ def test_gates_b_and_c_offline(dirs, tmp_path, monkeypatch, capsys):
     assert [m["purpose"] for m in ms_] == ["eval", "eval"]
     assert [m["traffic"]["seed"] for m in ms_] == [6301, 6302]
     assert all(m["blue_params"]["library"]["sha256"] == g.LIB_V5_SHA for m in ms_)
-    assert all(m["red_params"]["request"]["reasoning_effort"] == "medium" for m in ms_)
+    assert all(m["red_params"]["request"]["reasoning_effort"] == "high" for m in ms_)
+    assert all(m["red_params"]["request"]["max_output_tokens"] == 8192 for m in ms_)
     assert set(json.loads(ts.read_text())["match_ids"]) >= {m["match_id"] for m in ms_}
     for d, m in zip(ds, ms_):  # FULL audit: every Red round scaffolded
         rows = [json.loads(l) for l in (audits / f"{m['match_id']}.jsonl").read_text().splitlines()]
@@ -175,6 +178,9 @@ def test_gates_b_and_c_offline(dirs, tmp_path, monkeypatch, capsys):
         e = json.loads((tmp_path / "c" / f"{d.name}-haiku-empty" / "replay.json").read_text())
         assert v5["blue_params"]["library"]["sha256"] == g.LIB_V5_SHA
         assert e["blue_params"]["library"]["entries"] == 0
+        assert v5["blue_params"]["request"]["thinking"] == "between_tools"
+        src = json.loads((d / "match.json").read_text())["blue_params"]["request"]
+        assert e["blue_params"]["request"]["thinking"] == src["thinking"]  # Haiku unchanged
     assert "RESULT: PASS" in out
 
 
@@ -218,7 +224,7 @@ def test_probe_passes_on_clean_replies(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "RESULT: PASS" in out and "error " not in out
     red = [json.loads(l) for l in (tmp_path / "p" / "red" / lc.API_CALLS).read_text().splitlines()]
-    assert red[0]["model"] == "gpt-6.1-sol" and red[0]["ok"] is True
+    assert red[0]["model"] == g.RED_MODEL and red[0]["ok"] is True
 
 
 def test_effort_values_are_the_api_values():
@@ -293,7 +299,9 @@ def test_probe_cli_accepts_only_the_named_candidates():
 
 
 def test_anthropic_red_candidate_needs_a_verified_price():
-    prices = cost_stats.load_prices()
+    prices = json.loads(json.dumps(cost_stats.load_prices()))
+    assert g.price_problems(prices, ("claude-opus-5-5",)) == []  # designer-verified Nov 18
+    prices["models"]["claude-opus-5-5"]["verified"] = False
     assert any("claude-opus-5-5" in p for p in g.price_problems(prices, ("claude-opus-5-5",)))
 
 
@@ -318,3 +326,18 @@ def test_probe_anthropic_red_candidate(tmp_path, capsys, model):
     rec = json.loads((tmp_path / "p" / "red" / lc.API_CALLS).read_text().splitlines()[0])
     assert rec["provider"] == "anthropic" and rec["agent"] == "red"
     assert "Red proposal: attack" in capsys.readouterr().out
+
+
+def test_real_gate_c_arms_turn_sonnet_thinking_off_with_between_tools():
+    arms = {a: (m, lib, t) for a, m, lib, t in g.ARMS_C}
+    assert arms == {"sonnet-v5": ("claude-sonnet-5-5", "v5", "between_tools"),
+                    "haiku-empty": ("claude-haiku-5-5", "empty", None)}
+
+
+def test_red_max_output_tokens_override_needs_ai_red(dirs):
+    code, d, out = go_match(dirs, RulesOps(dirs[0]), engine="claude", red_max_output_tokens=8192)
+    assert code == 2 and d is None and "--red-max-output-tokens needs --red ai" in out
+    with pytest.raises(lc.ConfigError):
+        lc.with_max_output_tokens(lc.load_config(), "red", 0)
+    with pytest.raises(lc.ConfigError):
+        lc.with_thinking(lc.load_config(), "blue", "off")

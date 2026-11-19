@@ -269,7 +269,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               benign_set: Path = send_benign.BENIGN_SET, seed: int | None = None,
               settle: float = 3.0, engine: str = "scripted", blue_model: str | None = None,
               red_engine: str = "scripted", red_model: str | None = None,
-              red_effort: str | None = None,
+              red_effort: str | None = None, red_max_output_tokens: int | None = None,
               blue_rules_mode: str | None = None, blue_caching: str | None = None,
               red_caching: str | None = None, purpose: str = "dev",
               library: Path | None = None,
@@ -291,6 +291,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         if red_effort is not None and red_engine != "ai":
             raise ValueError("--red-effort needs --red ai (effort is an AI-call setting)")
         llm_config = llm_client.with_effort(llm_config, "red", red_effort)
+        if red_max_output_tokens is not None and red_engine != "ai":
+            raise ValueError("--red-max-output-tokens needs --red ai (an AI-call setting)")
+        llm_config = llm_client.with_max_output_tokens(llm_config, "red", red_max_output_tokens)
         llm_config = llm_client.with_caching(llm_config, "blue", blue_caching)
         # AI clients are built here, before the lock or the Target is touched: a real
         # provider client without the GO token raises GoTokenError (a ValueError) and
@@ -548,6 +551,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--red-effort", choices=llm_client.EFFORTS, default=None,
                         help="ai: reasoning effort override (default: config/llm.json "
                              "agents.red.request.effort; Stage 6.3, D33)")
+    parser.add_argument("--red-max-output-tokens", type=int, default=None,
+                        help="ai: Red output budget override, reasoning included (default: "
+                             "config/llm.json agents.red.max_output_tokens; Stage 6.3, D38)")
     parser.add_argument("--library", type=Path, default=None,
                         help="claude, rules mode on: preload this rule library, read-only "
                              "(copied into the match folder as library.json)")
@@ -557,7 +563,9 @@ def main(argv: list[str] | None = None) -> int:
     code, _ = run_match(payloads=args.payloads, benign_set=args.benign_set, seed=args.seed,
                         settle=args.settle, engine=args.blue, blue_model=args.blue_model,
                         red_engine=args.red, red_model=args.red_model,
-                        red_effort=args.red_effort, blue_rules_mode=args.blue_rules_mode,
+                        red_effort=args.red_effort,
+                        red_max_output_tokens=args.red_max_output_tokens,
+                        blue_rules_mode=args.blue_rules_mode,
                         blue_caching=args.blue_caching, red_caching=args.red_caching,
                         purpose=args.purpose, library=args.library)
     return code

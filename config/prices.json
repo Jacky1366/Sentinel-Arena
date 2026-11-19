@@ -24,7 +24,8 @@
           "cache_write": 0.625,
           "output": 2.5
         }
-      ]
+      ],
+      "note": "the >100K-token prompt tier (0.50 / 2.50 / 5-minute write 0.625 / read 0.05) checked present 2026-11-18 at the designer's request"
     },
     "claude-sonnet-5-5": {
       "provider": "anthropic",
@@ -40,20 +41,20 @@
           "output": 10
         }
       ],
-      "note": "re-confirmed unchanged by the designer 2026-11-18 (0.10 cache read since the Oct 7 cut)"
+      "note": "re-confirmed unchanged by the designer 2026-11-18, twice (2 / 10 / 5-minute write 2.50 / 1-hour write 4.00, not priced / read 0.10 since the Oct 7 cut)"
     },
     "claude-opus-5-5": {
       "provider": "anthropic",
-      "as_of": "2026-11-08",
-      "source": "designer-supplied 2026-11-08; pending check against the official pricing page",
-      "verified": false,
+      "as_of": "2026-11-18",
+      "source": "designer-verified 2026-11-18 against the official Anthropic pricing page: 4.00 input / 20.00 output, cache read 0.20, cache_write = 5-minute write 5.00 (1-hour write 8.00 is not priced here: a 1-hour write stops the match with unpriced_usage). Single tier.",
+      "verified": true,
       "tiers": [
         {
           "max_prompt_tokens": null,
-          "input": 4,
+          "input": 4.0,
           "cached_input": 0.2,
           "cache_write": 5.0,
-          "output": 20
+          "output": 20.0
         }
       ]
     },

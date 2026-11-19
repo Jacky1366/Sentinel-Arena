@@ -203,6 +203,23 @@ source rounds (`audit_scope` scopes train matches only).
 - **B:** 3 live eval matches, seeds 6301–6303.
 - **C:** Gate B's logs replayed with Sonnet + v5 and with Haiku + v0000.
 
+**D38 — Red strength for Gate B (designer, 2026-11-18; replaces D33's model).**
+`gpt-6-luna` at reasoning effort **high** with `max_output_tokens` **8192**. The output budget
+is part of the treatment: cutting replies off would handicap Red and bias toward "no ceiling
+break". Everything else is the Gate 3 configuration (prompt v1, round cap 10, D15 guard,
+caching on). All stronger OpenAI candidates (`gpt-6.1-sol`, `gpt-6.1-terra`, `gpt-5.6-sol`)
+were refused by the provider's cyber safeguard at Gate A.
+- **An effort change is a weaker treatment than a model change.** The 6.3 result answers
+  "does more Red reasoning on the same model break the ceiling?", not "does a stronger
+  model?".
+- **Finding:** the same Red prompt passes only on the lowest-tier OpenAI model. Attacker
+  strength in this kind of evaluation is bounded by provider access policy.
+
+**D34 amendment (2026-11-18).** The Sonnet arm turns thinking off with `between_tools`,
+which Sonnet 5.5 requires: it rejects `disabled`. The prompt and other request settings are
+unchanged, and `replay.json` `blue_params.request.thinking` records it. The Haiku arms keep
+`disabled`.
+
 **Gate A findings and candidate tracks (2026-11-18).**
 - OpenAI's cyber safeguards refused `gpt-6.1-sol`, `gpt-6.1-terra` and `gpt-5.6-sol` (HTTP
   400 before generation, "apply for Daybreak access"). `gpt-6-luna` at effort high was

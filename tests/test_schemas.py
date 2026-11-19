@@ -1311,7 +1311,8 @@ def test_api_call_refusal_and_failure_shapes_valid():
 # gpt-6-luna — all checked 2026-11-12).
 DESIGNER_VERIFIED = {"claude-haiku-5-5": "2026-11-12", "claude-sonnet-5-5": "2026-11-12",
                      "gpt-6-luna": "2026-11-12", "gpt-6.1-sol": "2026-11-18",
-                     "gpt-6.1-terra": "2026-11-18", "gpt-5.6-sol": "2026-11-18"}
+                     "gpt-6.1-terra": "2026-11-18", "gpt-5.6-sol": "2026-11-18",
+                     "claude-opus-5-5": "2026-11-18"}
 
 
 def test_committed_price_table_is_valid_and_only_designer_verified():

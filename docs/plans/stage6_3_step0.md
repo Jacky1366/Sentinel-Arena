@@ -88,6 +88,18 @@ after the designer's GO.*
   new files; tests in `tests/test_caching.py` and `tests/test_stage6_3_offline.py`.
 - Same-family design note recorded in `docs/stage6_decisions.md`.
 
+## Amendment (2026-11-18): D38 and the Sonnet arm
+
+- **Red strength (D38):** `gpt-6-luna` at effort high, `max_output_tokens` 8192, wired
+  through `run_match.py --red-max-output-tokens`. It replaces D33's `gpt-6.1-sol`, which
+  the provider refused.
+- **Gate C:** the Sonnet arm replays with `--thinking between_tools`
+  (`tools/replay_blue.py`).
+- **Estimate (zero token):**
+  - Gate B ≈ $0.009–0.014;
+  - Gate C ≈ $0.084;
+  - worst case $1.50 each.
+
 ## New files
 
 - `docs/plans/stage6_3_step0.md`

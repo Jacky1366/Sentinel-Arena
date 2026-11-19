@@ -8,20 +8,22 @@ decisions D33-D37.
     .venv/bin/python tools/stage6_3_check.py --gate B --real-calls          # 3 eval matches (gate-6.3-B)
     .venv/bin/python tools/stage6_3_check.py --gate C --matches D1 D2 D3 --real-calls  # 6 replays (gate-6.3-C)
 
-Gate A: the designer verifies the gpt-6.1-sol and claude-sonnet-5-5 prices (the verified
-flag in config/prices.json is designer-owned); --estimate prices Gates B and C from the
-token profile of the committed Gate 1 TRAIN matches (same configuration; no test-set read)
-plus a worst case from the caps; --probe makes ONE Sol Red proposal (dry run, nothing sent)
-and ONE Sonnet Blue call (prompt v2) on a non-test golden line.
+Gate A: the designer verifies the candidate prices (the verified flag in config/prices.json
+is designer-owned); --estimate prices Gates B and C from the token profile of the committed
+Gate 1 TRAIN matches (same configuration; no test-set read) plus a worst case from the caps;
+--probe makes ONE Red proposal for a named candidate (dry run, nothing sent) and/or ONE Sonnet
+Blue call (prompt v2, thinking between_tools) on a non-test golden line. Stronger OpenAI
+candidates were refused by the provider's cyber safeguard (Nov 18).
 
-Gate B (D33-D36): 3 live matches, Red = gpt-6.1-sol at effort medium (the one treatment
-variable), everything else the Gate 3 configuration; Blue = Haiku 5.5, rules on, caching on,
-library v5 READ-ONLY; purpose eval (TEST data by purpose). Afterwards the match ids are added
-to config/test_set.json, FULL D16 audits are scaffolded (every Red round) and the sheet is
-written.
+Gate B (D35-D38): 3 live matches, Red strength (D38) = gpt-6-luna at effort high with an
+8192-token output budget, everything else the Gate 3 configuration; Blue = Haiku 5.5, rules
+on, caching on, library v5 READ-ONLY; purpose eval (TEST data by purpose). Afterwards the
+match ids are added to config/test_set.json, FULL D16 audits are scaffolded (every Red round)
+and the sheet is written.
 
-Gate C (D34): each Gate B log replayed twice: Sonnet 5.5 + library v5 (thinking disabled,
-same prompt and request), and Haiku 5.5 + the EMPTY library v0000 (isolates the transfer).
+Gate C (D34 as amended): each Gate B log replayed twice: Sonnet 5.5 + library v5 (thinking
+off as between_tools, which Sonnet 5.5 requires; same prompt and other request settings),
+and Haiku 5.5 + the EMPTY library v0000 (isolates the transfer).
 """
 
 from __future__ import annotations
@@ -43,7 +45,10 @@ from stats import cost as cost_stats  # noqa: E402
 from tools import audit_match, replay_blue, stage5_7_check, stage6_1_check  # noqa: E402
 
 SEEDS = (6301, 6302, 6303)
-RED_MODEL, RED_EFFORT = "gpt-6.1-sol", "medium"
+# D38 (designer, Nov 18): Red strength = gpt-6-luna at effort high with an 8192-token
+# output budget (the budget is part of the treatment). Every stronger OpenAI candidate
+# was refused by the provider's cyber safeguard at Gate A.
+RED_MODEL, RED_EFFORT, RED_MAX_OUTPUT = "gpt-6-luna", "high", 8192
 BLUE_LIVE, BLUE_STRONG = "claude-haiku-5-5", "claude-sonnet-5-5"
 LIB_DIR = REPO / "data" / "library"
 LIB_V5 = LIB_DIR / "rule_library_v0005.json"
@@ -63,7 +68,7 @@ PROBE_CANDIDATES = {"gpt-6.1-sol": ("openai", "medium"), "gpt-6.1-terra": ("open
 # Probe-only output budget: room to MEASURE reasoning / thinking use (the Gate B budget is
 # fixed afterwards by a D-entry).
 PROBE_RED_MAX_OUTPUT = 8192
-OUTPUT_MULTS = (1, 3)  # Sol at effort medium: reasoning tokens unknown until the probe
+OUTPUT_MULTS = (1, 3)  # Red output tokens at the treatment effort vs the low-effort profile
 
 
 def jl(p: Path) -> list[dict]:
@@ -102,7 +107,7 @@ def estimate(prices: dict, cfg: dict, profile: list[Path] = PROFILE) -> dict:
     red = [c for c in calls if c["agent"] == "red"]
     blue = [c for c in calls if c["agent"] == "blue"]
     n = len(profile)
-    per_match = {f"red_sol_x{m}": _reprice(red, RED_MODEL, prices, m) / n for m in OUTPUT_MULTS}
+    per_match = {f"red_x{m}": _reprice(red, RED_MODEL, prices, m) / n for m in OUTPUT_MULTS}
     per_match["blue_haiku"] = _reprice(blue, BLUE_LIVE, prices) / n
     per_match["blue_sonnet"] = _reprice(blue, BLUE_STRONG, prices) / n
     k = len(SEEDS)
@@ -114,7 +119,7 @@ def estimate(prices: dict, cfg: dict, profile: list[Path] = PROFILE) -> dict:
         "profile": [d.name for d in profile], "profile_calls": {"red": len(red) / n,
                                                                 "blue": len(blue) / n},
         "per_match": {k_: round(v, 6) for k_, v in per_match.items()},
-        "gate_b_expected": {f"x{m}": round(k * (per_match[f"red_sol_x{m}"]
+        "gate_b_expected": {f"x{m}": round(k * (per_match[f"red_x{m}"]
                                                 + per_match["blue_haiku"]), 6)
                             for m in OUTPUT_MULTS},
         "gate_c_expected": round(k * (per_match["blue_sonnet"] + per_match["blue_haiku"]), 6),
@@ -131,12 +136,12 @@ def print_estimate(e: dict) -> None:
           f"repriced per call (tiers respected).")
     pm = e["per_match"]
     for m in OUTPUT_MULTS:
-        print(f"  Red  {RED_MODEL} per match, output tokens x{m}: ${pm[f'red_sol_x{m}']:.6f}")
+        print(f"  Red  {RED_MODEL} per match, output tokens x{m}: ${pm[f'red_x{m}']:.6f}")
     print(f"  Blue {BLUE_LIVE} per match / replay: ${pm['blue_haiku']:.6f}")
     print(f"  Blue {BLUE_STRONG} per replay (no library answers assumed): "
           f"${pm['blue_sonnet']:.6f}")
     for m in OUTPUT_MULTS:
-        print(f"  Gate B expected (3 matches, Sol output x{m}): ${e['gate_b_expected'][f'x{m}']:.6f}")
+        print(f"  Gate B expected (3 matches, Red output x{m}): ${e['gate_b_expected'][f'x{m}']:.6f}")
     print(f"  Gate C expected (3 Sonnet + 3 Haiku replays): ${e['gate_c_expected']:.6f}")
     print(f"  worst case under the caps: Gate B ${e['gate_b_worst']:.2f}, Gate C "
           f"${e['gate_c_worst']:.2f} (config/llm.json caps; a refused call stops the agent)")
@@ -147,17 +152,17 @@ def print_estimate(e: dict) -> None:
 def gate_config(base: dict | None = None, model: str | None = None,
                 effort: str | None = None, provider: str | None = None,
                 max_output_tokens: int | None = None) -> dict:
-    """The D33 Red treatment over the config: Sol at effort medium, caching on (Gate 3).
-    model / effort / provider / max_output_tokens override it for a Gate A probe only."""
+    """The D38 Red treatment over the config: Luna at effort high, output budget 8192,
+    caching on (Gate 3). model / effort / provider / max_output_tokens override it for a
+    Gate A probe only."""
     cfg = base if base is not None else lc.load_config()
     cfg = lc.with_caching(cfg, "red", "on")
     cfg = lc.with_effort(cfg, "red", effort or RED_EFFORT)
+    cfg = lc.with_max_output_tokens(cfg, "red", max_output_tokens or RED_MAX_OUTPUT)
     cfg = json.loads(json.dumps(cfg))
     cfg["agents"]["red"]["model"] = model or RED_MODEL
     if provider is not None:
         cfg["agents"]["red"]["provider"] = provider
-    if max_output_tokens is not None:
-        cfg["agents"]["red"]["max_output_tokens"] = max_output_tokens
     return cfg
 
 
@@ -263,9 +268,12 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
     dirs, ok = [], True
     for i, seed in enumerate(SEEDS, start=1):
         print(f"\n##### eval match {i}/{len(SEEDS)} (seed {seed}, Red {RED_MODEL} effort "
-              f"{RED_EFFORT}, Blue {BLUE_LIVE} rules on, library v5 read-only)")
+              f"{RED_EFFORT} max_output_tokens {RED_MAX_OUTPUT}, Blue {BLUE_LIVE} rules on, "
+              f"library v5 read-only)")
         code, d = run_match.run_match(seed=seed, red_engine="ai", red_model=RED_MODEL,
-                                      red_effort=RED_EFFORT, red_caching="on", engine="claude",
+                                      red_effort=RED_EFFORT,
+                                      red_max_output_tokens=RED_MAX_OUTPUT,
+                                      red_caching="on", engine="claude",
                                       blue_model=BLUE_LIVE, blue_rules_mode="on",
                                       blue_caching="on", purpose="eval", library=library,
                                       **run_kw)
@@ -302,7 +310,10 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
 # Gate C: replays of the Gate B logs
 # --------------------------------------------------------------------------
 
-ARMS_C = (("sonnet-v5", BLUE_STRONG, "v5"), ("haiku-empty", BLUE_LIVE, "empty"))
+# (arm, model, library, thinking override). Sonnet 5.5 rejects `disabled`; between_tools is
+# its thinking-off (Gate A). Haiku keeps the config's `disabled`, as in Gate B.
+ARMS_C = (("sonnet-v5", BLUE_STRONG, "v5", SONNET_THINKING),
+          ("haiku-empty", BLUE_LIVE, "empty", None))
 
 
 def check_sources(match_dirs: list[Path]) -> list[str]:
@@ -327,10 +338,10 @@ def gate_c(prices: dict, match_dirs: list[Path], root: Path | None = None, ops=N
     root = root or replay_blue.REPLAYS / f"gate-6.3-C-{gid}"
     rows, ok = [], True
     for d in match_dirs:
-        for arm, model, lib in ARMS_C:
+        for arm, model, lib, thinking in ARMS_C:
             code, rdir = replay_blue.replay(Path(d), root / f"{Path(d).name}-{arm}",
                                             engine="claude", model=model, rules_mode="on",
-                                            caching="on",
+                                            caching="on", thinking=thinking,
                                             library=library if lib == "v5" else EMPTY,
                                             out_fn=lambda *_: None, ops=ops)
             if rdir is None:

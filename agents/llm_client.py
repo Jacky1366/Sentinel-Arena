@@ -267,6 +267,30 @@ def with_effort(cfg: dict, agent: str, effort: str | None) -> dict:
     return out
 
 
+def with_max_output_tokens(cfg: dict, agent: str, n: int | None) -> dict:
+    """A copy of cfg with agents.<agent>.max_output_tokens set (None: unchanged). Used for
+    --red-max-output-tokens (Stage 6.3, D38: the output budget is part of Red strength)."""
+    if n is None:
+        return cfg
+    if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+        raise ConfigError(f"max_output_tokens must be a positive integer, not {n!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["max_output_tokens"] = n
+    return out
+
+
+def with_thinking(cfg: dict, agent: str, thinking: str | None) -> dict:
+    """A copy of cfg with agents.<agent>.request.thinking set (None: unchanged). Used for
+    replay --thinking (Stage 6.3: Sonnet 5.5 turns thinking off with between_tools)."""
+    if thinking is None:
+        return cfg
+    if thinking not in THINKING:
+        raise ConfigError(f"thinking must be one of {THINKING}, not {thinking!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent].setdefault("request", {})["thinking"] = thinking
+    return out
+
+
 def with_caching(cfg: dict, agent: str, mode: str | None) -> dict:
     """A copy of cfg with agents.<agent>.caching set (None: unchanged, the config
     default). Used for --blue-caching / --red-caching / --caching overrides."""

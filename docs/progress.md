@@ -391,6 +391,17 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     output, safety-block mapping, mock-transport tests.
   - D18 caveat: implicit caching can't be switched off.
   - Not built now.
+- **D38 Red strength (designer Nov 18):** Gate B Red = `gpt-6-luna` at effort high,
+  `max_output_tokens` 8192; the budget is part of the treatment. Every stronger OpenAI
+  candidate was refused by the provider's cyber safeguard.
+  - **An effort change is a weaker treatment than a model change.** 6.3 tests more Red
+    reasoning on the same model, not a stronger model.
+  - **Finding:** the same Red prompt passes only on the lowest-tier OpenAI model. Attacker
+    strength in this kind of evaluation is bounded by provider access policy.
+  - **Gate C:** Sonnet replays with `thinking: between_tools`.
+  - **Prices:** Opus 5.5 designer-verified, Sonnet re-confirmed, the Haiku >100K tier
+    present.
+  - **Estimate:** Gate B ≈ $0.009–0.014, Gate C ≈ $0.084.
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

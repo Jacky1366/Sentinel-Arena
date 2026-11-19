@@ -128,8 +128,8 @@ def load_source(match_dir: Path) -> tuple[dict, dict[str, str]]:
 def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
            rules_mode: str | None = None, model: str | None = None,
            ops: run_match.Ops | None = None, out_fn=print,
-           caching: str | None = None, library: Path | None = None
-           ) -> tuple[int, Path | None]:
+           caching: str | None = None, library: Path | None = None,
+           thinking: str | None = None) -> tuple[int, Path | None]:
     """Replay Blue + the Judge. Returns (exit code, replay dir or None if refused)."""
     ops = ops or run_match.Ops()
     try:
@@ -143,6 +143,12 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         if caching is not None and engine != "claude":
             raise Refused("--caching needs --engine claude (caching is an AI-call setting)")
         config = llm_client.with_caching(config, "blue", caching)
+        if thinking is not None and engine != "claude":
+            raise Refused("--thinking needs --engine claude (an AI-call setting)")
+        try:
+            config = llm_client.with_thinking(config, "blue", thinking)
+        except llm_client.ConfigError as exc:
+            raise Refused(str(exc)) from exc
         # Built before anything is written: no GO token -> GoTokenError -> REFUSED.
         blue_llm = ops.blue_client(config, prices) if engine == "claude" else None
         if engine == "claude":
@@ -256,9 +262,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--library", type=Path, default=None,
                     help="claude, rules mode on: preload this rule library, read-only "
                          "(Stage 6.1; copied into the replay folder as library.json)")
+    ap.add_argument("--thinking", choices=llm_client.THINKING, default=None,
+                    help="claude: thinking override (Sonnet 5.5 needs between_tools for off)")
     args = ap.parse_args(argv)
     code, _ = replay(args.match, args.out, args.engine, args.rules_mode, args.model,
-                     caching=args.caching, library=args.library)
+                     caching=args.caching, library=args.library, thinking=args.thinking)
     return code
 
 
