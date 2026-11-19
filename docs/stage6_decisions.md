@@ -158,6 +158,24 @@ Fixes, the same day:
 - The 6.1a library replay test in `tests/test_replay_blue.py` and the golden-refusal test in
   `tests/test_promote_rules.py` moved to non-test folders too.
 
+**Incident, 2026-11-18 (disclosed): a test ran the real Gate 1 tool after the seal.**
+- *What happened.* `test_gate1_refuses_before_the_seal` called `tools/stage6_1_check.py
+  --gate 1 --real-calls` and expected the "not sealed" refusal. Once Gate 0 had sealed the
+  files and the tree was clean, nothing refused, and the real gate ran: 5 `purpose: train`
+  matches (`20261119T002746Z-6977` … `20261119T003209Z-6344`, seeds 6101–6105) against the
+  real Target through Docker.
+- *Cost: zero.* The test-wide key guard (`tests/conftest.py`) removes every `ARENA_*` key,
+  so all 55 AI calls (50 Red, 5 Blue) were refused before any network access: 0 tokens,
+  $0. Every match ended `stopped` with no rules.
+- *State.* No audit file was written. The generated sheet in `docs/audits/` was deleted.
+  The 5 folders stay in `data/runs/` (git-ignored), and promotion refuses them (status
+  `stopped`, not `completed`). The Target is reset at the start of every match.
+- *Fix.* The test now forces the unsealed state itself. An autouse fixture replaces
+  `run_match.Ops` with one that raises on construction, so a test that falls through to
+  the real Ops fails before anything is sent. This was checked with a throwaway test.
+- *Not affected.* The test failure was noticed only after the Gate 0 commit (the suite and
+  the commit were chained); the seal itself is unaffected.
+
 ## Implementation notes (Stage 6.1a, 2026-11-17)
 
 - **Formats.** Verdicts 0.4 (only with a library; 0.3 frozen as `verdict_v0_3`); `match.json`

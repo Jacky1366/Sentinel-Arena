@@ -33,6 +33,20 @@ def _match_id(d):
     return json.loads((d / "match.json").read_text())["match_id"]
 
 
+class _NoRealOps:
+    def __init__(self, *a, **kw):
+        raise AssertionError("real run_match.Ops in a test: it would send live traffic "
+                             "(and, with keys, spend money)")
+
+
+@pytest.fixture(autouse=True)
+def no_real_ops(monkeypatch):
+    """Every gate test passes its own fake Ops. If one ever falls through to the real
+    Ops (as the seal-refusal test did once the files were sealed, 2026-11-18), fail
+    before anything is sent."""
+    monkeypatch.setattr(gate.run_match, "Ops", _NoRealOps)
+
+
 @pytest.fixture(autouse=True)
 def non_test_sources(monkeypatch):
     """Point the gate at non-test golden folders, and fail on any test-set read."""
@@ -57,7 +71,9 @@ def run(argv, capsys):
     return code, capsys.readouterr().out
 
 
-def test_gate1_refuses_before_the_seal(capsys):
+def test_gate1_refuses_before_the_seal(capsys, monkeypatch):
+    # Independent of the repo's real seal state (the files are sealed since Gate 0).
+    monkeypatch.setattr(gate, "sealed_ok", lambda: ["benign/holdout_v1.jsonl: not sealed"])
     code, out = run(["--gate", "1", "--real-calls"], capsys)
     assert code == 2 and "not sealed (D27)" in out
 

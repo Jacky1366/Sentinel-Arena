@@ -406,6 +406,10 @@ change to `data/golden/`.
     - xh15, xh27, yh05: `POST /api/Feedbacks` (cause not investigated).
   - Offline data is never sent in a match and HTTP status is not part of how it is used,
     so the 500s change nothing.
+- **Incident (Nov 18, disclosed).** After the seal, a gate refusal test fell through and
+  ran the real Gate 1 tool. The test key guard refused all 55 AI calls ($0), but 5 stopped
+  `train` matches ran against the Target. The test is fixed and guarded against real Ops
+  (`docs/stage6_decisions.md`).
 - **Cleanup.** Unrelated external schedule lines removed from this file (designer-approved).
 
 ### Stage 5.7 — Prompt caching + first AI-vs-AI matches (Stage 5 finale)
