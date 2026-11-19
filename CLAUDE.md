@@ -345,6 +345,11 @@ asking" in your report. Escalate only if unsure which category a step falls in.
   4. Offline tests never replay test-set matches (`tests/test_stage6_1_gates_offline.py`
      swaps in non-test golden folders and fails on any test-set replay). Only the real
      6.1b gates (Gate 2, `--predict`) touch the Gate 3 matches, each after a GO.
+- **Failed / instrument-failure runs are archived and marked, never deleted.** Raw evidence
+  is never deleted (instrument failures are excluded from stats by D13, not removed). A failed
+  run under `data/runs/` is kept, or archived to `data/golden/incidents/` with its cause;
+  deleting a run folder is category 3 and needs the designer's GO (a Gate B-freeplay run was
+  deleted in error, Nov 19).
 - **Never chain a commit after tests with `;`.** Use `&&`, or run the tests, check the
   result, then commit (a failing suite once preceded a commit, Nov 18).
 - **Paid runs need the GO token**, set for that one command only after the designer's GO

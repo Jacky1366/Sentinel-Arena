@@ -1397,6 +1397,12 @@ exist or be empty, and must not be or lie inside any folder holding a `match.jso
     chance?
   - `reasoning.effort`: actually applied? Compare reasoning tokens across efforts.
   - the refusal shape: undocumented for the Responses API.
+  - **Strict schema IS validated, not silently ignored (evidence, 2026-11-19):** DeepSeek
+    rejected a non-strict-compliant `text.format` json_schema (optional properties) with HTTP
+    400 **before generation** on every call (Gate B-freeplay run 1). So a json_schema that is
+    accepted is at least structurally enforced; per-reply schema conformance is still checked
+    (tools/stage6_3_check.py red_schema_check). Red output schemas are kept strict-compliant
+    and guarded by a static test (tests/test_ai_red.py).
 - **Full-build checklist** before any scored DeepSeek match (Gate B-deepseek): all four
   items above verified, each recorded with its evidence.
   - **Usage (designer, 2026-11-19):** the DeepSeek Usage page shows 1 request and 1,266
