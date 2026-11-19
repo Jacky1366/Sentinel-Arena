@@ -368,6 +368,19 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     safeguards need the org to hold "Daybreak" access. The same prompt passes on Luna.
   - **Sonnet Blue:** Sonnet 5.5 rejects `thinking: disabled`. To turn thinking off on
     this model, the API says to send `thinking: between_tools` instead.
+- **Candidate probe (designer GO, same Red prompt v1; one call each, sequential and
+  conditional).**
+  - Prices designer-verified: `gpt-6.1-terra` and `gpt-5.6-sol`, both tiers. 5.6-sol is at
+    promotional pricing until Nov 30.
+  - `gpt-6.1-terra` at effort medium: refused, same cyber-safeguard 400 as Sol.
+  - `gpt-5.6-sol` at effort medium: refused, same 400.
+  - `gpt-6-luna` at effort high: allowed. 357 input tokens, 186 output (incl. reasoning),
+    valid attack proposal, $0.000129.
+  - Sonnet 5.5 Blue with `between_tools`: allowed. 105 input tokens, 1,796 cache write,
+    57 output, $0.00527.
+  - Gate A total spend: $0.005399. Every 400 was rejected before generation, with no usage
+    recorded.
+  - Proposed Red `max_output_tokens` for Luna at high: 8192 (reasoning below).
 
 ### Stage 6.2 + 6.4 — Autonomy table (M6) + dashboard MVP (M8)
 Plan `docs/plans/stage6_2_4_step0.md`, run end to end under the autonomy policy. Zero
