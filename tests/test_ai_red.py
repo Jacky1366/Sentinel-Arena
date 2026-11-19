@@ -236,13 +236,24 @@ def test_red_output_schemas_are_strict_compliant():
     _assert_strict(ai_red.FREEPLAY_OUTPUT_SCHEMA)
 
 
-def test_freeplay_schema_allows_null_technique_and_headers():
-    from jsonschema import Draft202012Validator as V
+def test_freeplay_schema_is_flat_for_the_deepseek_strict_subset():
+    # DeepSeek strict rejects nested objects ("unknown variant `object`") and type arrays
+    # (Gate B-freeplay 400, Nov 19). The free-play schema must be FLAT: every property a plain
+    # string/enum, no nested object, no type array.
     from red import ai_red
-    v = V(ai_red.FREEPLAY_OUTPUT_SCHEMA)
+    for name, sub in ai_red.FREEPLAY_OUTPUT_SCHEMA["properties"].items():
+        assert isinstance(sub.get("type"), str), f"{name}: type must be a plain string"
+        assert sub["type"] == "string", f"{name}: free-play fields are flat strings"
+
+
+def test_freeplay_reply_maps_flat_fields_and_empty_strings():
+    from red import ai_red
+    import json
     base = {"method": "GET", "path": "/", "body": "", "label": "other", "rationale": "r"}
-    assert v.is_valid({**base, "technique": None, "headers": None})
-    assert v.is_valid({**base, "technique": "IDOR",
-                       "headers": {"Cookie": "a", "Authorization": None}})
-    assert not v.is_valid({**base, "technique": None})  # headers missing: strict requires it
-    assert not v.is_valid({**base, "technique": None, "headers": {"Cookie": "a"}})  # Authz missing
+    a, _ = ai_red.validate_reply(json.dumps({**base, "technique": "", "cookie": "",
+                                             "authorization": ""}), "completed", True)
+    assert a["technique"] is None and a["headers"] == {}  # "" -> absent
+    a2, _ = ai_red.validate_reply(json.dumps({**base, "technique": "JWT forgery",
+                                              "cookie": "s=1", "authorization": ""}),
+                                  "completed", True)
+    assert a2["technique"] == "JWT forgery" and a2["headers"] == {"Cookie": "s=1"}

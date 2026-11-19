@@ -88,11 +88,11 @@ FREEPLAY_DIRECTIVE = (
 RED_PROMPTS = {"1": SYSTEM_PROMPT, "2": SYSTEM_PROMPT + "\n\n" + EVASION_DIRECTIVE,
                "3": SYSTEM_PROMPT + "\n\n" + FREEPLAY_DIRECTIVE}
 FREEPLAY_PROMPT_VERSION = "3"
-# Strict structured output (OpenAI / DeepSeek Responses, text.format strict: true) requires
-# EVERY property to be in `required` and additionalProperties:false at every level; an
-# "optional" field is expressed as required-but-nullable. So technique/headers are required
-# and nullable, and headers (when present) carries both Cookie and Authorization (nullable).
-# A nested object must satisfy strict too. validate_reply drops null headers / technique.
+# FLAT structured output (D41, 2026-11-19). DeepSeek's strict json_schema subset rejects
+# nested objects ("unknown variant `object`") and type arrays, so the free-play extras are
+# FLAT top-level strings, all required (strict needs every property in `required`): `technique`
+# ("" = none), and `cookie` / `authorization` ("" = unused) instead of a nested `headers`
+# object. validate_reply maps "" to absent and rebuilds the Cookie / Authorization headers.
 FREEPLAY_OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -100,18 +100,17 @@ FREEPLAY_OUTPUT_SCHEMA = {
         "path": {"type": "string"},
         "body": {"type": "string"},
         "label": {"type": "string", "enum": list(red_guard.FREEPLAY_LABELS)},
-        "technique": {"type": ["string", "null"]},
-        "headers": {
-            "type": ["object", "null"],
-            "properties": {h: {"type": ["string", "null"]} for h in red_guard.FREEPLAY_HEADERS},
-            "required": list(red_guard.FREEPLAY_HEADERS),
-            "additionalProperties": False,
-        },
+        "technique": {"type": "string"},
+        "cookie": {"type": "string"},
+        "authorization": {"type": "string"},
         "rationale": {"type": "string"},
     },
-    "required": ["method", "path", "body", "label", "technique", "headers", "rationale"],
+    "required": ["method", "path", "body", "label", "technique", "cookie", "authorization",
+                 "rationale"],
     "additionalProperties": False,
 }
+# Flat free-play field -> the header name it maps to (validate_reply; "" means unused).
+FREEPLAY_HEADER_FIELDS = {"cookie": "Cookie", "authorization": "Authorization"}
 RED_PROMPT_SHA256 = {v: hashlib.sha256(t.encode("utf-8")).hexdigest()
                      for v, t in RED_PROMPTS.items()}
 for _t in RED_PROMPTS.values():
@@ -178,13 +177,14 @@ def validate_reply(text: str | None, stop_reason: str | None, free_play: bool = 
     v = parsed.value
     allowed = {"method", "path", "body", "label", "rationale"}
     if free_play:
-        allowed |= {"technique", "headers"}
+        allowed |= {"technique", *FREEPLAY_HEADER_FIELDS}
     if set(v) - allowed:
         return None, "invalid_shape"
     if "technique" in v and not isinstance(v["technique"], (str, type(None))):
         return None, "invalid_shape"
-    if "headers" in v and not isinstance(v["headers"], (dict, type(None))):
-        return None, "invalid_shape"
+    for fld in FREEPLAY_HEADER_FIELDS:
+        if fld in v and not isinstance(v[fld], (str, type(None))):
+            return None, "invalid_shape"
     if not {"method", "path", "label"} <= set(v):
         return None, "missing_field"
     for key in ("method", "path", "label"):
@@ -195,10 +195,10 @@ def validate_reply(text: str | None, stop_reason: str | None, free_play: bool = 
             return None, "invalid_shape"
     attack = {"method": v["method"], "path": v["path"], "body": v.get("body", ""),
               "label": v["label"], "rationale": (v.get("rationale") or "")[:RATIONALE_MAX]}
-    if free_play:  # D41: carry the free-play extras through to the record and the guard
-        attack["technique"] = (v.get("technique") or None)
-        attack["headers"] = {k: val for k, val in (v.get("headers") or {}).items()
-                             if isinstance(val, str)}
+    if free_play:  # D41: carry the free-play extras through to the record and the guard.
+        attack["technique"] = (v.get("technique") or None)  # "" / missing -> None
+        attack["headers"] = {hdr: v[fld] for fld, hdr in FREEPLAY_HEADER_FIELDS.items()
+                             if isinstance(v.get(fld), str) and v[fld] != ""}  # "" -> absent
     return attack, None
 
 

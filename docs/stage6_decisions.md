@@ -294,6 +294,13 @@ unchanged, and `replay.json` `blue_params.request.thinking` records it. The Haik
     15 frozen golden matches re-score identically and no JUDGE_VERSION bump is needed.
   - **Gate B-freeplay** (token `gate-6.3-B-freeplay`): 3 eval matches, seeds 6331–6333,
     registered in `config/test_set.json`. Stops after a refused match.
+  - **Note (2026-11-19): free-play output schema is FLAT.** Runs 1–2 got HTTP 400 on every
+    DeepSeek call; a diagnostic probe (`--probe-freeplay`) showed the cause is DeepSeek's
+    strict json_schema subset, which rejects nested objects ("unknown variant `object`") and
+    type arrays. The schema was flattened — `technique`, `cookie`, `authorization` as separate
+    required top-level strings ("" = none/unused; `validate_reply` maps "" to absent and
+    rebuilds the headers). Prompt v3 text is unchanged; the record format (a `headers` object)
+    is unchanged. A static test (`tests/test_ai_red.py`) locks the flat shape.
 - **Incident (2026-11-19): Gate B-freeplay run 1 failed (instrument), and the run folder was
   deleted in error.**
   - Run `20261119T172128Z-c145`, seed 6331, git `334308a`, started 2026-11-19T17:21:28Z

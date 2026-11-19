@@ -594,7 +594,7 @@ from stats import free_play as fp  # noqa: E402
 
 FREEPLAY_REPLY = json.dumps({"method": "GET", "path": "/rest/basket/2", "body": "",
                              "label": "other", "technique": "IDOR",
-                             "headers": {"Authorization": "Bearer forged", "Cookie": "t=1"},
+                             "cookie": "t=1", "authorization": "Bearer forged",
                              "rationale": "Access another user's basket by id (IDOR)."})
 
 
