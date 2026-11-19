@@ -1052,10 +1052,12 @@ makes no calls and has no `api_calls.jsonl`.
 | `cached_input_tokens` / `cache_write_tokens` / `output_tokens` | int \| null | Cache reads, cache writes, output (incl. reasoning tokens). **`null`** = the provider reported no usage (e.g. a timeout), distinct from 0. Integers whenever `ok`; all `0` for a refusal. |
 | `unpriced_cache_write_tokens` | int ≥ 0 \| null | **0.2 (Stage 5.7).** The part of `cache_write_tokens` written at a cache lifetime `config/prices.json` has no price for: Anthropic's 1-hour write (`usage.cache_creation.ephemeral_1h_input_tokens`), OpenAI's 12-hour write (`input_tokens_details.cache_write_tokens_details.ttl_12h_tokens`), any other lifetime in a provider's write breakdown, or **every** write of an OpenAI request that itself asked for a lifetime other than 30 minutes. `cache_write` prices are the Anthropic 5-minute and the OpenAI 30-minute write. **> 0 is unpriced usage** (§6.4): left out of dollars, and the match stops. `≤ cache_write_tokens`; `null` with the other counts; `0` on a refusal. |
 | `latency_ms` | int ≥ 0 | Wall time of the attempt; `0` for a refusal. |
+| `error_excerpt` | string \| null, optional | **Redacted** provider error for a FAILED attempt (exception class + message, keys stripped, ≤500 chars); absent/null for ok calls and body refusals. Additive in 0.2 (Stage 6.3). It is why a 400's cause can be diagnosed from the artifacts. |
 | `prompt_sha256` | 64 hex | sha256 of the canonical JSON of `{model, system, messages}`. The prompt text itself is **never** stored. |
 
-Never stored: API keys, prompt text, response text, error messages (only
-`error_type` and `http_status`).
+Never stored: API keys, prompt text, or response text. A failed attempt also records
+`error_excerpt`: the provider's error message with keys redacted (never a key, prompt or
+response body), so a 400 can be diagnosed from the artifacts (Stage 6.3).
 
 **Refusals** (checked before every attempt, in this order; a refusal writes a line
 and sends nothing): the model has no price entry (`missing_price`; a placeholder
@@ -1454,6 +1456,10 @@ attack class) plus the D15 header amendment.
   validity is not audited. Scaffold / sheet / report via `tools/free_play.py`.
 - **Cost.** DeepSeek is time-priced (§6.4, D39). A per-match cost cap ($0.40) is a caps
   override (`agents.<scope>` caps) applied by `run_match(..., caps=...)`.
+- **Gate registration.** A gate registers a match id in `config/test_set.json` only AFTER the
+  match passes (completed / stopped-clean and no provider refusal or 400 on a Red call); a
+  failed or refused match (e.g. 0 attacks) is never test data and is archived under
+  `data/golden/incidents/`, never deleted (Stage 6.3).
 
 ## 6.10 Prompt caching (Stage 5.7, D18)
 

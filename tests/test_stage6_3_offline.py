@@ -215,9 +215,15 @@ def test_probe_prints_redacted_provider_errors(tmp_path, capsys):
     assert "error red: " in out and "Unsupported parameter 'x'" in out
     assert "error blue: " in out and "thinking.type" in out
     assert secret not in out
-    for f in (tmp_path / "p").rglob("*"):  # error text never reaches disk
+    # The redacted provider error body IS now stored (error_excerpt, Stage 6.3); the KEY
+    # never is, on disk or in the printed output.
+    red_calls = [json.loads(l) for l in
+                 (tmp_path / "p" / "red" / lc.API_CALLS).read_text().splitlines()]
+    assert "Unsupported parameter 'x'" in red_calls[0]["error_excerpt"]
+    assert "[REDACTED]" in red_calls[0]["error_excerpt"]
+    for f in (tmp_path / "p").rglob("*"):
         if f.is_file():
-            assert "Unsupported" not in f.read_text() and secret not in f.read_text()
+            assert secret not in f.read_text()  # the key is redacted everywhere
 
 
 def test_probe_passes_on_clean_replies(tmp_path, capsys):
@@ -698,3 +704,38 @@ def test_free_play_summary_detection_and_type_exclude_other_and_need_the_audit(t
     s1 = fp.summary(d, ap)
     assert s1["attack_attempts"] == 2 and s1["detection"] == {"num": 2, "den": 2}
     assert s1["type_correct"] == {"num": 1, "den": 1}  # only CWE-89 round 2; `other` excluded
+
+
+def test_a_refused_free_play_match_registers_no_test_ids(dirs, tmp_path, monkeypatch, capsys):
+    # the gate registers test ids only AFTER a match passes (Stage 6.3 fix): a match whose
+    # Red calls were refused / 400'd must not land in test_set.json.
+    monkeypatch.setattr(g, "red_refusals", lambda d: ["round 1: HTTP 400 bad_request"])
+    live, runs = dirs
+    monkeypatch.setattr(g, "BLUE_LIVE", "fake-small")
+    ids = iter(f"20261120T0700{i:02d}Z-aaaa" for i in range(10))
+    monkeypatch.setattr(g.run_match, "new_match_id", lambda: next(ids))
+    ts = tmp_path / "test_set.json"
+    ts.write_text((REPO / "config" / "test_set.json").read_text())
+    before = json.loads(ts.read_text())["match_ids"]
+    sheets = tmp_path / "sheets"
+    sheets.mkdir()
+    g.gate_b(PRICES, sheet_dir=sheets, audits=tmp_path / "audits", test_set=ts,
+             arm={**g.FREEPLAY_ARM, "seeds": (6331,)},
+             ops=FreePlayOps(live, answer=good_brain), live_dir=live, runs_dir=runs)
+    assert json.loads(ts.read_text())["match_ids"] == before  # nothing registered
+    assert "STOP: Red refused" in capsys.readouterr().out
+
+
+def test_failed_call_records_a_redacted_error_excerpt(tmp_path):
+    from llm_fakes import FakeAdapter, FakeError, make_client
+    secret = "err" + "excerpt" + "key" + "99"
+    adapter = FakeAdapter(script=[FakeError(f"Boom bad thing ({secret})", 400)])
+    client, _ = make_client(adapter, env={"ARENA_ANTHROPIC_API_KEY": secret}, tmp_path=tmp_path)
+    d = tmp_path / "m001"
+    d.mkdir()
+    r = client.complete("red", "fake-small", "S", [{"role": "user", "content": "x"}],
+                        run_dir=d, round=1)
+    line = json.loads((d / lc.API_CALLS).read_text().splitlines()[0])
+    assert not r.ok and line["error_type"] == "bad_request"
+    assert "Boom bad thing" in line["error_excerpt"] and secret not in line["error_excerpt"]
+    assert "[REDACTED]" in line["error_excerpt"]

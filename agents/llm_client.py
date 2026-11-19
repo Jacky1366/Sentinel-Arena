@@ -940,6 +940,7 @@ class LLMClient:
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
                 latency = max(0, round_ms(self.clock() - t0))
                 kind, status, retry_after = classify(exc)
+                error = self._redact(f"{type(exc).__name__}: {exc}")[:500]
                 self._write(run_dir, {**base, "ok": False, "error_type": kind,
                                       "http_status": status, "refusal": None,
                                       "stop_reason": None,
@@ -947,8 +948,8 @@ class LLMClient:
                                       "cache_write_tokens": None,
                                       "unpriced_cache_write_tokens": None,
                                       "output_tokens": None,
+                                      "error_excerpt": error,  # redacted; keys never present
                                       "latency_ms": latency})
-                error = self._redact(f"{type(exc).__name__}: {exc}")[:500]
                 if kind not in RETRYABLE or attempt > self.cfg["max_retries"]:
                     return Result(ok=False, error=error, error_type=kind,
                                   attempts=attempts_sent)

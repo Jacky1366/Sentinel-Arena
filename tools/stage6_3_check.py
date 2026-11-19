@@ -321,7 +321,7 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
     for the D38 Gate B, or DEEPSEEK_ARM (Gate B-deepseek)."""
     arm = arm or {"model": RED_MODEL, "provider": None, "effort": RED_EFFORT,
                   "seeds": SEEDS, "sheet": "stage6_3_gateB"}
-    dirs, ok = [], True
+    dirs, codes, ok = [], [], True
     seeds = arm["seeds"]
     for i, seed in enumerate(seeds, start=1):
         print(f"\n##### eval match {i}/{len(seeds)} (seed {seed}, Red {arm['model']} effort "
@@ -344,13 +344,17 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
             continue
         ok &= code in (0, 4)
         dirs.append(d)
+        codes.append(code)
         refused = red_refusals(d) if arm.get("stop_on_refusal") else []
         if refused:
             print(f"  STOP: Red refused the directive in {d.name} (recorded, never retried "
                   f"or reworded): {refused}")
             ok = False
             break
-    ids = [json.loads((d / "match.json").read_text())["match_id"] for d in dirs]
+    # Register ONLY matches that passed: completed/stopped-clean AND no provider refusal /
+    # 400 on a Red call. A failed or refused match (e.g. 0 attacks) is never test data.
+    passed = [d for d, c in zip(dirs, codes) if c in (0, 4) and not red_refusals(d)]
+    ids = [json.loads((d / "match.json").read_text())["match_id"] for d in passed]
     if ids:
         register_test_ids(ids, test_set)
         print(f"\n=== registered as TEST data in {test_set.name}: {ids}")
