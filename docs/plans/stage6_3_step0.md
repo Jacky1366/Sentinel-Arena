@@ -117,6 +117,16 @@ after the designer's GO.*
 - Gate B-evasion with stop-on-refusal.
 - No new files. Tests in `tests/test_stage6_3_offline.py` and `tests/test_go_token.py`.
 
+## Addendum (2026-11-19): D41 free-play arm (one arm after the freeze)
+
+- Red prompt v3 + free-play output schema (`other`, `technique`, `headers`); D15 guard
+  free-play mode; header transport through `arena_client`; challenge-catalog capture;
+  per-match caps override; `stats/free_play.py` + `tools/free_play.py` + the binary audit
+  schema; Gate B-freeplay.
+- New files: `stats/free_play.py`, `tools/free_play.py`, `schemas/free_play_audit.schema.json`.
+  Tests extend `tests/test_schemas.py`, `tests/test_red_guard.py`, `tests/test_stage6_3_offline.py`,
+  `tests/test_run_match_failure.py`, `tests/test_go_token.py`.
+
 ## New files
 
 - `docs/plans/stage6_3_step0.md`

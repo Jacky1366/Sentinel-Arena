@@ -66,6 +66,7 @@ SCHEMA_NAMES = [
     "benign_holdout",
     "benign_offline_draft",
     "test_set",
+    "free_play_audit",
 ]
 
 
@@ -465,6 +466,9 @@ VALID["benign_offline_draft"] = {
 VALID["test_set"] = {"schema_version": "0.1", "_comment": "x", "match_ids": [BID_MATCH],
                      "sealed": [{"path": "benign/holdout_v1.jsonl", "role": "test",
                                  "sha256": None}]}
+VALID["free_play_audit"] = {"schema_version": "0.1", "match_id": BID_MATCH, "round": 1,
+                            "attack_attempt": "yes", "reason": "IDOR on /rest/basket",
+                            "auditor": "designer", "date": "2026-11-19"}
 
 INVALID = {
     "red_attack_v0_1": [
@@ -475,8 +479,10 @@ INVALID = {
         ("wrong schema_version", _set("schema_version", "0.2")),
     ],
     "red_attack": [
-        ("label not in taxonomy", _set("label", "CWE-78")),
+        ("label not in taxonomy or other", _set("label", "CWE-78")),
         ("label benign (Red may not label benign)", _set("label", "benign")),
+        ("technique over 64 chars", _set("technique", "x" * 65)),
+        ("a header outside Cookie/Authorization", _set("headers", {"X-Evil": "1"})),
         ("missing source", _drop("source")),
         ("missing rationale", _drop("rationale")),
         ("ai without rationale", lambda r: {**r, "source": "ai", "rationale": None}),
@@ -1142,6 +1148,14 @@ INVALID = {
         ("unit not per million", _set("unit", "per_token")),
         ("missing placeholders", _drop("placeholders")),
     ],
+    "free_play_audit": [
+        ("attack_attempt not in enum", _set("attack_attempt", "maybe")),
+        ("unaudited with a reason", lambda r: {**r, "attack_attempt": "unaudited",
+                                               "reason": "x", "auditor": None, "date": None}),
+        ("decided without an auditor", _set("auditor", None)),
+        ("date not ISO", _set("date", "19/11/2026")),
+        ("extra property", _set("corrected", "x")),
+    ],
 }
 
 
@@ -1403,13 +1417,19 @@ def test_taxonomy_contents():
     assert TAXONOMY == ["CWE-89", "CWE-79", "CWE-22", "benign"]
 
 
-@pytest.mark.parametrize(
-    "name,field",
-    [("red_attack", "label"), ("rule", "cwe"), ("round_record", "label"),
-     ("landed_fact", "label")],
-)
+@pytest.mark.parametrize("name,field", [("rule", "cwe")])
 def test_label_enums_match_taxonomy_cwes(name, field):
+    # Blue's rule cwe is exactly the taxonomy CWEs; config/taxonomy.json is unchanged.
     assert sorted(SCHEMAS[name]["properties"][field]["enum"]) == sorted(CWE_LABELS)
+
+
+@pytest.mark.parametrize("name,field", [("red_attack", "label"), ("round_record", "label"),
+                                        ("landed_fact", "label")])
+def test_red_label_enums_are_the_cwes_plus_the_freeplay_other(name, field):
+    # Free-play (D41): Red may label an attack `other`. This is a Red-only extension of
+    # these three Judge-adjacent schemas; config/taxonomy.json, the verdict enum, the rule
+    # cwe and challenge_map stay the three CWEs (Blue's vocabulary is unchanged).
+    assert sorted(SCHEMAS[name]["properties"][field]["enum"]) == sorted([*CWE_LABELS, "other"])
 
 
 def test_verdict_enum_matches_full_taxonomy():

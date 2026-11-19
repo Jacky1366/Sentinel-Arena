@@ -41,6 +41,7 @@
         "invalid_encoding",
         "above_root",
         "invalid_label",
+        "disallowed_header",
         "path_too_large",
         "body_too_large",
         "refusal",
@@ -124,6 +125,7 @@
               "invalid_encoding",
               "above_root",
               "invalid_label",
+              "disallowed_header",
               "path_too_large",
               "body_too_large"
             ]

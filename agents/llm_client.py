@@ -258,6 +258,26 @@ def agent_timeout(cfg: dict, agent: str) -> float:
     return cfg["agents"][agent].get("timeout_s") or cfg["timeout_s"]
 
 
+def with_caps(cfg: dict, overrides: dict | None) -> dict:
+    """A copy of cfg with caps overridden: overrides is {scope: {field: value}} over
+    cfg["caps"] (scope in red/blue/analyst/match; field in max_calls/max_tokens/max_usd).
+    None leaves cfg unchanged. Used for a per-arm cost cap (Stage 6.3 free-play, D41)."""
+    if not overrides:
+        return cfg
+    out = json.loads(json.dumps(cfg))
+    for scope, fields in overrides.items():
+        if scope not in out["caps"]:
+            raise ConfigError(f"unknown cap scope {scope!r}")
+        for field, value in fields.items():
+            if field not in CAP_FIELDS:
+                raise ConfigError(f"unknown cap field {field!r}")
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                      or value < 0):
+                raise ConfigError(f"caps.{scope}.{field} must be a non-negative number")
+            out["caps"][scope][field] = value
+    return out
+
+
 def with_timeout(cfg: dict, agent: str, seconds: float | None) -> dict:
     """A copy of cfg with agents.<agent>.timeout_s set (None: unchanged). Used for
     --red-timeout-s (Stage 6.3 evasion arm: DeepSeek at effort max can exceed 60 s)."""

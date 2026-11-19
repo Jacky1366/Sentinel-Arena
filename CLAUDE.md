@@ -40,7 +40,7 @@ docker-compose.yml      Juice Shop (internal only) + nginx (arena :8080, admin :
 docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
-docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D38 (+ D24 amendment, criterion d′; D34 amendment)
+docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D41 (+ D24 amendment, criterion d′; D34 amendment; D15 amendment, D41)
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
@@ -65,6 +65,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   benign_holdout.schema.json      one line of benign/holdout_v1.jsonl or fixture_v2_offline.jsonl
   benign_offline_draft.schema.json  benign/*.draft.json (offline benign drafts)
   test_set.schema.json            config/test_set.json
+  free_play_audit.schema.json     free-play binary audit row (attack attempt yes/no, D41)
   autonomy_table.schema.json      the autonomy table JSON (contract 6.13)
   dashboard_bundle.schema.json    one dashboard bundle (contract 6.14)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
@@ -127,12 +128,13 @@ runner/schedule.py      seeded interleaving; preserves Red order AND benign orde
 runner/go_token.py      the GO token: gate tools need ARENA_GO=<gate id>; any real AI client a well-formed token (6.1b)
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
 red/scripted_red.py     write labeled record, then fire one attack (one step at a time); write_and_send shared with AI Red
-red/ai_red.py           AI Red (5.6): versioned prompts (v1; v2 = v1 + the D40 evasion directive), one proposal per slot, reply validation
-red/red_guard.py        rules of engagement (D15): scope/method/encoding/above-root/label/size guards, run by the body
+red/ai_red.py           AI Red (5.6): versioned prompts (v1; v2 = D40 evasion; v3 = D41 free-play: any attack + other/technique/headers), one proposal per slot, reply validation
+red/red_guard.py        rules of engagement (D15; D41 free-play mode: label other + Cookie/Authorization headers): scope/method/encoding/above-root/label/header/size guards
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
 stats/cost.py           pure cost over api_calls.jsonl + price table
 stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule coverage by origin / calls / cost; CP bound for 0/n
+stats/free_play.py      free-play measurement (D41): landing = any solve (+ category), detection binary over audited attempts; pure stats layer over the Judge
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
 blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude, --rules-mode)
 blue/claude_engine.py   AI Blue (5.4): fixed prompts v1 (off) / v2 (shadow, on), one stateless call per line, reply validation, rule-first flow (5.5)
@@ -170,6 +172,7 @@ tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match
 tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/shadow/on, prints every rule (--real-calls; GO only)
 tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
 tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + JSON (6.2, zero token)
+tools/free_play.py            free-play (D41): binary audit scaffold/sheet + report
 tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js (6.4, read-only)
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
 tools/build_holdout.py        capture + seal the offline benign files outside any match (--capture = Gate 0, GO only; --check)
@@ -230,7 +233,7 @@ tests/test_blue_claude.py   AI Blue engine: prompt, information wall (D14), vali
 tests/test_instrument_failure.py  Judge cross-check, rounds/benign 0.2, stats denominators
 tests/test_run_match_blue.py  --blue claude wiring with fake Ops + fake provider
 tests/test_openai_adapter.py  OpenAI Responses adapter vs a mock transport: key/host/env, settings, usage
-tests/test_red_guard.py     the rules-of-engagement guards (D15)
+tests/test_red_guard.py     the rules-of-engagement guards (D15; D41 free-play labels + headers)
 tests/test_ai_red.py        AI Red engine: prompt, validation, history, feedback, info wall
 tests/test_run_match_red.py --red ai driver loop + wiring (fake Ops + fake provider)
 tests/test_audit.py         D16: audit schema, audited view, audit-first flag, audit_match tool, scripted = valid

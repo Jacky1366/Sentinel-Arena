@@ -176,6 +176,15 @@ def solved_now(timeout: float = 10.0) -> list[str]:
     return sorted(c["name"] for c in data if c["solved"])
 
 
+def challenge_catalog(timeout: float = 10.0) -> dict:
+    """{challenge name: Juice Shop category} read via the admin port (free-play, D41).
+    Static per Juice Shop version; captured as an artifact so the Judge stays pure."""
+    req = urllib.request.Request(ADMIN_URL)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        data = json.load(resp)["data"]
+    return {c["name"]: c.get("category", "") for c in data}
+
+
 def reset_target(poll_timeout: float = 120.0) -> int:
     """Restart juice-shop, wait until healthy and the admin port answers, and
     return the solved count after reset (the caller refuses to run unless 0)."""
@@ -351,6 +360,7 @@ class AIDriver(RedDriver):
                 "rationale": a["rationale"][:ai_red.RATIONALE_MAX]}
 
     def red_action(self, round_num, match_id, match_dir):
+        free_play = self.red.free_play
         prop = self.red.propose(self._feedback, round_num)
         if prop.kind == "instrument_failure":  # no model turn; feedback unchanged
             return RedAction(RedAction.NO_SEND, guard_line={
@@ -362,7 +372,8 @@ class AIDriver(RedDriver):
                 "kind": "brain_failure", "reason": prop.reason, "detail": None,
                 "proposed": None})
         a = prop.attack
-        g = red_guard.check(a["method"], a["path"], a["body"], a["label"])
+        g = red_guard.check(a["method"], a["path"], a["body"], a["label"],
+                            free_play=free_play, headers=a.get("headers"))
         if not g.ok:
             self._feedback = ai_red.feedback_blocked(g.reason, g.detail)
             return RedAction(RedAction.NO_SEND, guard_line={
@@ -373,7 +384,8 @@ class AIDriver(RedDriver):
             record = ai_red.red_record(a, scripted_red.arena_client.new_request_id(),
                                        match_id, round_num)
             body = a["body"] if a["body"] else None
-            res = scripted_red.write_and_send(record, a["method"], a["path"], body, match_dir)
+            res = scripted_red.write_and_send(record, a["method"], a["path"], body, match_dir,
+                                              headers=a.get("headers") or None)
             if res["error"] is None:
                 self._feedback = ai_red.feedback_sent(res["status"], res["body_text"])
             else:

@@ -159,6 +159,9 @@ class Ops:
     def reset(self) -> int:
         return match_ops.reset_target()
 
+    def challenge_catalog(self) -> dict:
+        return match_ops.challenge_catalog()
+
     def rotate(self, live_dir: Path) -> Path | None:
         return match_ops.rotate_proxy_log(live_dir)
 
@@ -271,7 +274,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               red_engine: str = "scripted", red_model: str | None = None,
               red_effort: str | None = None, red_max_output_tokens: int | None = None,
               red_provider: str | None = None, red_prompt_version: str | None = None,
-              red_timeout_s: float | None = None,
+              red_timeout_s: float | None = None, caps: dict | None = None,
               blue_rules_mode: str | None = None, blue_caching: str | None = None,
               red_caching: str | None = None, purpose: str = "dev",
               library: Path | None = None,
@@ -304,6 +307,7 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         if red_prompt_version is not None and red_prompt_version not in ai_red.RED_PROMPTS:
             raise ValueError(f"unknown Red prompt version {red_prompt_version!r}")
         llm_config = llm_client.with_timeout(llm_config, "red", red_timeout_s)
+        llm_config = llm_client.with_caps(llm_config, caps)
         red_pv = red_prompt_version or ai_red.RED_PROMPT_VERSION
         llm_config = llm_client.with_caching(llm_config, "blue", blue_caching)
         # AI clients are built here, before the lock or the Target is touched: a real
@@ -427,6 +431,10 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
             red_driver = match_ops.AIDriver(red)
         ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle,
                     red_driver=red_driver)
+        if red_pv == ai_red.FREEPLAY_PROMPT_VERSION:  # D41: capture challenge categories
+            (match_dir / "challenge_catalog.json").write_text(
+                json.dumps(ops.challenge_catalog(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8")
 
         step = "freeze"
         ops.freeze(live_dir, match_dir)

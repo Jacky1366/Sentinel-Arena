@@ -42,7 +42,7 @@ from blue import claude_engine  # noqa: E402
 from red import ai_red  # noqa: E402
 from runner import go_token  # noqa: E402
 from stats import cost as cost_stats  # noqa: E402
-from tools import audit_match, replay_blue, stage5_7_check, stage6_1_check  # noqa: E402
+from tools import audit_match, free_play, replay_blue, stage5_7_check, stage6_1_check  # noqa: E402
 
 SEEDS = (6301, 6302, 6303)
 # D38 (designer, Nov 18): Red strength = gpt-6-luna at effort high with an 8192-token
@@ -67,6 +67,14 @@ DEEPSEEK_ARM = {"model": "deepseek-v4-pro", "provider": "deepseek", "effort": "m
 # of the directive stops the gate after that match (never retried or reworded).
 EVASION_ARM = {**DEEPSEEK_ARM, "seeds": (6321, 6322, 6323), "sheet": "stage6_3_gateB_evasion",
                "prompt_version": "2", "timeout_s": 180, "stop_on_refusal": True}
+# Gate B-freeplay (D41, exploratory; reported separately, never pooled). One variable: the
+# free-play directive (Red prompt v3) + the D15 header amendment. Bigger output budget and
+# timeout for open-ended attacks; a per-match cost cap guards the DeepSeek balance.
+FREEPLAY_ARM = {"model": "deepseek-v4-pro", "provider": "deepseek", "effort": "max",
+                "seeds": (6331, 6332, 6333), "sheet": "stage6_3_gateB_freeplay",
+                "prompt_version": "3", "timeout_s": 300, "max_output_tokens": 16384,
+                "caps": {"red": {"max_usd": 0.40}, "match": {"max_usd": 0.40}},
+                "stop_on_refusal": True, "audit": "binary"}
 # Gate A Red candidates the designer named (Nov 18), probed one at a time, conditionally:
 # model -> (provider, effort). Anthropic Red is a SAME-FAMILY arm with the Anthropic Blue
 # (reported separately, never pooled with cross-family results).
@@ -323,8 +331,10 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
                                       red_effort=arm["effort"], red_provider=arm["provider"],
                                       red_prompt_version=arm.get("prompt_version"),
                                       red_timeout_s=arm.get("timeout_s"),
-                                      red_max_output_tokens=RED_MAX_OUTPUT,
+                                      red_max_output_tokens=arm.get("max_output_tokens")
+                                      or RED_MAX_OUTPUT,
                                       red_caching="on", engine="claude",
+                                      caps=arm.get("caps"),
                                       blue_model=BLUE_LIVE, blue_rules_mode="on",
                                       blue_caching="on", purpose="eval", library=library,
                                       **run_kw)
@@ -346,16 +356,27 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
         print(f"\n=== registered as TEST data in {test_set.name}: {ids}")
     for d in dirs:
         stage5_7_check.gate3_report(d, prices)
-    print("\n=== D16 audits: FULL (every Red round; eval matches are scored, D36)")
-    for d in dirs:
-        try:
-            print(f"  scaffolded {audit_match._rel(audit_match.scaffold(d, audits=audits))}")
-        except audit_match.AuditError as exc:
-            print(f"  {d.name}: {exc}")
-    if dirs:
-        sheet = (sheet_dir or REPO / "docs" / "audits") / f"{arm['sheet']}_{dirs[0].name}.md"
-        sheet.write_text(audit_match.sheet(dirs, audits=audits), encoding="utf-8")
-        print(f"  sheet {audit_match._rel(sheet)}")
+    if arm.get("audit") == "binary":  # free-play (D41): attack-attempt yes/no, not D16
+        print("\n=== free-play binary audit (attack attempt yes/no, D41)")
+        for d in dirs:
+            print(f"  scaffolded {free_play._rel(free_play.scaffold(d, audits=audits))}")
+        if dirs:
+            sheet = (sheet_dir or REPO / "docs" / "audits") / f"{arm['sheet']}_{dirs[0].name}.md"
+            sheet.write_text(free_play.sheet(dirs), encoding="utf-8")
+            print(f"  sheet {free_play._rel(sheet)}")
+            print("\n=== free-play measures (pre-audit; detection over attempts once audited)")
+            print(free_play.report(dirs))
+    else:
+        print("\n=== D16 audits: FULL (every Red round; eval matches are scored, D36)")
+        for d in dirs:
+            try:
+                print(f"  scaffolded {audit_match._rel(audit_match.scaffold(d, audits=audits))}")
+            except audit_match.AuditError as exc:
+                print(f"  {d.name}: {exc}")
+        if dirs:
+            sheet = (sheet_dir or REPO / "docs" / "audits") / f"{arm['sheet']}_{dirs[0].name}.md"
+            sheet.write_text(audit_match.sheet(dirs, audits=audits), encoding="utf-8")
+            print(f"  sheet {audit_match._rel(sheet)}")
     total = sum(json.loads((d / "match.json").read_text())["cost"]["total_usd"] for d in dirs)
     good = ok and len(dirs) == len(seeds)
     print(f"\nRESULT: {'PASS' if good else 'FAIL'} ({len(dirs)}/{len(seeds)} eval matches, "
@@ -424,7 +445,9 @@ def gate_c(prices: dict, match_dirs: list[Path], root: Path | None = None, ops=N
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--gate", choices=("A", "B", "C", "B-deepseek", "B-evasion"), required=True)
+    ap.add_argument("--gate",
+                    choices=("A", "B", "C", "B-deepseek", "B-evasion", "B-freeplay"),
+                    required=True)
     ap.add_argument("--estimate", action="store_true", help="Gate A: zero-token cost estimate")
     ap.add_argument("--probe", action="store_true", help="Gate A: 2 real calls (token gate-6.3-A)")
     ap.add_argument("--probe-red", choices=sorted(PROBE_CANDIDATES), default=None,
@@ -464,7 +487,13 @@ def main(argv: list[str] | None = None) -> int:
             "B-evasion": f"{len(EVASION_ARM['seeds'])} eval matches, Red "
                          f"{EVASION_ARM['model']} effort {EVASION_ARM['effort']} prompt v2 "
                          f"(evasion directive, D40), timeout {EVASION_ARM['timeout_s']} s vs Blue "
-                         f"{BLUE_LIVE} + library v5 (read-only), seeds {EVASION_ARM['seeds']}"}
+                         f"{BLUE_LIVE} + library v5 (read-only), seeds {EVASION_ARM['seeds']}",
+            "B-freeplay": f"{len(FREEPLAY_ARM['seeds'])} eval matches, Red "
+                          f"{FREEPLAY_ARM['model']} effort {FREEPLAY_ARM['effort']} prompt v3 "
+                          f"(free-play, D41), {FREEPLAY_ARM['max_output_tokens']} tok, timeout "
+                          f"{FREEPLAY_ARM['timeout_s']} s, per-match cap "
+                          f"${FREEPLAY_ARM['caps']['match']['max_usd']} vs Blue {BLUE_LIVE} + "
+                          f"library v5 (read-only), seeds {FREEPLAY_ARM['seeds']}"}
     print(f"Stage 6.3 Gate {args.gate}: {plan[args.gate]}")
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
@@ -477,9 +506,9 @@ def main(argv: list[str] | None = None) -> int:
     problems = price_problems(prices, a_models if args.gate == "A" else
                               (RED_MODEL, BLUE_LIVE) if args.gate == "B" else
                               (DEEPSEEK_ARM["model"], BLUE_LIVE)
-                              if args.gate in ("B-deepseek", "B-evasion")
+                              if args.gate in ("B-deepseek", "B-evasion", "B-freeplay")
                               else (BLUE_STRONG, BLUE_LIVE))
-    if args.gate in ("B", "C", "B-deepseek", "B-evasion"):
+    if args.gate in ("B", "C", "B-deepseek", "B-evasion", "B-freeplay"):
         problems += library_ok()
     if args.gate == "C":
         problems += check_sources(args.matches)
@@ -495,6 +524,8 @@ def main(argv: list[str] | None = None) -> int:
         return gate_b(prices, arm=DEEPSEEK_ARM)
     if args.gate == "B-evasion":
         return gate_b(prices, arm=EVASION_ARM)
+    if args.gate == "B-freeplay":
+        return gate_b(prices, arm=FREEPLAY_ARM)
     return gate_b(prices) if args.gate == "B" else gate_c(prices, args.matches)
 
 

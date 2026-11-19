@@ -82,3 +82,38 @@ def test_reason_order_is_stable():
     assert ok(method="PUT", path="//x").reason == "method_not_allowed"
     big = "/" + "a" * rg.MAX_PATH_CHARS
     assert ok(method="PUT", path=big).reason == "method_not_allowed"
+
+
+# ---- Free-play mode (D41): `other` label + Cookie/Authorization headers ------------------
+
+def test_freeplay_allows_other_label_only_in_free_play():
+    assert rg.check("GET", "/x", "", "other").reason == "invalid_label"
+    assert rg.check("GET", "/x", "", "other", free_play=True).ok
+    # the three CWE labels still pass in both modes
+    assert rg.check("GET", "/x", "", "CWE-89").ok
+    assert rg.check("GET", "/x", "", "CWE-89", free_play=True).ok
+
+
+def test_headers_are_rejected_outside_free_play():
+    r = rg.check("GET", "/x", "", "CWE-89", headers={"Cookie": "a=b"})
+    assert not r.ok and r.reason == "disallowed_header"
+
+
+def test_freeplay_allows_only_cookie_and_authorization():
+    assert rg.check("GET", "/x", "", "other", free_play=True,
+                    headers={"Cookie": "t=1", "Authorization": "Bearer z"}).ok
+    for bad in ({"User-Agent": "x"}, {"X-Arena-Request-Id": "x"}, {"Host": "evil"}):
+        r = rg.check("GET", "/x", "", "other", free_play=True, headers=bad)
+        assert not r.ok and r.reason == "disallowed_header"
+
+
+def test_freeplay_rejects_header_injection_and_non_string():
+    for bad in ({"Cookie": "a=b\r\nX-Evil: 1"}, {"Authorization": "x\nY: 2"}):
+        assert rg.check("GET", "/x", "", "other", free_play=True, headers=bad).reason \
+            == "disallowed_header"
+
+
+def test_freeplay_still_enforces_scope_and_above_root():
+    assert rg.check("GET", "/ftp/../../etc", "", "other", free_play=True,
+                    headers={"Cookie": "a=b"}).reason == "above_root"
+    assert rg.check("GET", "http://x/", "", "other", free_play=True).reason == "scope_violation"

@@ -44,17 +44,30 @@ def new_request_id() -> str:
     return str(uuid.uuid4())
 
 
-def build_headers(request_id: str, body: str | None) -> dict[str, str]:
-    """The header profile. One function, so Red and benign cannot drift apart."""
+# Free-play (D41, D15 amendment): the ONLY extra headers a sender may add. They are not
+# logged by the proxy (log_format: method/path/query/body/status) and never reach Blue, so
+# they cannot leak ground truth; they never override the fixed profile below.
+EXTRA_HEADER_ALLOWLIST = ("Cookie", "Authorization")
+
+
+def build_headers(request_id: str, body: str | None,
+                  extra: dict[str, str] | None = None) -> dict[str, str]:
+    """The header profile. One function, so Red and benign cannot drift apart. `extra`
+    (free-play only) adds Cookie / Authorization on top; it never overrides the fixed
+    X-Arena-Request-Id or Content-Type, and any other name is ignored (the guard already
+    rejected it before sending)."""
     headers = {"X-Arena-Request-Id": request_id}
     if body is not None:
         headers["Content-Type"] = "application/json"
+    for name, value in (extra or {}).items():
+        if name in EXTRA_HEADER_ALLOWLIST:
+            headers.setdefault(name, value)
     return headers
 
 
 def send(method: str, target: str, request_id: str, body: str | None = None,
          timeout: float = DEFAULT_TIMEOUT, host: str | None = None,
-         port: int | None = None) -> Response:
+         port: int | None = None, extra_headers: dict[str, str] | None = None) -> Response:
     """Send one request. `target` is the exact request-line target, never
     re-encoded. Raises on any send failure except a short body (see module doc)."""
     # Module globals are read at call time, so a test can point every sender at
@@ -62,7 +75,8 @@ def send(method: str, target: str, request_id: str, body: str | None = None,
     conn = http.client.HTTPConnection(host or ARENA_HOST, port or ARENA_PORT,
                                       timeout=timeout)
     try:
-        conn.request(method, target, body=body, headers=build_headers(request_id, body))
+        conn.request(method, target, body=body,
+                     headers=build_headers(request_id, body, extra_headers))
         resp = conn.getresponse()  # raises unless the status line + headers arrived
         try:
             raw = resp.read()
