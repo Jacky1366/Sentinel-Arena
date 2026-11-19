@@ -187,6 +187,7 @@ data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
 data/golden/replays/gate-5.7/  Stage 5.7 Gates 2/2b evidence: 8 cached Blue replays (rules on/off) + README (never rewritten)
 data/golden/replays/gate-6.1b-2/  Stage 6.1b Gate 2 (M5) evidence: 3 Gate 3 sources x {empty v0000, library v5} + README (never rewritten)
+data/golden/replays/gate-6.1b-2b/  Stage 6.1b Gate 2b evidence: the same 3 sources, rules off (prompt v1) + README (never rewritten)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests

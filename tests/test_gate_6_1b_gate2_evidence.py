@@ -33,6 +33,10 @@ GATES = {
                      "ai-vs-ai-gate3-match2-library": (18, 0.001005),
                      "ai-vs-ai-gate3-match3-empty": (24, 0.001602),
                      "ai-vs-ai-gate3-match3-library": (17, 0.000965)}),
+    "gate-6.1b-2b": ("d65e2cd", {}, "off",
+                     {"ai-vs-ai-gate3-match1-off": (26, 0.001385),
+                      "ai-vs-ai-gate3-match2-off": (26, 0.001232),
+                      "ai-vs-ai-gate3-match3-off": (27, 0.001328)}),
 }
 CASES = [(g, f) for g, spec in GATES.items() for f in spec[3]]
 
@@ -86,5 +90,6 @@ def test_gate_totals_are_the_reported_ones(gate):
         by_arm.setdefault(folder.rsplit("-", 1)[1], []).append(m["cost"])
     totals = {a: (sum(c["attempts"] for c in cs), round(sum(c["total_usd"] for c in cs), 6))
               for a, cs in by_arm.items()}
-    expect = {"gate-6.1b-2": {"empty": (70, 0.004831), "library": (52, 0.002933)}}
+    expect = {"gate-6.1b-2": {"empty": (70, 0.004831), "library": (52, 0.002933)},
+              "gate-6.1b-2b": {"off": (79, 0.003945)}}
     assert totals == expect[gate]

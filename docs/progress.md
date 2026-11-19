@@ -26,7 +26,7 @@ file artifacts defined in a data contract.
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
-| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits |
+| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits; Gate 2b rules-off arm ($0.0039): 79 calls / $0.003945 |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 
@@ -440,6 +440,24 @@ Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on th
     $0.002933 / 52 calls, below both the estimate ($0.0043 / ~63) and rules-off cached
     ($0.0052). As the caveat said, that base came from different sources.
   - **Holdout (TEST, offline):** 0 hits for all 19 library rules on the 40-entry holdout.
+- **Gate 2b (Nov 18, GO, `ARENA_GO=gate-6.1b-2b`, commit `d65e2cd`): PASS, $0.003945.**
+  The same 3 Gate 3 sources replayed with Blue rules off (prompt v1), caching on, no
+  library. Evidence: `data/golden/replays/gate-6.1b-2b/` (README). All three arms, like
+  for like on the same sources:
+
+  | arm | AI calls | Blue cost | lines: library / in-match rule / AI | detection raw / audited | FP |
+  |---|---|---|---|---|---|
+  | rules off | 79 | $0.003945 | 0 / 0 / 79 | 27/28 / 27/27 | 0/51 |
+  | rules on, empty v0000 | 70 | $0.004831 | 0 / 9 / 70 | identical | 0/51 |
+  | rules on, library v5 | **52** | **$0.002933** | 27 / 0 / 52 | identical | 0/51 |
+
+  - **The library arm is the cheapest:** −34% calls and −26% cost vs rules off, and −26%
+    calls and −39% cost vs rules on with the empty library.
+  - **Rules on without a library costs more than rules off** (+22%) despite 9 fewer calls,
+    because the prompt v2 call is heavier. This is the Stage 5.7 2×2 effect, now
+    measured on these sources.
+  - So the library is what makes rule mode pay for itself. Detection and FP are identical
+    in all three arms.
 - **Finding: the library and in-match rules overlap (18, not 27, calls saved).** In the
   empty arm, Blue's own in-match rules already answered 9 of the 27 lines the library
   answers (3 per match). Those lines cost no AI call in either arm, so the library's
