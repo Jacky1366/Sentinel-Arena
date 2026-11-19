@@ -1,0 +1,368 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/dashboard_bundle.schema.json",
+  "title": "Dashboard bundle (contract 6.14, schema_version 0.1)",
+  "description": "One frozen match or replay folder exported by tools/export_dashboard.py for the offline dashboard (Stage 6.4, M8). Every value is copied from an artifact (Red record, proxy line, Judge round / benign result, Blue verdict, api_calls priced by stats/cost.py); nothing is judged. Holds Red ground truth: a human view, never a Blue input.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "kind",
+    "run_id",
+    "match_id",
+    "source_path",
+    "meta",
+    "steps",
+    "unsent",
+    "rules",
+    "anomalies",
+    "counts",
+    "total_cost"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$"
+    },
+    "kind": {
+      "enum": [
+        "match",
+        "replay"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "match_id": {
+      "type": "string"
+    },
+    "source_path": {
+      "type": "string"
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "red_engine",
+        "blue_engine",
+        "models",
+        "purpose",
+        "seed",
+        "rules_mode",
+        "library",
+        "judge_version",
+        "git",
+        "status"
+      ],
+      "properties": {
+        "red_engine": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "blue_engine": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "models": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "purpose": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seed": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rules_mode": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "library": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "library_version",
+                "entries",
+                "sha256"
+              ],
+              "properties": {
+                "library_version": {
+                  "type": "integer"
+                },
+                "entries": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              }
+            }
+          ]
+        },
+        "judge_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "git": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/step"
+      }
+    },
+    "unsent": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "rule_id",
+          "cwe",
+          "origin",
+          "conditions"
+        ],
+        "properties": {
+          "origin": {
+            "enum": [
+              "library",
+              "match"
+            ]
+          }
+        }
+      }
+    },
+    "anomalies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "kind"
+        ]
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer"
+      }
+    },
+    "total_cost": {
+      "$ref": "#/$defs/cost"
+    }
+  },
+  "$defs": {
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "calls",
+        "usd",
+        "tokens"
+      ],
+      "properties": {
+        "calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "tokens": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "log_seq",
+        "request_id",
+        "request",
+        "red",
+        "judge",
+        "blue",
+        "cost_so_far"
+      ],
+      "properties": {
+        "log_seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "method",
+            "path",
+            "query",
+            "body",
+            "status"
+          ],
+          "properties": {
+            "method": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "status": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          }
+        },
+        "red": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "attack",
+                "benign",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "judge": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "attack",
+                "benign",
+                "unknown"
+              ]
+            }
+          }
+        },
+        "blue": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "verdict",
+                "source",
+                "rule_origin",
+                "fired_rule_ids",
+                "rationale",
+                "no_verdict_reason"
+              ],
+              "properties": {
+                "verdict": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "rule_origin": {
+                  "enum": [
+                    "library",
+                    "match",
+                    null
+                  ]
+                },
+                "fired_rule_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "rationale": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "no_verdict_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "cost_so_far": {
+          "$ref": "#/$defs/cost"
+        }
+      }
+    }
+  }
+}
