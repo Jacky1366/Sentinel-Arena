@@ -229,6 +229,10 @@ unchanged, and `replay.json` `blue_params.request.thinking` records it. The Haik
 - **Anthropic Red candidate** (`claude-opus-5-5`, fallback `claude-sonnet-5-5`; never
   Fable): built on the fake provider. Probe only after the designer verifies the Opus 5.5
   price and gives a GO.
+- **Anthropic Red probe (2026-11-18):** Opus 5.5 and Sonnet 5.5 were both refused (HTTP
+  200, `stop_reason: refusal`, category `cyber`, pointing to the Cyber Verification
+  Program). No Anthropic Red arm is possible. Every stronger Red across both providers is
+  gated by a cyber-safeguard access program.
 - **Design note: same-family arm.** An Anthropic Red against an Anthropic Blue is a
   same-family arm. Family effects could bias detection in either direction, so it is
   reported as a **separately labelled treatment** and **never pooled** with cross-family
