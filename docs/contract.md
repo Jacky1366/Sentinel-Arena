@@ -1403,9 +1403,19 @@ exist or be empty, and must not be or lie inside any folder holding a `match.jso
     total tokens for the probe, which matches our record (502 + 764). The page shows totals
     only, so the input / output split is matched on the total; the per-direction split is
     not shown in the UI.
-  - **Effort and json_schema:** the effort check sends the same Red prompt v1 at effort
-    none / high / max, with the full Red schema check on each reply (results in
-    `docs/progress.md`).
+  - **Effort (verified 2026-11-19):** the same Red prompt v1 at effort none / high / max gave
+    0 / 294 / 1,647 reasoning tokens and 78 / 371 / 1,751 output tokens, so the parameter is
+    applied.
+  - **json_schema (evidence, not proof):** all 4 probe replies passed the full Red schema
+    check. In Gate B-deepseek, all 30 proposals parsed as proposals (no brain failures), but
+    match replies are checked with AI Red's lenient check only.
+  - **Usage mapping, cached tokens:** in the effort-max probe, `input_tokens` 502 included
+    `cached_tokens` 384, the same total as the uncached first probe. That is consistent with
+    the adapter's assumption that cached tokens count inside `input_tokens`.
+  - **Timeouts:** an attempt that times out at `timeout_s` (60 s) records null usage. If
+    DeepSeek still billed it, the recorded cost is a lower bound for that attempt; cost
+    summaries flag it as a lower bound. At effort max, DeepSeek can take more than 60 s per
+    turn.
   - **Refusal shape: untested, and deliberately not provoked.** A limitation: a DeepSeek
     refusal may surface as an unrecognized reply (a failed Red turn) rather than as
     `stop_reason: refusal`.

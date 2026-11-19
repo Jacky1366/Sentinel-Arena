@@ -99,7 +99,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
 config/
   taxonomy.json         ["CWE-89","CWE-79","CWE-22","benign"]
   challenge_map.json    CWE -> Juice Shop challenge names
-  test_set.json         TEST data registry (S6-1): the 6 audited AI-Red golden match ids + the 3 Stage 6.3 eval ids, test_purposes [eval], sealed offline benign hashes
+  test_set.json         TEST data registry (S6-1): the 6 audited AI-Red golden match ids + the 6 Stage 6.3 eval ids (Gate B, B-deepseek), test_purposes [eval], sealed offline benign hashes
   prices.json           USD per million tokens per model (designer-maintained, dated)
   llm.json              models per agent, timeouts/retries, required per-agent + match caps; agents.blue.rules (mode off|shadow|on, max_rules); agents.<agent>.caching (off|on, 5.7)
 rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; governed by JUDGE_VERSION)
@@ -189,6 +189,7 @@ data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gat
 data/golden/ai-vs-ai-gate3-match{1,2,3}/  first AI-vs-AI matches, audited (5.7 Gate 3; four facts PASS; never rewritten)
 data/golden/train-6.1b-gate1-match{1..5}/  Stage 6.1b Gate 1 TRAIN matches (purpose train; audits in data/audits/; fed library v1-v5)
 data/golden/eval-6.3-gateB-match{1,2,3}/  Stage 6.3 Gate B EVAL matches (TEST data, D35; Luna high Red vs Haiku + v5; full audits in data/golden/audits/)
+data/golden/eval-6.3-gateB-deepseek-match{1,2,3}/  Stage 6.3 Gate B-deepseek EVAL matches (TEST data; deepseek-v4-pro max Red vs Haiku + v5; full audits)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
@@ -261,6 +262,7 @@ tests/test_autonomy_6_1b_evidence.py  committed 6.1b table regenerates byte for 
 tests/test_export_dashboard.py  bundles copied from artifacts, cost totals, demo bundles regenerate, dashboard offline
 tests/test_stage6_3_offline.py  6.3: red effort, purpose eval, promotion refuses eval, estimate, Gates B/C offline
 tests/test_gate_6_3_gateB_evidence.py  committed Gate B eval matches: hashes, D38 config, test-set registration, full audit scaffold
+tests/test_gate_6_3_gateB_deepseek_evidence.py  committed Gate B-deepseek eval matches: hashes, DeepSeek config, rate windows, test-set registration, full audit
 tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
