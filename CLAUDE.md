@@ -196,6 +196,7 @@ data/golden/replays/gate-5.7/  Stage 5.7 Gates 2/2b evidence: 8 cached Blue repl
 data/golden/replays/gate-6.1b-2/  Stage 6.1b Gate 2 (M5) evidence: 3 Gate 3 sources x {empty v0000, library v5} + README (never rewritten)
 data/golden/stats/      committed autonomy tables (autonomy_6.1b.{md,json}: the three M5 arms)
 data/golden/replays/gate-6.1b-2b/  Stage 6.1b Gate 2b evidence: the same 3 sources, rules off (prompt v1) + README (never rewritten)
+data/golden/replays/gate-6.3-C/  Stage 6.3 Gate C evidence: 3 Gate B eval sources x {Sonnet + v5 (between_tools), Haiku + v0000} + README (never rewritten)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -260,6 +261,7 @@ tests/test_autonomy_6_1b_evidence.py  committed 6.1b table regenerates byte for 
 tests/test_export_dashboard.py  bundles copied from artifacts, cost totals, demo bundles regenerate, dashboard offline
 tests/test_stage6_3_offline.py  6.3: red effort, purpose eval, promotion refuses eval, estimate, Gates B/C offline
 tests/test_gate_6_3_gateB_evidence.py  committed Gate B eval matches: hashes, D38 config, test-set registration, full audit scaffold
+tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 

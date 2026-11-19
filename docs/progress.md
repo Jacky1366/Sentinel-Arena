@@ -412,6 +412,17 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     `data/golden/audits/` and the sheet
     `docs/audits/stage6_3_gateB_20261119T061057Z-6177.md`.
   - The designer's full audit is pending.
+- **Gate C (designer GO, Nov 18): PASS, 6/6 replays, $0.069621.** Evidence:
+  `data/golden/replays/gate-6.3-C/`.
+  - **Arms:** Sonnet + v5 (thinking `between_tools`) and Haiku + empty v0000, both on the
+    Gate B logs.
+  - **Detection:** every arm, including live Haiku + v5, matches the same rounds (9/10,
+    9/10, 10/10, FP 0/17). Neither the stronger Red (Luna high) nor the stronger Blue moved
+    detection off the ceiling. The two misses are `GET /#/search` proposals with no payload
+    on the wire; the audit is pending.
+  - **Library transfer:** v5 answered 6–8 of 27 lines per match on Luna-high traffic, saving
+    5–6 Haiku AI calls per match against the empty library at equal detection and FP.
+  - **Cost:** Sonnet ≈ 15–18× Haiku per replay ($0.020–0.023 vs $0.0012–0.0017).
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

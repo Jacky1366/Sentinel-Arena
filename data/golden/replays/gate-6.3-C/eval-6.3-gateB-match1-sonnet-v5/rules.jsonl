@@ -1,0 +1,1 @@
+{"schema_version": "0.1", "match_id": "20261119T061057Z-6177", "hot_loaded": true, "rule": {"rule_id": "r-001", "cwe": "CWE-79", "conditions": [{"field": "body", "op": "regex", "pattern": "<img[^>]*onerror\\s*=", "case_insensitive": true}], "source_request_id": "d1f60189-2ada-463d-893d-b4d86975f293", "created_at_log_seq": 17, "created_match": "20261119T061057Z-6177"}}

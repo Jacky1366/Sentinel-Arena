@@ -1,0 +1,274 @@
+{
+  "schema_version": "0.3",
+  "replay_id": "20261119T062307Z-73f0",
+  "started_at": "2026-11-19T06:23:07.346Z",
+  "finished_at": "2026-11-19T06:23:31.667Z",
+  "status": "completed",
+  "failed_step": null,
+  "error": null,
+  "judge_version": "0.7.0",
+  "source": {
+    "match_id": "20261119T061057Z-6177",
+    "path": "data/golden/eval-6.3-gateB-match1",
+    "match_json_sha256": "5c369fe35d0b94f0fcc1d6367ff5540042baebbfef58dd5a95af65e56d979b28",
+    "status": "completed",
+    "judge_version": "0.7.0",
+    "blue_engine": "claude",
+    "red_engine": "ai",
+    "artifacts": {
+      "anomalies.jsonl": {
+        "sha256": "7de1cfe9996707b331066d271ce4291c15c960ce334ea1a620b49b3725a3c131",
+        "bytes": 243
+      },
+      "api_calls.jsonl": {
+        "sha256": "40dddc4b4d1b6559f9303742ef4ced598f8a8e1aa210a40d6af5c3919aeda03b",
+        "bytes": 16593
+      },
+      "benign_requests.jsonl": {
+        "sha256": "15935fa85e1a83888b0984213fa8d27ee02f8dfcdb184d8c72501459888102fd",
+        "bytes": 3815
+      },
+      "benign_results.jsonl": {
+        "sha256": "7fdf63815ef64fabf3141aa1c4d911dab4dabc00bd38646cca8800b19b399d65",
+        "bytes": 4258
+      },
+      "challenge_snapshots.jsonl": {
+        "sha256": "fddfebcf59abab705160062a06ea16c24b9c87cfdb61f48eaf1c87a2a89bd86a",
+        "bytes": 5394
+      },
+      "landed.jsonl": {
+        "sha256": "c84a4d8e8ebdc126f62fe2dc690ca40c4d06258542b97f83ad08a1cd6a3c9ef8",
+        "bytes": 2142
+      },
+      "library.json": {
+        "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+        "bytes": 17436
+      },
+      "proxy.jsonl": {
+        "sha256": "a5bce9da688266b9000cc328d8e98f0cfc1e737b17daf8890ee70aab869e24d2",
+        "bytes": 5352
+      },
+      "red_attacks.jsonl": {
+        "sha256": "87a1e845dc9576893d70ff02388649f163769caa843e64099042df6ec7062687",
+        "bytes": 4356
+      },
+      "red_unsent.jsonl": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "rounds.jsonl": {
+        "sha256": "c3fea5b18068d69c9a8089cc2bd71c05cf5eb3a2ec6f7919cd68765dd3559527",
+        "bytes": 3259
+      },
+      "rule_rejections.jsonl": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "rule_results.jsonl": {
+        "sha256": "5afb22a5a91978bf8a9c76e4b28d78356206fb09ae64f90da21d7ac4c861662c",
+        "bytes": 447
+      },
+      "rules.jsonl": {
+        "sha256": "4415143fdbaea64302979e0f1c53b23e9c3df7f5a048716db9c78eec68733a2c",
+        "bytes": 371
+      },
+      "verdicts.jsonl": {
+        "sha256": "abb677a1fc019b78f24d0254fbb7f02e6dbc45921883479d27ac74e725a8ef2f",
+        "bytes": 10441
+      }
+    },
+    "copied": [
+      "benign_requests.jsonl",
+      "challenge_snapshots.jsonl",
+      "proxy.jsonl",
+      "red_attacks.jsonl",
+      "red_unsent.jsonl"
+    ]
+  },
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "2",
+    "system_prompt_sha256": "cf440507f4463f38dc4aefba40ec7cb3736c654fff71c9aacd700d6eeb614027",
+    "rules": {
+      "mode": "on",
+      "max_rules": 10
+    },
+    "caching": {
+      "mode": "on",
+      "ttl": "5m"
+    },
+    "library": {
+      "path": "data/library/rule_library_v0000.json",
+      "sha256": "152ca18cbd459b48d3c8bfb5a5d1e5ae28bc28e2a62e19306dd42f3f15e4a956",
+      "library_version": 0,
+      "entries": 0
+    },
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "git": {
+    "commit": "ea0730597ffc9fe8cea7357be3182d5e1842bcfa",
+    "dirty": false
+  },
+  "models": {
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    }
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "bada67ef668e1375839ca03cb6f94bb7775af0bd7cd01e1dfcf5e70dd280b709",
+    "as_of": "2026-11-18"
+  },
+  "cost": {
+    "total_usd": 0.001674,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.004041,
+    "attempts": 25,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 2127,
+      "cached_input": 44900,
+      "cache_write": 0,
+      "output": 2025
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.001674,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.004041,
+        "attempts": 25,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2127,
+          "cached_input": 44900,
+          "cache_write": 0,
+          "output": 2025
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.001674,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.004041,
+        "attempts": 25,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 2127,
+          "cached_input": 44900,
+          "cache_write": 0,
+          "output": 2025
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "anomalies.jsonl": {
+      "sha256": "7de1cfe9996707b331066d271ce4291c15c960ce334ea1a620b49b3725a3c131",
+      "bytes": 243
+    },
+    "api_calls.jsonl": {
+      "sha256": "d0b6e1015495a7590eb08834b40c7560d7d271ebab0e6a17f41af32f5540276c",
+      "bytes": 14355
+    },
+    "benign_requests.jsonl": {
+      "sha256": "15935fa85e1a83888b0984213fa8d27ee02f8dfcdb184d8c72501459888102fd",
+      "bytes": 3815
+    },
+    "benign_results.jsonl": {
+      "sha256": "7fdf63815ef64fabf3141aa1c4d911dab4dabc00bd38646cca8800b19b399d65",
+      "bytes": 4258
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "fddfebcf59abab705160062a06ea16c24b9c87cfdb61f48eaf1c87a2a89bd86a",
+      "bytes": 5394
+    },
+    "landed.jsonl": {
+      "sha256": "c84a4d8e8ebdc126f62fe2dc690ca40c4d06258542b97f83ad08a1cd6a3c9ef8",
+      "bytes": 2142
+    },
+    "library.json": {
+      "sha256": "152ca18cbd459b48d3c8bfb5a5d1e5ae28bc28e2a62e19306dd42f3f15e4a956",
+      "bytes": 291
+    },
+    "proxy.jsonl": {
+      "sha256": "a5bce9da688266b9000cc328d8e98f0cfc1e737b17daf8890ee70aab869e24d2",
+      "bytes": 5352
+    },
+    "red_attacks.jsonl": {
+      "sha256": "87a1e845dc9576893d70ff02388649f163769caa843e64099042df6ec7062687",
+      "bytes": 4356
+    },
+    "red_unsent.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rounds.jsonl": {
+      "sha256": "8b60913b869e7957f44e1e4dea0609c6157d7c8e3427a2272f36a47dadc73be1",
+      "bytes": 3247
+    },
+    "rule_rejections.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rule_results.jsonl": {
+      "sha256": "71701364dfcf652127b05499b0668bb9398ee3db58f40397cf9e75d8f035bf33",
+      "bytes": 3129
+    },
+    "rules.jsonl": {
+      "sha256": "2af907d81eb6f9cfce28b455b2aac515adf617fab1fdca52b67e560f3b3597d3",
+      "bytes": 2665
+    },
+    "verdicts.jsonl": {
+      "sha256": "151153570cb9912e477331e3f9c5a41a96ff0364c481b8ba0e42187a24f47680",
+      "bytes": 10864
+    }
+  }
+}
