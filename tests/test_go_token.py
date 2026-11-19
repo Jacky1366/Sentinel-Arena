@@ -30,6 +30,7 @@ PAID = [  # (tool module, argv, gate id)
     ("stage5_7_check", ["--gate", "3", "--real-calls"], "gate-5.7-3"),
     ("stage6_1_check", ["--gate", "1", "--real-calls"], "gate-6.1b-1"),
     ("stage6_1_check", ["--gate", "2", "--library", LIB0, "--real-calls"], "gate-6.1b-2"),
+    ("stage6_1_check", ["--gate", "2b", "--real-calls"], "gate-6.1b-2b"),
 ]
 
 

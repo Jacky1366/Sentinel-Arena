@@ -128,7 +128,7 @@ ARENA_GO=manual-replay-check .venv/bin/python tools/replay_blue.py --match <dir>
 - **Only `agents/llm_client.py`** imports a provider SDK (AST-tested).
 
 - **Gate ids:**
-  - 6.1b: `gate-6.1b-1` (`stage6_1_check --gate 1`) and `gate-6.1b-2` (`--gate 2`).
+  - 6.1b: `gate-6.1b-1` (`stage6_1_check --gate 1`), `gate-6.1b-2` (`--gate 2`) and `gate-6.1b-2b` (`--gate 2b`).
   - Earlier stages: `gate-5.4-1`, `gate-5.4-2`, `gate-5.5`, `gate-5.6-1`, `gate-5.6-2`,
     `gate-5.7-1`, `gate-5.7-2`, `gate-5.7-2b` and `gate-5.7-3`.
 - **Tests:** they never set it, and `tests/conftest.py` removes every `ARENA_*` variable.
