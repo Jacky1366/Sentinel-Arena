@@ -69,6 +69,7 @@
         "openai",
         "anthropic",
         "gemini",
+        "deepseek",
         "fake"
       ]
     },
@@ -142,7 +143,8 @@
                 "unpriced_usage",
                 "missing_price",
                 "price_unverified",
-                "missing_key"
+                "missing_key",
+                "price_window"
               ]
             }
           }

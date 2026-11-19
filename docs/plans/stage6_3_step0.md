@@ -100,6 +100,15 @@ after the designer's GO.*
   - Gate C ≈ $0.084;
   - worst case $1.50 each.
 
+## Addendum (2026-11-18): DeepSeek Red candidate, probe-first
+
+- `deepseek` provider (`ARENA_DEEPSEEK_API_KEY`), `DeepSeekAdapter` (the Responses adapter
+  with base URL `https://api.deepseek.com`), off-peak guard (`price_window`), caching `auto`.
+- Candidate `deepseek-v4-pro` at effort max; the price draft is unverified.
+- Contract §6.9b: the silent-ignore risk and the full-build checklist.
+- No new files. Tests in `tests/test_openai_adapter.py`, `tests/test_llm_client.py`,
+  `tests/test_go_token.py`, `tests/test_key_hygiene.py` and `tests/test_stage6_3_offline.py`.
+
 ## New files
 
 - `docs/plans/stage6_3_step0.md`

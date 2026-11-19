@@ -233,6 +233,10 @@ unchanged, and `replay.json` `blue_params.request.thinking` records it. The Haik
   200, `stop_reason: refusal`, category `cyber`, pointing to the Cyber Verification
   Program). No Anthropic Red arm is possible. Every stronger Red across both providers is
   gated by a cyber-safeguard access program.
+- **DeepSeek Red candidate (designer, 2026-11-18):** build probe-first. It uses the Responses
+  adapter with a new base URL, an off-peak price guard, `deepseek-v4-pro` at effort max, and
+  the silent-ignore risk recorded in contract §6.9b. **Hard stop:** if Gate B-deepseek isn't
+  run and audited by Nov 21 evening, it becomes future work. Gemini stays future work.
 - **Design note: same-family arm.** An Anthropic Red against an Anthropic Blue is a
   same-family arm. Family effects could bias detection in either direction, so it is
   reported as a **separately labelled treatment** and **never pooled** with cross-family

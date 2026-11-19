@@ -10,6 +10,7 @@ under these names:
 | OpenAI | `ARENA_OPENAI_API_KEY` |
 | Anthropic | `ARENA_ANTHROPIC_API_KEY` |
 | Google | `ARENA_GEMINI_API_KEY` |
+| DeepSeek | `ARENA_DEEPSEEK_API_KEY` (Stage 6.3 Red candidate; the openai SDK against api.deepseek.com) |
 
 **Never use the SDKs' default names** (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`,
 `GEMINI_API_KEY`). If `ANTHROPIC_API_KEY` is ever exported in your shell, **Claude Code

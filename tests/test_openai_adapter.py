@@ -158,3 +158,49 @@ def test_http_error_is_classified_without_the_key():
     kind, status, _ = lc.classify(ei.value)
     assert (kind, status) == ("rate_limit", 429)
     assert TEST_KEY not in str(ei.value) and TEST_KEY not in repr(ei.value)
+
+
+# -- DeepSeek (Stage 6.3 Red candidate): the same adapter, DeepSeek's base URL ------------
+
+def deepseek_with(reply: dict, env_seen: list | None = None):
+    seen: list = []
+
+    def handler(req):
+        seen.append(req)
+        if env_seen is not None:
+            env_seen.append({k: os.environ.get(k) for k in SENTINELS})
+        return httpx2.Response(200, json=reply)
+    a = lc.DeepSeekAdapter(
+        http_client_factory=lambda: httpx2.Client(transport=httpx2.MockTransport(handler)))
+    return a, seen
+
+
+def test_deepseek_goes_only_to_its_host_with_only_our_key(hostile_env):
+    env_seen: list = []
+    a, seen = deepseek_with(body([message(text("{}"))]), env_seen=env_seen)
+    assert a.provider == "deepseek" and lc.is_real(lc.DeepSeekAdapter())
+    a.call(model="deepseek-v4-pro", system="sys", messages=[{"role": "user", "content": "hi"}],
+           max_output_tokens=8192, timeout=5, api_key=TEST_KEY,
+           request={"thinking": None, "effort": "max"}, output_schema=SCHEMA, cache=True,
+           cache_turns=True)
+    assert env_seen == [SENTINELS]
+    [req] = seen
+    assert str(req.url) == "https://api.deepseek.com/responses"
+    assert req.headers["authorization"] == f"Bearer {TEST_KEY}"
+    blob = "\n".join(f"{k}: {v}" for k, v in req.headers.items()) + req.content.decode()
+    assert "env-sentinel" not in blob
+    sent = json.loads(req.content)
+    assert sent["model"] == "deepseek-v4-pro" and sent["reasoning"] == {"effort": "max"}
+    assert sent["input"] == [{"role": "user", "content": "hi"}]  # no cache breakpoints
+    assert "prompt_cache_options" not in sent and "prompt_cache_breakpoint" not in blob
+    assert sent["text"]["format"]["type"] == "json_schema" and sent["store"] is False
+    assert sent["max_output_tokens"] == 8192
+    assert {k: os.environ.get(k) for k in SENTINELS} == SENTINELS
+
+
+def test_openai_bytes_are_unchanged_by_the_deepseek_subclass():
+    a, seen = adapter_with(body([message(text("{}"))]))
+    call(a)
+    sent = json.loads(seen[0].content)
+    assert str(seen[0].url) == "https://api.openai.com/v1/responses"
+    assert sent["prompt_cache_options"] == {"mode": "explicit"}

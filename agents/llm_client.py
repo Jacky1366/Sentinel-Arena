@@ -89,6 +89,7 @@ KEY_ENV = {
     "openai": "ARENA_OPENAI_API_KEY",
     "anthropic": "ARENA_ANTHROPIC_API_KEY",
     "gemini": "ARENA_GEMINI_API_KEY",
+    "deepseek": "ARENA_DEEPSEEK_API_KEY",  # Stage 6.3 Red candidate (probe-first)
 }
 PROVIDERS = tuple(KEY_ENV) + ("fake",)  # "fake" only in tests
 RETRYABLE = frozenset({"timeout", "rate_limit", "server_error", "connection"})
@@ -102,7 +103,20 @@ RULES_MODES = ("off", "shadow", "on")  # agents.blue.rules.mode (Stage 5.5)
 CACHING_MODES = ("off", "on")  # agents.<agent>.caching (Stage 5.7)
 # The only cache-write lifetimes config/prices.json has a price for (cache_write).
 CACHE_TTL = {"anthropic": "5m", "openai": "30m",
+             "deepseek": "auto",  # automatic, cannot be switched off; no write price
              "fake": "5m"}  # the test provider mimics Anthropic; gemini: no caching yet
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # OpenAI-compatible Responses API
+# DeepSeek's PEAK windows (UTC, Monday-Friday): peak rates are 2x off-peak and the price
+# table stores OFF-PEAK rates only, so a DeepSeek call is refused in these windows
+# (reason price_window). Chinese public holidays are off-peak at DeepSeek but are not
+# known here: they count as peak (a refusal can happen, a mispriced call cannot).
+DEEPSEEK_PEAK_UTC = ((1, 4), (6, 10))  # [start hour, end hour)
+
+
+def deepseek_peak(now_iso: str) -> bool:
+    """True if the UTC timestamp falls in a DeepSeek weekday peak window."""
+    t = datetime.strptime(now_iso[:19], "%Y-%m-%dT%H:%M:%S")
+    return t.weekday() < 5 and any(a <= t.hour < b for a, b in DEEPSEEK_PEAK_UTC)
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL is never read
 
 
@@ -115,7 +129,7 @@ class GoTokenError(ConfigError):
     logged as a failed call: no paid request may be built without ARENA_GO."""
 
 
-def is_real(adapter) -> bool:
+def is_real(adapter) -> bool:  # DeepSeekAdapter is an OpenAIAdapter subclass: covered
     """A real provider adapter (Anthropic / OpenAI) with no injected test transport: it
     would talk to the provider's network. Fakes are never real."""
     return isinstance(adapter, (AnthropicAdapter, OpenAIAdapter)) and \
@@ -605,17 +619,23 @@ def openai_reply_parts(resp: Any) -> tuple[str, str | None]:
 class OpenAIAdapter:
     provider = "openai"
     needs_key = True
+    base_url = OPENAI_BASE_URL
 
     def __init__(self, http_client_factory: Callable[[], Any] | None = None):
         self.http_client_factory = http_client_factory  # tests: a mock transport
+
+    def _shape(self, request, output_schema, cache, messages):
+        """(request kwargs, input items, unpriced-TTL flag)."""
+        kwargs = openai_request_kwargs(request, output_schema, cache)
+        items = openai_input(messages, cache)
+        return kwargs, items, openai_unpriced_ttl(kwargs, items)
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
              request, output_schema, cache=False, cache_turns=False):
         # cache_turns is implied: the OpenAI scheme already marks every user turn.
         if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
             raise ConfigError("no API key passed")
-        kwargs = openai_request_kwargs(request, output_schema, cache)
-        items = openai_input(messages, cache)
+        kwargs, items, unpriced_ttl = self._shape(request, output_schema, cache, messages)
         if self.http_client_factory is None:  # a real client: the GO token, before the SDK
             require_go()
         import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
@@ -625,19 +645,38 @@ class OpenAIAdapter:
         # base URL passed explicitly: no environment value can choose the key, the
         # host, the organization, the project or extra headers.
         with scrubbed_env("OPENAI_"):
-            client = openai.OpenAI(api_key=api_key, base_url=OPENAI_BASE_URL,
+            client = openai.OpenAI(api_key=api_key, base_url=self.base_url,
                                    timeout=timeout, max_retries=0, **extra)
         resp = client.responses.create(model=model, instructions=system, input=items,
                                        max_output_tokens=max_output_tokens, **kwargs)
         text, stop = openai_reply_parts(resp)
         raw = resp.usage.model_dump(mode="json", exclude_none=True)
-        return Reply(text=text, usage=openai_usage(resp.usage, raw,
-                                                   openai_unpriced_ttl(kwargs, items)),
+        return Reply(text=text, usage=openai_usage(resp.usage, raw, unpriced_ttl),
                      stop_reason=stop, raw_usage=raw)
 
 
+class DeepSeekAdapter(OpenAIAdapter):
+    """DeepSeek through its OpenAI-compatible Responses API (Stage 6.3 Red candidate):
+    the OpenAI adapter with DeepSeek's base URL, the same key / environment isolation
+    (the openai SDK, every OPENAI_* variable scrubbed, key and URL explicit) and the same
+    GO token. Caching is automatic at DeepSeek, so no cache field or breakpoint is sent
+    (prompt_cache_options is dropped; `store` is accepted, always false there).
+    SILENT-IGNORE RISK: DeepSeek ignores unsupported fields without an error, so whether
+    json_schema / strict and reasoning.effort are honoured, how usage maps (is cached
+    input inside input_tokens? reasoning inside output_tokens?) and what a refusal looks
+    like are UNVERIFIED until the full-build checklist (contract 6.10)."""
+    provider = "deepseek"
+    base_url = DEEPSEEK_BASE_URL
+
+    def _shape(self, request, output_schema, cache, messages):
+        kwargs = openai_request_kwargs(request, output_schema, False)
+        kwargs.pop("prompt_cache_options", None)
+        return kwargs, messages, False
+
+
 DEFAULT_ADAPTERS: dict[str, Adapter] = {"anthropic": AnthropicAdapter(),
-                                        "openai": OpenAIAdapter()}
+                                        "openai": OpenAIAdapter(),
+                                        "deepseek": DeepSeekAdapter()}
 
 
 def classify(exc: BaseException) -> tuple[str, int | None, float | None]:
@@ -811,6 +850,9 @@ class LLMClient:
         max_out = agent_max_output_tokens(self.cfg, agent)
         request = agent_request(self.cfg, agent)
         cache = agent_caching(self.cfg, agent) == "on"
+        if provider == "deepseek" and not cache:
+            raise ConfigError("DeepSeek caches automatically and it cannot be switched off: "
+                              f"set agents.{agent}.caching to 'on' (recorded as ttl 'auto')")
         cache_turns = agent == "red"  # Red is multi-turn; Blue caches its system prompt only
         attempts_sent = 0
 
@@ -823,6 +865,9 @@ class LLMClient:
             if provider != "fake" and entry.get("verified") is not True:
                 return self._refuse(run_dir, base,
                                     {"scope": agent, "reason": "price_unverified"},
+                                    attempts_sent)
+            if provider == "deepseek" and deepseek_peak(self.now()):
+                return self._refuse(run_dir, base, {"scope": agent, "reason": "price_window"},
                                     attempts_sent)
             adapter = self.adapters.get(provider)
             if adapter is None:

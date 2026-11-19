@@ -182,6 +182,7 @@
                 "openai",
                 "anthropic",
                 "gemini",
+                "deepseek",
                 "fake"
               ]
             },
@@ -432,7 +433,8 @@
                     "unpriced_usage",
                     "missing_price",
                     "price_unverified",
-                    "missing_key"
+                    "missing_key",
+                    "price_window"
                   ]
                 }
               }
@@ -620,6 +622,7 @@
                 "openai",
                 "anthropic",
                 "gemini",
+                "deepseek",
                 "fake"
               ]
             },
@@ -774,7 +777,8 @@
           "enum": [
             null,
             "5m",
-            "30m"
+            "30m",
+            "auto"
           ]
         }
       },
@@ -797,7 +801,8 @@
           "ttl": {
             "enum": [
               "5m",
-              "30m"
+              "30m",
+              "auto"
             ]
           }
         }

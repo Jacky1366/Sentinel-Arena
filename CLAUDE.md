@@ -110,7 +110,7 @@ rules/                  NEUTRAL rule machinery (Blue AND the Judge import it; go
   library.py            READ-ONLY rule library reader + canonical form (no write path; Blue + Judge)
   paths.py              the ONE above-root predicate (red guard + variant mutator, D32)
 library/writer.py       the ONE rule library writer (imported only by tools/promote_rules.py, D26)
-agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl; prompt caching markers + unpriced cache lifetimes (5.7)
+agents/llm_client.py    the single exit for every AI call: retries, caps, api_calls.jsonl; prompt caching markers + unpriced cache lifetimes (5.7); DeepSeek adapter + off-peak guard (6.3)
 agents/prompting.py     stable-prefix-first prompt builder + safe JSON parsing
 proxy/nginx.conf        nginx: log+forward arena :8080, admin :8081 (access_log off)
 red/payloads.json       scripted-Red attack set (data, verified empirically)

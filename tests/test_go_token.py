@@ -109,7 +109,7 @@ def real_ops_no_docker(monkeypatch):
     for name in ("reset", "rotate", "traffic", "freeze", "judge_fact1", "blue"):
         monkeypatch.setattr(run_match.Ops, name, _boom)
     monkeypatch.setattr(match_ops, "acquire_lock", _boom)
-    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter):
+    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter, lc.DeepSeekAdapter):
         monkeypatch.setattr(cls, "call", _boom)
 
 
@@ -152,10 +152,11 @@ def test_the_fake_provider_never_needs_the_token(tmp_path):
     keyed = FakeAdapter(provider="anthropic", needs_key=True)  # a keyed fake is still fake
     assert not lc.is_real(keyed) and not lc.is_real(FakeAdapter())
     assert lc.is_real(lc.AnthropicAdapter()) and lc.is_real(lc.OpenAIAdapter())
+    assert lc.is_real(lc.DeepSeekAdapter())
     assert not lc.is_real(lc.AnthropicAdapter(http_client_factory=lambda: None))
 
 
-@pytest.mark.parametrize("cls", [lc.AnthropicAdapter, lc.OpenAIAdapter])
+@pytest.mark.parametrize("cls", [lc.AnthropicAdapter, lc.OpenAIAdapter, lc.DeepSeekAdapter])
 def test_a_real_adapter_checks_the_token_before_building_the_sdk_client(cls, monkeypatch):
     import builtins
     real_import = builtins.__import__

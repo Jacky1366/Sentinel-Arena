@@ -36,7 +36,8 @@ LABELS = red_guard.ALLOWED_LABELS
 METHODS = red_guard.ALLOWED_METHODS
 RATIONALE_MAX = 500
 FEEDBACK_BODY_CHARS = 500  # of the response body shown to Red
-SDK_PACKAGE = {"openai": "openai", "anthropic": "anthropic"}
+SDK_PACKAGE = {"openai": "openai", "anthropic": "anthropic",
+               "deepseek": "openai"}  # DeepSeek: the openai SDK against api.deepseek.com
 
 # Bump on ANY change to SYSTEM_PROMPT, the turn messages or OUTPUT_SCHEMA.
 RED_PROMPT_VERSION = "1"

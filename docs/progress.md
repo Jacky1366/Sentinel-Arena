@@ -429,6 +429,18 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     time-of-day rates) and a paid usage check.
   - Its Anthropic-compatible endpoint is unusable for us: it only accepts `claude*` model
     names and has no structured output.
+- **DeepSeek Red candidate (designer Nov 18: build probe-first; hard stop Nov 21 evening).**
+  Built on the fake provider:
+  - `deepseek` provider, `ARENA_DEEPSEEK_API_KEY`, `DeepSeekAdapter` (the Responses
+    adapter with base URL `api.deepseek.com`), GO token, key and environment isolation.
+  - Off-peak guard (`price_window`).
+  - Caching `auto` (it can't be switched off).
+  - Candidate `deepseek-v4-pro` at effort `max`, the highest of none / low / high / max.
+  - Off-peak price draft, UNVERIFIED: 0.66 / 0.022 / 1.98, cache write 0.
+  - Contract §6.9b records the silent-ignore risk and the full-build checklist (usage
+    mapping, `json_schema` honoured, effort honoured, refusal shape).
+  - Waiting for the designer's key, price verification and GO for one probe.
+  - If Gate B-deepseek isn't run and audited by Nov 21 evening, it becomes future work.
 - **Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5): built on the fake provider.**
   - Red turn caching: 5-minute breakpoint on the latest user turn.
   - Refusals surface `stop_details`.

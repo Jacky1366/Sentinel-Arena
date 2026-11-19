@@ -64,7 +64,9 @@ SONNET_THINKING = "between_tools"
 PROBE_CANDIDATES = {"gpt-6.1-sol": ("openai", "medium"), "gpt-6.1-terra": ("openai", "medium"),
                     "gpt-5.6-sol": ("openai", "medium"), "gpt-6-luna": ("openai", "high"),
                     "claude-opus-5-5": ("anthropic", "medium"),
-                    "claude-sonnet-5-5": ("anthropic", "medium")}
+                    "claude-sonnet-5-5": ("anthropic", "medium"),
+                    # the highest effort DeepSeek's Responses API documents (none/low/high/max)
+                    "deepseek-v4-pro": ("deepseek", "max")}
 # Probe-only output budget: room to MEASURE reasoning / thinking use (the Gate B budget is
 # fixed afterwards by a D-entry).
 PROBE_RED_MAX_OUTPUT = 8192

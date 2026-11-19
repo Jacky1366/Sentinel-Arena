@@ -145,6 +145,21 @@
           "output": 30.0
         }
       ]
+    },
+    "deepseek-v4-pro": {
+      "provider": "deepseek",
+      "as_of": "2026-11-18",
+      "source": "implementer draft 2026-11-18 from api-docs.deepseek.com/quick_start/pricing (DeepSeek-V4-Pro-0813), OFF-PEAK rates only: 0.66 input (cache miss), 0.022 cached (cache hit), 1.98 output; peak (Mon-Fri 01:00-04:00 and 06:00-10:00 UTC) is 2x and is never called (llm_client refuses: price_window). Caching is automatic with no write charge (cache_write 0). No long-context tier listed. PENDING the designer's check against the official page.",
+      "verified": false,
+      "tiers": [
+        {
+          "max_prompt_tokens": null,
+          "input": 0.66,
+          "cached_input": 0.022,
+          "cache_write": 0.0,
+          "output": 1.98
+        }
+      ]
     }
   },
   "placeholders": {}

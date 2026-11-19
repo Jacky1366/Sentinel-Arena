@@ -342,3 +342,28 @@ def test_red_max_output_tokens_override_needs_ai_red(dirs):
         lc.with_max_output_tokens(lc.load_config(), "red", 0)
     with pytest.raises(lc.ConfigError):
         lc.with_thinking(lc.load_config(), "blue", "off")
+
+
+def test_deepseek_candidate_is_unverified_until_the_designer_checks():
+    assert g.PROBE_CANDIDATES["deepseek-v4-pro"] == ("deepseek", "max")
+    assert any("deepseek-v4-pro" in p
+               for p in g.price_problems(cost_stats.load_prices(), ("deepseek-v4-pro",)))
+
+
+def test_probe_deepseek_candidate_off_peak(tmp_path, capsys):
+    from llm_fakes import FakeAdapter
+    from test_run_match_ai_vs_ai import RED_REPLY
+    prices = json.loads(json.dumps(cost_stats.load_prices()))
+    prices["models"]["deepseek-v4-pro"]["verified"] = True  # stands in for the designer
+    ds = FakeAdapter(provider="deepseek", text=RED_REPLY)
+    fac = lambda cfg: lc.LLMClient(config=cfg, prices=prices,  # noqa: E731
+                                   adapters={"deepseek": ds}, env={}, sleep=lambda s: None,
+                                   dotenv_path=REPO / "nonexistent" / "no.env",
+                                   now=lambda: "2026-11-28T02:00:00.000Z")
+    assert g.probe(out_root=tmp_path / "p", client_factory=fac, red_model="deepseek-v4-pro",
+                   blue=False) == 0
+    [kw] = ds.calls
+    assert kw["model"] == "deepseek-v4-pro" and kw["request"]["effort"] == "max"
+    assert kw["max_output_tokens"] == g.PROBE_RED_MAX_OUTPUT
+    out = capsys.readouterr().out
+    assert "Red proposal: attack" in out and "raw usage red" not in out  # fake: no raw usage

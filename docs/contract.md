@@ -983,7 +983,7 @@ frozen schema (`match_manifest_v0_1`…`v0_7`); validators dispatch on `schema_v
 | `images` | `{juice_shop, nginx}`: `{image, image_id, repo_digest}` | Read from the **running** containers (`docker inspect`), not the compose file. `repo_digest` is `null` for a locally built image. |
 | `models` | `{red, blue, analyst}`: each `null` \| `{provider, model}` | The model each agent actually used. `null` for a scripted component or an unused agent; `red` is non-null iff `red_engine` is `ai`, `blue` iff `blue_engine` is `claude`. |
 | `budget.limits` | `{red, blue, analyst, match}`: each `{max_calls, max_tokens, max_usd}` | The caps in force (`config/llm.json`). Per-agent caps are **required numbers**; the match-level total may leave a field `null` (no match-level limit on it). |
-| `budget.stopped_by` | `null` \| `{scope, reason}` | The **first** refusal in `api_calls.jsonl` (§6.3), or `{scope: "match", reason: "unpriced_usage"}` if usage could not be priced. `scope` ∈ red / blue / analyst / match; `reason` ∈ `max_calls` / `max_tokens` / `max_usd` / `unpriced_usage` / `missing_price` / `price_unverified` / `missing_key`. **Non-null whenever `status == "stopped"`, `null` when `completed`**; a failed match may carry one (both are facts). |
+| `budget.stopped_by` | `null` \| `{scope, reason}` | The **first** refusal in `api_calls.jsonl` (§6.3), or `{scope: "match", reason: "unpriced_usage"}` if usage could not be priced. `scope` ∈ red / blue / analyst / match; `reason` ∈ `max_calls` / `max_tokens` / `max_usd` / `unpriced_usage` / `missing_price` / `price_unverified` / `missing_key` / `price_window` (DeepSeek peak hours, §6.3; additive in 0.8). **Non-null whenever `status == "stopped"`, `null` when `completed`**; a failed match may carry one (both are facts). |
 | `price_table` | `{path, sha256, as_of}` | The price table the dollar snapshot below was computed with. |
 | `cost` | object | Dollar **snapshot** derived by `stats/cost.py` from `api_calls.jsonl` and that price table (D10: tokens are the evidence; dollars can be recomputed against any later table). `total_usd` includes failed attempts; `failed_attempts_usd` is that subset. `cache_savings_usd` is **net** of the cache-write premium and may be negative. `attempts` counts sent attempts; `refused` counts refusals (never sent, $0; they add nothing to `attempts`, tokens or dollars, here or in any cap total). `by_agent` / `by_model` break it down; each bucket carries its own net `cache_savings_usd` (0.7; may be negative), so `usd + cache_savings_usd` is what the same calls would have cost uncached. Flags: `lower_bound` (`total_usd` is an undercount: an attempt reported no usage, e.g. a timeout the provider may still bill, or usage was unpriced), `cached_at_input_price` (cached tokens of a model with no cached price, charged at the input price), `unpriced_usage` (cache writes with no cache-write price, or written at an unpriced lifetime, `unpriced_cache_write_tokens` §6.3; not included in `total_usd`, so `lower_bound` is `true` too). `prices_verified`: `null` if no calls, else whether every model used has `verified: true`. A scripted match: all zeros, no `api_calls.jsonl`. |
 | `artifacts` | `{name: {sha256, bytes}}` | Every other file in the match directory (never `match.json` itself). Lets anyone verify the frozen files were not changed afterwards. |
@@ -1037,7 +1037,7 @@ makes no calls and has no `api_calls.jsonl`.
 | `schema_version` / `match_id` | `"0.2"` / match_id | §0 common rules. `"0.1"` before Stage 5.7 (no `unpriced_cache_write_tokens`; read as 0). |
 | `timestamp` | UTC ISO 8601 | When the attempt started. |
 | `agent` | `red` \| `blue` \| `analyst` | Which component asked. |
-| `provider` | `openai` \| `anthropic` \| `gemini` \| `fake` | From `config/llm.json` (`agents.<agent>.provider`), never from the price table, so it is **never `null`**, even for a `missing_price` refusal. A model whose price entry names another provider is a config error (the call raises, nothing is written). `fake` appears only in tests. |
+| `provider` | `openai` \| `anthropic` \| `gemini` \| `deepseek` \| `fake` | From `config/llm.json` (`agents.<agent>.provider`), never from the price table, so it is **never `null`**, even for a `missing_price` refusal. A model whose price entry names another provider is a config error (the call raises, nothing is written). `fake` appears only in tests. |
 | `model` | string | The requested model id (from config / CLI, never hardcoded in agent logic). |
 | `round` | int ≥ 1 \| null | **Red only**: the Red round. `null` for Blue and the analyst (Blue never sees Red rounds, §4). |
 | `log_seq_first` / `log_seq_last` | int ≥ 1 \| null | **Blue only**: the chunk of proxy-log lines this call covers. `null` for Red and the analyst. |
@@ -1059,7 +1059,10 @@ Never stored: API keys, prompt text, response text, error messages (only
 **Refusals** (checked before every attempt, in this order; a refusal writes a line
 and sends nothing): the model has no price entry (`missing_price`; a placeholder
 entry never counts) → a real provider's price entry is not designer-verified
-(`price_unverified`, `verified: false`; the fake provider is exempt; Stage 5.4) → its
+(`price_unverified`, `verified: false`; the fake provider is exempt; Stage 5.4) → a
+DeepSeek call falls in a weekday peak window (`price_window`, Stage 6.3: Mon–Fri 01:00–04:00
+and 06:00–10:00 UTC; the price table holds OFF-PEAK rates only; Chinese public holidays,
+off-peak at DeepSeek, are unknown here and count as peak) → its
 provider's `ARENA_*` key is missing (`missing_key`) → an
 earlier call left usage that cannot be priced (`unpriced_usage`) → the worst case
 does not fit a cap (`max_calls`, `max_tokens`, `max_usd`; the agent's own caps first,
@@ -1355,6 +1358,34 @@ exist or be empty, and must not be or lie inside any folder holding a `match.jso
   (§6.2, incl. `caching` since 0.2), `git`, `models {blue}`, `budget`, `price_table`, `cost` (this replay's Blue calls
   only), `artifacts` (every other file in the replay folder). Exit codes as `run_match.py`
   (2 = refused, nothing written). `data/replays/` is git-ignored.
+
+## 6.9b DeepSeek provider (Stage 6.3 Red candidate, probe-first)
+
+- **Adapter.** `DeepSeekAdapter` is the OpenAI Responses adapter with base URL
+  `https://api.deepseek.com`. It uses the same key and environment isolation (the openai
+  SDK, every `OPENAI_*` variable scrubbed, key and URL explicit) and the same GO token. The
+  key is `ARENA_DEEPSEEK_API_KEY`, read only inside `agents/llm_client.py`. `provider` is
+  `deepseek` in `api_calls.jsonl`, `match.json`, `replay.json` and `config/prices.json`
+  (additive enum values). `red_params.sdk` names the openai package.
+- **Caching** is automatic at DeepSeek and cannot be switched off, so `caching` must be `on`
+  (`off` is a config error). It is recorded as `ttl: "auto"`. No cache field or breakpoint is
+  sent, and the cache-write price is 0. This is a D18 caveat: a DeepSeek arm has no
+  caching-off control.
+- **Prices:** off-peak only, enforced by the `price_window` refusal (§6.3).
+- **Effort:** DeepSeek's Responses API documents `reasoning.effort` ∈ none / low / high /
+  max (default high). The candidate runs at `max`.
+- **SILENT-IGNORE RISK.** DeepSeek ignores unsupported request fields **without an error**.
+  A setting that was sent is therefore not evidence that it was honoured. Until each item of
+  the full-build checklist below is verified, these are **unverified**:
+  - the usage mapping: does `input_tokens` include cached tokens, and does `output_tokens`
+    include reasoning? The adapter assumes the OpenAI semantics. Check against the DeepSeek
+    dashboard.
+  - `text.format` `json_schema` with `strict`: actually enforced, or only valid JSON by
+    chance?
+  - `reasoning.effort`: actually applied? Compare reasoning tokens across efforts.
+  - the refusal shape: undocumented for the Responses API.
+- **Full-build checklist** before any scored DeepSeek match (Gate B-deepseek): all four
+  items above verified, each recorded with its evidence.
 
 ## 6.10 Prompt caching (Stage 5.7, D18)
 
