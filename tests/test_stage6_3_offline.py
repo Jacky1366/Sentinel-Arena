@@ -344,10 +344,12 @@ def test_red_max_output_tokens_override_needs_ai_red(dirs):
         lc.with_thinking(lc.load_config(), "blue", "off")
 
 
-def test_deepseek_candidate_is_unverified_until_the_designer_checks():
+def test_deepseek_candidate_price_is_designer_verified():
     assert g.PROBE_CANDIDATES["deepseek-v4-pro"] == ("deepseek", "max")
-    assert any("deepseek-v4-pro" in p
-               for p in g.price_problems(cost_stats.load_prices(), ("deepseek-v4-pro",)))
+    prices = json.loads(json.dumps(cost_stats.load_prices()))
+    assert g.price_problems(prices, ("deepseek-v4-pro",)) == []  # designer, Nov 18
+    prices["models"]["deepseek-v4-pro"]["verified"] = False
+    assert any("deepseek-v4-pro" in p for p in g.price_problems(prices, ("deepseek-v4-pro",)))
 
 
 def test_probe_deepseek_candidate_off_peak(tmp_path, capsys):
