@@ -26,7 +26,7 @@ file artifacts defined in a data contract.
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
-| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | GO token by construction (gate tools + the single LLM exit, Nov 18); branch `stage6.1b-gates` |
+| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | GO token (Nov 18); Gate 1 PASS ($0.015), audits all valid, library v5 (19 rules), M5 prediction recorded; Gate 2 awaiting GO; branch `stage6.1b-gates` |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 
@@ -332,6 +332,76 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   stack after the normalization move (matches `20261109T041650Z-e736` /
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
+### Stage 6.1b — Gate 1 (train matches), audits, promotion, M5 prediction
+Branch `stage6.1b-gates`.
+- **GO token by construction (first 6.1b commits).**
+  - Every `--real-calls` tool needs `ARENA_GO=<its gate id>`.
+  - `agents/llm_client.py` refuses any real provider client without a well-formed
+    `ARENA_GO`; direct `run_match` / `replay_blue` runs refuse at preflight.
+  - Only `agents/llm_client.py` imports a provider SDK (AST test).
+- **Gate 1 (Nov 18, GO, `ARENA_GO=gate-6.1b-1`, commit `a8d7969`): PASS, $0.015288.**
+  - 5 train matches, seeds 6101–6105: `20261119T005133Z-0b84`, `…005410Z-4ed0`,
+    `…005624Z-dc00`, `…005846Z-37ca`, `…010114Z-500b`.
+  - Configuration: AI Red gpt-6-luna vs AI Blue Haiku 5.5, rules on, caching on, no
+    library. All completed, four facts PASS.
+  - Detection 9/9, 9/10, 9/10, 10/10, 9/9; FP 0/17 in every match.
+  - 26 rules stored (15 CWE-89, 7 CWE-79, 4 CWE-22), none rejected in-match.
+- **D30 audits (designer, Nov 18).**
+  - All 26 candidate source rounds are valid. Basis: the label describes the attack
+    type, whatever the landing; every CWE-22 source has a real `..` traversal.
+  - Files `data/audits/<match_id>.jsonl` (committed); sheet
+    `docs/audits/stage6_1_gate1_20261119T005133Z-0b84.md`.
+- **Promotion, in ascending match order (zero tokens).** v0000 → v0005, 19 rules
+  (sha256 `324a1eceace9…`); 19 retained, 7 rejected:
+  - `4ed0` r-004 and `500b` r-004 (CWE-22, `path contains ".."`): `offline_fixture_hit`.
+    They fire on `fixture_v2_offline` yh04 `/ftp/minutes..2026.md`, the over-broad
+    traversal rule D31 was added to catch.
+  - 5 × `duplicate_exact`: `37ca` r-001 / r-004 / r-006 (= lib-0008 / lib-0009 /
+    lib-0003) and `500b` r-001 / r-003 (= lib-0008 / lib-0007).
+  - No `encoding_fragile`, `no_variant_blocked` or `no_counting_variant`.
+  - Advisory behavioural duplicates (D25, not rejected): lib-0010, lib-0017 ≈ lib-0007;
+    lib-0014 ≈ lib-0011; lib-0018 ≈ lib-0005.
+- **M5 prediction, pre-registered before the Gate 2 GO** (zero tokens, `--predict`,
+  library v5 alone on the 3 Gate 3 sources).
+  - The library answers 27 lines: 27 attack, 0 benign (9/26, 8/26 and 10/27 lines per
+    match).
+  - So the library arm is expected to save about 27 Blue AI calls versus the empty arm,
+    with no new false positives on the fixture traffic.
+
+```
+Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on the Gate 3 sources
+  ai-vs-ai-gate3-match1: 9/26 lines answered by the library (9 attack, 0 benign)
+    log_seq   6 CWE-89  lib-0009,lib-0015    attack CWE-89 round 1
+    log_seq   8 CWE-89  lib-0009,lib-0015    attack CWE-89 round 2
+    log_seq  11 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 3
+    log_seq  13 CWE-89  lib-0003             attack CWE-89 round 4
+    log_seq  14 CWE-22  lib-0012,lib-0013    attack CWE-22 round 5
+    log_seq  16 CWE-22  lib-0012,lib-0013    attack CWE-22 round 6
+    log_seq  17 CWE-22  lib-0012,lib-0013    attack CWE-22 round 7
+    log_seq  20 CWE-79  lib-0007,lib-0010,lib-0017 attack CWE-79 round 9
+    log_seq  21 CWE-79  lib-0011,lib-0014    attack CWE-79 round 10
+  ai-vs-ai-gate3-match2: 8/26 lines answered by the library (8 attack, 0 benign)
+    log_seq   6 CWE-89  lib-0001,lib-0008    attack CWE-89 round 1
+    log_seq   8 CWE-89  lib-0001,lib-0008    attack CWE-89 round 2
+    log_seq  11 CWE-89  lib-0005,lib-0016,lib-0018 attack CWE-89 round 3
+    log_seq  13 CWE-79  lib-0007,lib-0010,lib-0017 attack CWE-79 round 4
+    log_seq  14 CWE-79  lib-0006             attack CWE-79 round 5
+    log_seq  16 CWE-22  lib-0012,lib-0013    attack CWE-22 round 7
+    log_seq  20 CWE-22  lib-0012,lib-0013    attack CWE-22 round 9
+    log_seq  21 CWE-22  lib-0012,lib-0013    attack CWE-22 round 10
+  ai-vs-ai-gate3-match3: 10/27 lines answered by the library (10 attack, 0 benign)
+    log_seq   6 CWE-89  lib-0001,lib-0008    attack CWE-89 round 1
+    log_seq   8 CWE-89  lib-0001,lib-0008    attack CWE-89 round 2
+    log_seq  11 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 3
+    log_seq  13 CWE-79  lib-0007,lib-0010,lib-0017 attack CWE-79 round 4
+    log_seq  14 CWE-89  lib-0009,lib-0015    attack CWE-89 round 5
+    log_seq  16 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 6
+    log_seq  17 CWE-89  lib-0003,lib-0019    attack CWE-89 round 7
+    log_seq  19 CWE-89  lib-0009,lib-0015    attack CWE-89 round 8
+    log_seq  21 CWE-89  lib-0002,lib-0004,lib-0015 attack CWE-89 round 9
+    log_seq  22 CWE-22  lib-0012,lib-0013    attack CWE-22 round 10
+```
 
 ### Stage 6.1a — Rule library, retention, variants, offline benign data (body)
 Step 0 plan `docs/plans/stage6_1_step0.md`, approved Nov 17 with amendments; decisions
