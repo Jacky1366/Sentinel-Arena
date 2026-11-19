@@ -106,17 +106,8 @@ CACHE_TTL = {"anthropic": "5m", "openai": "30m",
              "deepseek": "auto",  # automatic, cannot be switched off; no write price
              "fake": "5m"}  # the test provider mimics Anthropic; gemini: no caching yet
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"  # OpenAI-compatible Responses API
-# DeepSeek's PEAK windows (UTC, Monday-Friday): peak rates are 2x off-peak and the price
-# table stores OFF-PEAK rates only, so a DeepSeek call is refused in these windows
-# (reason price_window). Chinese public holidays are off-peak at DeepSeek but are not
-# known here: they count as peak (a refusal can happen, a mispriced call cannot).
-DEEPSEEK_PEAK_UTC = ((1, 4), (6, 10))  # [start hour, end hour)
-
-
-def deepseek_peak(now_iso: str) -> bool:
-    """True if the UTC timestamp falls in a DeepSeek weekday peak window."""
-    t = datetime.strptime(now_iso[:19], "%Y-%m-%dT%H:%M:%S")
-    return t.weekday() < 5 and any(a <= t.hour < b for a, b in DEEPSEEK_PEAK_UTC)
+# DeepSeek is priced by each call's own timestamp (D39): the peak windows and both rate
+# sets live in config/prices.json (entry.peak); every line records `rate_window`.
 ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL is never read
 
 
@@ -721,9 +712,10 @@ def canonical_prompt(model: str, system: str, messages: list[dict]) -> str:
 
 def worst_case(entry: dict, prompt_chars: int, chars_per_token: float,
                max_output_tokens: int) -> tuple[int, float]:
-    """(tokens, usd) upper estimate for one call, priced at the applicable tier."""
+    """(tokens, usd) upper estimate for one call, priced at the applicable tier (at the
+    PEAK rates for a time-priced entry, D39: an upper estimate whatever the hour)."""
     est_input = math.ceil(prompt_chars / chars_per_token)
-    tier = cost_mod.tier_for(entry, est_input)
+    tier = cost_mod.tier_for(entry, est_input, "peak")
     usd = (est_input * tier["input"] + max_output_tokens * tier["output"]) / 1e6
     return est_input + max_output_tokens, usd
 
@@ -859,15 +851,14 @@ class LLMClient:
         for attempt in range(1, self.cfg["max_retries"] + 2):
             base = self._base(run_dir, match_id, agent, provider, model, round,
                               log_seq_first, log_seq_last, attempt, prompt_sha)
+            if entry is not None and entry.get("peak") is not None:  # D39: time-priced
+                base["rate_window"] = cost_mod.rate_window(entry, base["timestamp"])
             if entry is None:
                 return self._refuse(run_dir, base, {"scope": agent, "reason": "missing_price"},
                                     attempts_sent)
             if provider != "fake" and entry.get("verified") is not True:
                 return self._refuse(run_dir, base,
                                     {"scope": agent, "reason": "price_unverified"},
-                                    attempts_sent)
-            if provider == "deepseek" and deepseek_peak(self.now()):
-                return self._refuse(run_dir, base, {"scope": agent, "reason": "price_window"},
                                     attempts_sent)
             adapter = self.adapters.get(provider)
             if adapter is None:

@@ -149,7 +149,7 @@
     "deepseek-v4-pro": {
       "provider": "deepseek",
       "as_of": "2026-11-18",
-      "source": "designer-verified 2026-11-18 against the official DeepSeek Models & Pricing page (api-docs.deepseek.com/quick_start/pricing, DeepSeek-V4-Pro-0813): OFF-PEAK 0.66 input (cache miss), 0.022 cached (cache hit), 1.98 output; peak is 2x (Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese public holidays) and is never called (llm_client refuses: price_window; holidays count as peak). Caching is automatic with no write charge (cache_write 0). No long-context tier listed.",
+      "source": "designer-verified 2026-11-18 against the official DeepSeek Models & Pricing page (api-docs.deepseek.com/quick_start/pricing, DeepSeek-V4-Pro-0813): off-peak 0.66 input (cache miss) / 0.022 cached (cache hit) / 1.98 output; peak 2x: 1.32 / 0.044 / 3.96 (Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, excluding Chinese public holidays). Each call is priced by its own timestamp (D39). Caching is automatic with no write charge (cache_write 0). No long-context tier listed.",
       "verified": true,
       "tiers": [
         {
@@ -159,7 +159,36 @@
           "cache_write": 0.0,
           "output": 1.98
         }
-      ]
+      ],
+      "peak": {
+        "windows_utc": [
+          [
+            1,
+            4
+          ],
+          [
+            6,
+            10
+          ]
+        ],
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "note": "Chinese public holidays (off-peak at DeepSeek) are unknown here and count as peak: may over-report, never under-report.",
+        "tiers": [
+          {
+            "max_prompt_tokens": null,
+            "input": 1.32,
+            "cached_input": 0.044,
+            "cache_write": 0.0,
+            "output": 3.96
+          }
+        ]
+      }
     }
   },
   "placeholders": {}

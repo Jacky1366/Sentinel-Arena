@@ -433,10 +433,12 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
   Built on the fake provider:
   - `deepseek` provider, `ARENA_DEEPSEEK_API_KEY`, `DeepSeekAdapter` (the Responses
     adapter with base URL `api.deepseek.com`), GO token, key and environment isolation.
-  - Off-peak guard (`price_window`).
+  - Time-aware pricing (D39, replacing the off-peak guard): each call is priced by its own
+    timestamp, with peak 2× and holidays counted as peak, and records `rate_window`.
   - Caching `auto` (it can't be switched off).
   - Candidate `deepseek-v4-pro` at effort `max`, the highest of none / low / high / max.
-  - Off-peak price draft, UNVERIFIED: 0.66 / 0.022 / 1.98, cache write 0.
+  - Prices designer-verified Nov 18: off-peak 0.66 / 0.022 / 1.98, peak 1.32 / 0.044 /
+    3.96, cache write 0.
   - Contract §6.9b records the silent-ignore risk and the full-build checklist (usage
     mapping, `json_schema` honoured, effort honoured, refusal shape).
   - Waiting for the designer's key, price verification and GO for one probe.

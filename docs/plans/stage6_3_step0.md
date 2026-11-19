@@ -103,7 +103,8 @@ after the designer's GO.*
 ## Addendum (2026-11-18): DeepSeek Red candidate, probe-first
 
 - `deepseek` provider (`ARENA_DEEPSEEK_API_KEY`), `DeepSeekAdapter` (the Responses adapter
-  with base URL `https://api.deepseek.com`), off-peak guard (`price_window`), caching `auto`.
+  with base URL `https://api.deepseek.com`), time-aware pricing by each call's timestamp (D39, which replaced the first draft's off-peak
+  guard), caching `auto`.
 - Candidate `deepseek-v4-pro` at effort max; the price draft is unverified.
 - Contract §6.9b: the silent-ignore risk and the full-build checklist.
 - No new files. Tests in `tests/test_openai_adapter.py`, `tests/test_llm_client.py`,

@@ -237,6 +237,14 @@ unchanged, and `replay.json` `blue_params.request.thinking` records it. The Haik
   adapter with a new base URL, an off-peak price guard, `deepseek-v4-pro` at effort max, and
   the silent-ignore risk recorded in contract §6.9b. **Hard stop:** if Gate B-deepseek isn't
   run and audited by Nov 21 evening, it becomes future work. Gemini stays future work.
+- **D39 — DeepSeek time-aware pricing (designer, 2026-11-19; supersedes the off-peak
+  guard).** DeepSeek calls are allowed at any hour; the designer uses them for development
+  and the demo.
+  - Each call is priced by its own timestamp: peak rates (1.32 / 0.044 / 3.96) Mon–Fri
+    01:00–04:00 and 06:00–10:00 UTC, off-peak (0.66 / 0.022 / 1.98) otherwise. Both sets are
+    designer-verified Nov 18.
+  - Chinese public holidays count as peak, so cost is never under-reported.
+  - Every DeepSeek line records `rate_window`. The `price_window` refusal is removed.
 - **Design note: same-family arm.** An Anthropic Red against an Anthropic Blue is a
   same-family arm. Family effects could bias detection in either direction, so it is
   reported as a **separately labelled treatment** and **never pooled** with cross-family

@@ -576,63 +576,84 @@ def test_openai_adapter_refuses_the_anthropic_thinking_setting():
                                 output_schema=None)
 
 
-# -- DeepSeek (Stage 6.3): off-peak guard, automatic caching -------------------------------
+# -- DeepSeek (Stage 6.3, D39): priced by each call's own timestamp; automatic caching ----
 
-@pytest.mark.parametrize("ts,peak", [
-    ("2026-11-23T01:00:00.000Z", True),   # Monday, first window opens
-    ("2026-11-23T03:59:59.000Z", True),
-    ("2026-11-23T04:00:00.000Z", False),  # between the windows
-    ("2026-11-23T05:59:00.000Z", False),
-    ("2026-11-23T06:00:00.000Z", True),   # second window
-    ("2026-11-27T09:59:00.000Z", True),   # Friday
-    ("2026-11-23T10:00:00.000Z", False),
-    ("2026-11-23T00:59:00.000Z", False),
-    ("2026-11-28T02:00:00.000Z", False),  # Saturday: off-peak all day
-    ("2026-11-29T07:00:00.000Z", False),  # Sunday
+def _ds_entry():
+    return json.loads((lc.REPO / "config" / "prices.json").read_text())["models"][
+        "deepseek-v4-pro"]
+
+
+@pytest.mark.parametrize("ts,window", [
+    ("2026-11-23T01:00:00.000Z", "peak"),      # Monday, first window opens
+    ("2026-11-23T03:59:59.000Z", "peak"),
+    ("2026-11-23T04:00:00.000Z", "off_peak"),  # between the windows
+    ("2026-11-23T05:59:00.000Z", "off_peak"),
+    ("2026-11-23T06:00:00.000Z", "peak"),      # second window
+    ("2026-11-27T09:59:00.000Z", "peak"),      # Friday
+    ("2026-11-23T10:00:00.000Z", "off_peak"),
+    ("2026-11-23T00:59:00.000Z", "off_peak"),
+    ("2026-11-28T02:00:00.000Z", "off_peak"),  # Saturday: off-peak all day
+    ("2026-11-29T07:00:00.000Z", "off_peak"),  # Sunday
 ])
-def test_deepseek_peak_windows(ts, peak):
-    assert lc.deepseek_peak(ts) is peak
+def test_deepseek_rate_window_by_timestamp(ts, window):
+    assert lc.cost_mod.rate_window(_ds_entry(), ts) == window
 
 
 def _deepseek_client(tmp_path, now, caching="on"):
     from llm_fakes import FakeAdapter, PRICES as P, CONFIG
     import copy
-    fake = FakeAdapter(provider="deepseek")
+    fake = FakeAdapter(provider="deepseek", usage=lc.Usage(1_000_000, 0, 0, 1_000_000))
     cfg = copy.deepcopy(CONFIG)
     cfg["agents"]["red"]["provider"] = "deepseek"
     cfg["agents"]["red"]["caching"] = caching
+    cfg["caps"]["red"].update({"max_usd": 100, "max_tokens": 10_000_000})
+    cfg["caps"]["match"]["max_usd"] = 100
     prices = copy.deepcopy(P)
-    prices["models"]["ds-test"] = {"provider": "deepseek", "as_of": "2026-11-18",
-                                   "source": "test", "verified": True,
-                                   "tiers": [{"max_prompt_tokens": None, "input": 0.66,
-                                              "cached_input": 0.022, "cache_write": 0.0,
-                                              "output": 1.98}]}
+    prices["models"]["deepseek-v4-pro"] = _ds_entry()
     client = lc.LLMClient(config=cfg, prices=prices, adapters={"deepseek": fake}, env={},
                           dotenv_path=tmp_path / "no.env", sleep=lambda s: None,
                           now=lambda: now)
-    return client, fake
+    return client, fake, prices
 
 
-def test_a_deepseek_call_in_a_peak_window_is_refused_and_nothing_is_sent(tmp_path):
+@pytest.mark.parametrize("now,window,usd", [
+    ("2026-11-23T02:00:00.000Z", "peak", 1.32 + 3.96),       # 1M in + 1M out at peak
+    ("2026-11-28T02:00:00.000Z", "off_peak", 0.66 + 1.98),   # Saturday: off-peak
+])
+def test_a_deepseek_call_is_sent_at_any_hour_and_priced_by_its_window(tmp_path, now,
+                                                                      window, usd):
     d = tmp_path / "m001"
     d.mkdir()
-    client, fake = _deepseek_client(tmp_path, "2026-11-23T02:00:00.000Z")
-    r = client.complete("red", "ds-test", "S", [{"role": "user", "content": "x"}],
+    client, fake, prices = _deepseek_client(tmp_path, now)
+    r = client.complete("red", "deepseek-v4-pro", "S", [{"role": "user", "content": "x"}],
                         run_dir=d, round=1)
-    assert not r.ok and r.refusal == {"scope": "red", "reason": "price_window"}
-    assert fake.calls == []
-    assert json.loads((d / lc.API_CALLS).read_text())["refusal"]["reason"] == "price_window"
-    client, fake = _deepseek_client(tmp_path, "2026-11-28T02:00:00.000Z")  # Saturday
-    assert client.complete("red", "ds-test", "S", [{"role": "user", "content": "x"}],
-                           run_dir=d, round=2).ok and len(fake.calls) == 1
+    assert r.ok and len(fake.calls) == 1  # no guard: sent in the peak window too
+    line = json.loads((d / lc.API_CALLS).read_text())
+    assert line["rate_window"] == window
+    assert lc.cost_mod.call_cost(line, prices)["usd"] == pytest.approx(usd)
+
+
+def test_time_pricing_never_under_reports():
+    from llm_fakes import PRICES as P
+    import copy
+    prices = copy.deepcopy(P)
+    prices["models"]["deepseek-v4-pro"] = _ds_entry()
+    call = {"model": "deepseek-v4-pro", "ok": True, "refusal": None, "input_tokens": 1_000_000,
+            "cached_input_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0}
+    assert lc.cost_mod.call_cost(call, prices)["usd"] == pytest.approx(1.32)  # no time: peak
+    off = {**call, "timestamp": "2026-11-28T02:00:00.000Z"}  # no rate_window: from the time
+    assert lc.cost_mod.call_cost(off, prices)["usd"] == pytest.approx(0.66)
+    _, usd = lc.worst_case(_ds_entry(), 3_000_000, 3, 0)  # budget estimate at peak
+    assert usd == pytest.approx(1.32)
+    assert "rate_window" not in json.dumps(P)  # other models carry no time pricing
 
 
 def test_deepseek_needs_caching_on_because_it_cannot_be_switched_off(tmp_path):
     d = tmp_path / "m001"
     d.mkdir()
-    client, fake = _deepseek_client(tmp_path, "2026-11-28T02:00:00.000Z", caching="off")
+    client, fake, _ = _deepseek_client(tmp_path, "2026-11-28T02:00:00.000Z", caching="off")
     with pytest.raises(lc.ConfigError, match="automatically"):
-        client.complete("red", "ds-test", "S", [{"role": "user", "content": "x"}],
+        client.complete("red", "deepseek-v4-pro", "S", [{"role": "user", "content": "x"}],
                         run_dir=d, round=1)
     assert fake.calls == []
     assert lc.caching_params({"agents": {"red": {"provider": "deepseek", "caching": "on"}}},

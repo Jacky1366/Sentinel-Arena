@@ -484,8 +484,7 @@
                     "unpriced_usage",
                     "missing_price",
                     "price_unverified",
-                    "missing_key",
-                    "price_window"
+                    "missing_key"
                   ]
                 }
               }
