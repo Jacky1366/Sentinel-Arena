@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from llm_fakes import FakeAdapter, MESSAGES, SYSTEM, lc, lines, make_client, run_dir
 
 SENTINEL = "SENTINEL-FAKE-KEY-not-a-secret-7f3a"
@@ -108,27 +110,26 @@ def test_no_arena_key_is_visible_inside_the_test_session():
     assert [k for k in os.environ if k.startswith("ARENA_")] == []
     assert not lc.DOTENV_PATH.exists()
     assert lc.key_values() == []
-    client = lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices())
+    client = lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices(),
+                          adapters={})
     assert all(client._key(p) is None for p in lc.KEY_ENV)
 
 
-def test_a_real_provider_call_is_refused_inside_the_test_session(tmp_path, monkeypatch):
-    # Real config, real price table, REAL adapters (the default): exactly what a
-    # fake that falls through would hit. The call must be refused before any SDK.
+def test_a_real_provider_client_is_refused_inside_the_test_session(tmp_path, monkeypatch):
+    # Real config, real price table, REAL adapters (the default): exactly what a fake
+    # that falls through would hit. Since 6.1b the client is not even built: no ARENA_GO
+    # in a test session (conftest), so GoTokenError; the missing_key layer behind it is
+    # covered with keyed fakes in tests/test_llm_client.py.
     for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter):
         monkeypatch.setattr(cls, "call", lambda self, **kw: (_ for _ in ()).throw(
             AssertionError("a real adapter was called")))
-    client = lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices())
-    d = run_dir(tmp_path)
-    r = client.complete("blue", "claude-haiku-5-5", SYSTEM, MESSAGES, run_dir=d,
-                        log_seq_first=1, log_seq_last=1)
-    assert r.refusal == {"scope": "blue", "reason": "missing_key"}
-    assert [l["error_type"] for l in lines(d)] == ["refused"]
+    with pytest.raises(lc.GoTokenError, match="ARENA_GO"):
+        lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices())
 
 
 def test_the_guard_redirects_the_repo_dotenv():
     # From 5.4 the repo .env holds real keys. Inside the test session the client
     # must not be looking there at all, whether or not the file exists.
     assert lc.DOTENV_PATH != lc.REPO / ".env"
-    assert lc.LLMClient(config=lc.load_config(),
-                        prices=lc.cost_mod.load_prices()).dotenv_path == lc.DOTENV_PATH
+    assert lc.LLMClient(config=lc.load_config(), prices=lc.cost_mod.load_prices(),
+                        adapters={}).dotenv_path == lc.DOTENV_PATH

@@ -26,7 +26,7 @@ file artifacts defined in a data contract.
 | 5.7 | Prompt caching (per agent, D18) + first AI-vs-AI matches + four-facts check | Nov 13–19 (Stage 5) | Done (Nov 14; Gates 1, 2, 2b, 3 passed + first AI-vs-AI label audit; 3/3 AI-vs-AI matches four facts PASS); branch `stage5.7-caching-ai-vs-ai` |
 | **5** | **AI brains (5.1–5.7)** | **Nov 13–19** | **Done (Nov 14): Stage 5 done-when met** |
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
-| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | GO token by construction added (Nov 18); Gate 1 awaiting GO; branch `stage6.1b-gates` |
+| 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | GO token by construction (gate tools + the single LLM exit, Nov 18); branch `stage6.1b-gates` |
 
 Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
 

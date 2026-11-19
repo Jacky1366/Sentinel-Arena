@@ -143,6 +143,8 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         if caching is not None and engine != "claude":
             raise Refused("--caching needs --engine claude (caching is an AI-call setting)")
         config = llm_client.with_caching(config, "blue", caching)
+        # Built before anything is written: no GO token -> GoTokenError -> REFUSED.
+        blue_llm = ops.blue_client(config, prices) if engine == "claude" else None
         if engine == "claude":
             blue_m = run_blue.blue_model(config, model)
             chunk = run_blue.blue_chunk_size(config)
@@ -186,7 +188,7 @@ def replay(match_dir: Path, out: Path | None = None, engine: str = "scripted",
         step = "blue"
         if engine == "claude":
             extra = {"library": snapshot} if snapshot is not None else {}
-            ops.blue(out, mid, engine, ops.blue_client(config, prices), blue_m, mode, **extra)
+            ops.blue(out, mid, engine, blue_llm, blue_m, mode, **extra)
         else:
             ops.blue(out, mid, engine)
         for step in STEPS[2:]:

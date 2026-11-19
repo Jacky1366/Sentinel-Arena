@@ -79,3 +79,121 @@ def test_the_token_must_match_the_gate_exactly():
     assert go_token.check("gate-6.1b-1", {"ARENA_GO": "GATE-6.1B-1"}) is not None
     assert go_token.check("gate-6.1b-1", {"ARENA_GO": "gate-6.1b-1"}) is None
     assert "set to 'gate-6.1b-2'" in go_token.check("gate-6.1b-1", {"ARENA_GO": "gate-6.1b-2"})
+
+
+# ---- the single exit (agents/llm_client.py): a REAL provider client needs ARENA_GO --------
+
+NON_TEST = REPO / "data" / "golden" / "scripted-baseline-benign-match"
+
+
+@pytest.fixture
+def real_ops_no_docker(monkeypatch):
+    """The REAL run_match.Ops, with Docker and every Target step made to raise: a direct
+    command must be refused at preflight, before any of them."""
+    monkeypatch.setattr(run_match.Ops, "preflight", lambda self: {})
+    monkeypatch.setattr(match_ops, "check_live_clean", lambda live: None)
+    for name in ("reset", "rotate", "traffic", "freeze", "judge_fact1", "blue"):
+        monkeypatch.setattr(run_match.Ops, name, _boom)
+    monkeypatch.setattr(match_ops, "acquire_lock", _boom)
+    for cls in (lc.AnthropicAdapter, lc.OpenAIAdapter):
+        monkeypatch.setattr(cls, "call", _boom)
+
+
+@pytest.mark.parametrize("argv", [["--blue", "claude"], ["--red", "ai"],
+                                  ["--red", "ai", "--blue", "claude", "--blue-rules-mode", "on"]])
+def test_direct_run_match_with_real_engines_refuses_without_the_token(argv, capsys,
+                                                                      real_ops_no_docker):
+    assert run_match.main(argv) == 2
+    out = capsys.readouterr().out
+    assert "PREFLIGHT FAILED" in out and "ARENA_GO" in out
+
+
+def test_direct_replay_with_claude_refuses_without_the_token(tmp_path, capsys,
+                                                             real_ops_no_docker):
+    out_dir = tmp_path / "replay"
+    assert replay_blue.main(["--match", str(NON_TEST), "--engine", "claude",
+                             "--out", str(out_dir)]) == 2
+    out = capsys.readouterr().out
+    assert "REFUSED" in out and "ARENA_GO" in out and not out_dir.exists()
+
+
+def test_a_real_client_needs_a_well_formed_token():
+    cfg, prices = lc.load_config(), lc.cost_mod.load_prices()
+    for env in ({}, {"ARENA_GO": ""}, {"ARENA_GO": "yes"}, {"ARENA_GO": "manual-"},
+                {"ARENA_GO": "gate-"}, {"ARENA_GO": "Manual-Test"}):
+        with pytest.raises(lc.GoTokenError):
+            lc.LLMClient(config=cfg, prices=prices, env=env)  # default = real adapters
+    for token in ("gate-6.1b-1", "manual-red-model-probe"):
+        assert go_token.valid(token)
+        lc.LLMClient(config=cfg, prices=prices, env={"ARENA_GO": token})  # builds
+
+
+def test_the_fake_provider_never_needs_the_token(tmp_path):
+    from llm_fakes import FakeAdapter, make_client, run_dir, SYSTEM, MESSAGES
+    assert go_token.ENV not in os.environ
+    client, _ = make_client(FakeAdapter(), env={}, tmp_path=tmp_path)
+    r = client.complete("blue", "fake-small", SYSTEM, MESSAGES, run_dir=run_dir(tmp_path),
+                        log_seq_first=1, log_seq_last=1)
+    assert r.ok
+    keyed = FakeAdapter(provider="anthropic", needs_key=True)  # a keyed fake is still fake
+    assert not lc.is_real(keyed) and not lc.is_real(FakeAdapter())
+    assert lc.is_real(lc.AnthropicAdapter()) and lc.is_real(lc.OpenAIAdapter())
+    assert not lc.is_real(lc.AnthropicAdapter(http_client_factory=lambda: None))
+
+
+@pytest.mark.parametrize("cls", [lc.AnthropicAdapter, lc.OpenAIAdapter])
+def test_a_real_adapter_checks_the_token_before_building_the_sdk_client(cls, monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def no_sdk(name, *a, **kw):
+        if name in ("anthropic", "openai"):
+            raise AssertionError(f"SDK {name} imported without the GO token")
+        return real_import(name, *a, **kw)
+    monkeypatch.setattr(builtins, "__import__", no_sdk)
+    with pytest.raises(lc.GoTokenError):
+        cls().call(model="m", system="s", messages=[], max_output_tokens=1, timeout=1,
+                   api_key="not-a-real-key", request={"thinking": None, "effort": None},
+                   output_schema=None)
+
+
+def test_go_token_error_is_raised_not_logged_as_a_failed_call(tmp_path, monkeypatch):
+    """Even past construction (token in the client's own env mapping, none in the
+    process), the adapter's check raises through complete(): never a retried failure."""
+    from llm_fakes import MESSAGES, SYSTEM, run_dir
+    monkeypatch.setattr(lc, "is_real", lambda a: False)  # skip the construction check
+    cfg = lc.load_config()
+    client = lc.LLMClient(config=cfg, prices=lc.cost_mod.load_prices(),
+                          env={"ARENA_ANTHROPIC_API_KEY": "not-a-real-key"},
+                          dotenv_path=tmp_path / "no.env")
+    d = run_dir(tmp_path)
+    with pytest.raises(lc.GoTokenError):
+        client.complete("blue", cfg["agents"]["blue"]["model"], SYSTEM, MESSAGES, run_dir=d,
+                        log_seq_first=1, log_seq_last=1)
+    assert not (d / lc.API_CALLS).exists() or "error_type" not in (d / lc.API_CALLS).read_text()
+
+
+# ---- only the single exit imports a provider SDK -------------------------------------------
+
+SDKS = ("anthropic", "openai", "google")
+
+
+def test_only_llm_client_imports_a_provider_sdk():
+    import ast
+    offenders = []
+    for p in REPO.rglob("*.py"):
+        rel = p.relative_to(REPO).as_posix()
+        if rel.startswith((".venv/", "data/")) or "/." in f"/{rel}":
+            continue
+        tree = ast.parse(p.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            names = [a.name for a in node.names] if isinstance(node, ast.Import) else \
+                [node.module or ""] if isinstance(node, ast.ImportFrom) else []
+            for n in names:
+                if n.split(".")[0] in SDKS and rel != "agents/llm_client.py":
+                    offenders.append(f"{rel}: {n}")
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "__import__" \
+                    and node.args and isinstance(node.args[0], ast.Constant) \
+                    and str(node.args[0].value).split(".")[0] in SDKS:
+                offenders.append(f"{rel}: __import__({node.args[0].value!r})")
+    assert offenders == []

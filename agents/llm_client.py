@@ -77,6 +77,7 @@ from jsonschema import Draft202012Validator
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 from stats import cost as cost_mod  # noqa: E402
+from runner import go_token  # noqa: E402
 
 CONFIG_PATH = REPO / "config" / "llm.json"
 DOTENV_PATH = REPO / ".env"
@@ -107,6 +108,31 @@ ANTHROPIC_BASE_URL = "https://api.anthropic.com"  # explicit: ANTHROPIC_BASE_URL
 
 class ConfigError(ValueError):
     """config/llm.json or config/prices.json is unusable. Raised at load time."""
+
+
+class GoTokenError(ConfigError):
+    """A REAL provider client without the designer's GO token (Stage 6.1b). Raised, never
+    logged as a failed call: no paid request may be built without ARENA_GO."""
+
+
+def is_real(adapter) -> bool:
+    """A real provider adapter (Anthropic / OpenAI) with no injected test transport: it
+    would talk to the provider's network. Fakes are never real."""
+    return isinstance(adapter, (AnthropicAdapter, OpenAIAdapter)) and \
+        adapter.http_client_factory is None
+
+
+def require_go(env=None) -> str:
+    """The GO token for a REAL provider client: ARENA_GO must be `gate-<id>` or
+    `manual-<short-description>` (runner/go_token.py). Gate tools additionally require
+    their exact gate id. Child processes inherit it with the environment."""
+    got = (os.environ if env is None else env).get(go_token.ENV)
+    if not go_token.valid(got):
+        seen = "unset" if got is None else f"malformed ({got!r})"
+        raise GoTokenError(f"a real provider client needs {go_token.ENV}=gate-<id> or "
+                           f"{go_token.ENV}=manual-<short-description>, set after the "
+                           f"designer's GO ({go_token.ENV} is {seen}); nothing was sent")
+    return got
 
 
 # --------------------------------------------------------------------------
@@ -394,6 +420,8 @@ class AnthropicAdapter:
              request, output_schema, cache=False):
         if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
             raise ConfigError("no API key passed")
+        if self.http_client_factory is None:  # a real client: the GO token, before the SDK
+            require_go()
         import anthropic  # lazy; pinned in requirements.txt (anthropic==2.3.0)
         # An explicit api_key means the SDK consults no credential env variable,
         # profile or federation config; an explicit base_url means
@@ -520,6 +548,8 @@ class OpenAIAdapter:
             raise ConfigError("no API key passed")
         kwargs = openai_request_kwargs(request, output_schema, cache)
         items = openai_input(messages, cache)
+        if self.http_client_factory is None:  # a real client: the GO token, before the SDK
+            require_go()
         import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
         extra = {} if self.http_client_factory is None else \
             {"http_client": self.http_client_factory()}
@@ -644,6 +674,8 @@ class LLMClient:
         self.limits = caps_limits(self.cfg)
         self.adapters = DEFAULT_ADAPTERS if adapters is None else adapters
         self.env = os.environ if env is None else env
+        if any(is_real(a) for a in self.adapters.values()):
+            require_go(self.env)  # GoTokenError before any request is built
         self.dotenv_path = DOTENV_PATH if dotenv_path is None else dotenv_path
         self.sleep, self.clock, self.now = sleep, clock, now
 
@@ -745,6 +777,8 @@ class LLMClient:
                                      timeout=self.cfg["timeout_s"], api_key=key,
                                      request=request, output_schema=output_schema,
                                      cache=cache)
+            except GoTokenError:
+                raise  # never swallowed as a failed call
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
                 latency = max(0, round_ms(self.clock() - t0))
                 kind, status, retry_after = classify(exc)

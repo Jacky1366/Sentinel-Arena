@@ -11,9 +11,17 @@ after the designer's GO; it is never stored in `.env` and tests never set it
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
 
 ENV = "ARENA_GO"
+# The single exit (agents/llm_client.py) accepts any well-formed token: a gate id or a
+# manual run named by a short description, e.g. manual-red-model-probe.
+TOKEN_RE = re.compile(r"^(gate-[a-z0-9][a-z0-9.-]{0,40}|manual-[a-z0-9][a-z0-9-]{2,60})$")
+
+
+def valid(value: str | None) -> bool:
+    return value is not None and TOKEN_RE.fullmatch(value) is not None
 
 
 def check(gate_id: str, env: Mapping[str, str] | None = None) -> str | None:
