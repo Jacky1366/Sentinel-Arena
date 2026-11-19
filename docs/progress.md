@@ -370,6 +370,19 @@ Branch `stage6.1b-gates`.
     match).
   - So the library arm is expected to save about 27 Blue AI calls versus the empty arm,
     with no new false positives on the fixture traffic.
+- **M5 cost prediction, pre-registered before the Gate 2 GO** (designer, Nov 18). A rough
+  proportional estimate from the committed Stage 5.7 2×2 numbers only, with no new
+  test-set reads:
+  - Base: rules on, cached, $0.0061 / 90 calls.
+  - With ~27 calls answered by the library: $0.0061 × 63/90 ≈ **$0.0043 / ~63 calls** for
+    the library arm, i.e. below rules off cached ($0.0052).
+  - *Caveat (implementer):* the 2×2's $0.0061 / 90 and $0.0052 / 104 come from 5.7 Gates
+    2 / 2b, which replayed the four gate-5.5 sources, not the three Gate 3 sources M5
+    replays. The ~27 answered lines come from the Gate 3 sources. So this is a scale
+    estimate, not a like-for-like baseline; Gate 2's empty arm is the real baseline.
+  - *For scale (committed, `docs/progress.md` Stage 5.7 Gate 3):* the live Gate 3 Blue cost
+    was $0.001942 + $0.001499 + $0.001615 = $0.005056.
+
 ```
 Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on the Gate 3 sources
   ai-vs-ai-gate3-match1: 9/26 lines answered by the library (9 attack, 0 benign)
