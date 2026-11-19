@@ -177,6 +177,19 @@ def sonnet_config(base: dict | None = None) -> dict:
     return cfg
 
 
+def red_schema_check(text: str | None) -> str:
+    """The FULL Red reply schema (all five fields required, method / label enums, no extra
+    keys), beyond AI Red's lenient reply check: a silently ignored json_schema would show
+    here (contract 6.9b). Returns 'conforms' or the first violations."""
+    from jsonschema import Draft202012Validator
+    from agents.prompting import parse_json
+    parsed = parse_json(text, expect_object=True)
+    if not parsed.ok:
+        return "NOT JSON"
+    errs = [e.message for e in Draft202012Validator(ai_red.OUTPUT_SCHEMA).iter_errors(parsed.value)]
+    return "conforms" if not errs else "VIOLATES: " + "; ".join(errs[:3])
+
+
 def probe(out_root: Path | None = None, client_factory=None,
           red_model: str | None = RED_MODEL, blue: bool = True) -> int:
     """At most ONE Red proposal (dry run, nothing sent) for red_model at its candidate
@@ -203,6 +216,8 @@ def probe(out_root: Path | None = None, client_factory=None,
                              f"details={getattr(r, 'stop_details', None)}")
             if r.ok and r.raw_usage:
                 notes.append(f"raw usage {agent}: {json.dumps(r.raw_usage, sort_keys=True)}")
+            if r.ok and agent == "red" and r.stop_reason != "refusal":
+                notes.append(f"red reply schema: {red_schema_check(r.text)}")
             return r
 
     def make(cfg):
@@ -240,6 +255,8 @@ def probe(out_root: Path | None = None, client_factory=None,
     if red_model is not None:
         print(f"  Red proposal: {p.kind}"
               f"{'' if p.kind == 'attack' else ' ' + str(p.reason)}")
+        if p.kind == "attack":  # printed only (dry run, nothing sent or stored)
+            print(f"  attack: {json.dumps(p.attack, ensure_ascii=False)}")
     for n in notes:  # already redacted by llm_client (keys never reach here)
         print(f"  {n}")
     shown = root.relative_to(REPO) if root.is_relative_to(REPO) else root

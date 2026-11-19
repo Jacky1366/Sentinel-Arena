@@ -443,6 +443,16 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     mapping, `json_schema` honoured, effort honoured, refusal shape).
   - Waiting for the designer's key, price verification and GO for one probe.
   - If Gate B-deepseek isn't run and audited by Nov 21 evening, it becomes future work.
+  - **Probe (designer GO, Nov 19 07:07 UTC, peak window): ALLOWED.**
+    - `deepseek-v4-pro` at effort max, Red prompt v1: `completed`, a valid attack proposal.
+    - Raw usage: 502 input (0 cached), 764 output of which 680 reasoning, of the 8192
+      budget. $0.003688 at peak rates (`rate_window: peak`).
+    - Schema: AI Red's reply check passed (JSON object, only schema keys, string
+      method / path / label). The full schema (all five fields, enums) was NOT checked: the
+      probe kept the reply in memory only. Probes now print the proposal and a full schema
+      check.
+    - Full-build checklist still open: usage vs dashboard, `json_schema` honoured, effort
+      honoured, refusal shape.
 - **Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5): built on the fake provider.**
   - Red turn caching: 5-minute breakpoint on the latest user turn.
   - Refusals surface `stop_details`.

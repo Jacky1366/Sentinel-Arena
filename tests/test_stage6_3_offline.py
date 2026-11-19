@@ -369,3 +369,13 @@ def test_probe_deepseek_candidate_off_peak(tmp_path, capsys):
     assert kw["max_output_tokens"] == g.PROBE_RED_MAX_OUTPUT
     out = capsys.readouterr().out
     assert "Red proposal: attack" in out and "raw usage red" not in out  # fake: no raw usage
+
+
+def test_red_schema_check_is_the_full_schema():
+    ok = json.dumps({"method": "GET", "path": "/", "body": "", "label": "CWE-89",
+                     "rationale": "r"})
+    assert g.red_schema_check(ok) == "conforms"
+    assert g.red_schema_check(json.dumps({"method": "GET", "path": "/", "label": "CWE-89"})) \
+        .startswith("VIOLATES")  # body / rationale missing: AI Red's check would accept it
+    assert g.red_schema_check(ok.replace("CWE-89", "CWE-999")).startswith("VIOLATES")
+    assert g.red_schema_check("not json") == "NOT JSON"
