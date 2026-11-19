@@ -175,12 +175,13 @@ dashboard/              results viewer (not yet implemented)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/replays/<replay_id>/  Blue replays incl. replay.json (git-ignored, D17)
-data/library/           rule library versions + retention/<match_id>/ evidence (git-ignored except the empty v0000)
+data/library/           rule library versions v0000.. + retention/<match_id>/ evidence (ALL committed: raw evidence is never deleted)
 data/golden/scripted-baseline-match/  committed scripted baseline run, Stage 4 (see its README)
 data/golden/scripted-baseline-benign-match/  scripted baseline run with benign traffic, Stage 5.2
 data/golden/claude-blue-haiku-first-match/  first AI Blue run (Haiku 5.5, Stage 5.4 Gate 2 run 1; see its README)
 data/golden/ai-red-luna-gate2-match{1,2,3}/  first audited AI-Red batch (5.6 Gate 2; held-out candidate set)
 data/golden/ai-vs-ai-gate3-match{1,2,3}/  first AI-vs-AI matches, audited (5.7 Gate 3; four facts PASS; never rewritten)
+data/golden/train-6.1b-gate1-match{1..5}/  Stage 6.1b Gate 1 TRAIN matches (purpose train; audits in data/audits/; fed library v1-v5)
 data/audits/<match_id>.jsonl  D16 designer label audits for dev matches (git-ignored)
 data/golden/audits/     D16 label audits of committed golden matches (committed)
 data/golden/replays/gate-5.5/  Stage 5.5 gate evidence: 12 real-call Blue replays + README (never rewritten)
@@ -242,6 +243,7 @@ tests/test_promote_rules.py promotion end to end + every refusal (D26, D27, D30)
 tests/test_train_test_wall.py  writer unreachable from match/replay code; leak test over every library file
 tests/test_holdout_set.py   offline benign drafts, mocked capture + seal, drift check
 tests/test_stage6_1_gates_offline.py  gate tool refusals, prediction, Gates 1-2 on the fake provider
+tests/test_gate_6_1b_gate1_evidence.py  committed Gate 1 train matches, audits, library v0000-v0005 + retention; v5 sha = progress.md
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 

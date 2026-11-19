@@ -1,0 +1,141 @@
+{
+  "schema_version": "0.1",
+  "library_version": 1,
+  "parent": {
+    "path": "data/library/rule_library_v0000.json",
+    "sha256": "152ca18cbd459b48d3c8bfb5a5d1e5ae28bc28e2a62e19306dd42f3f15e4a956",
+    "library_version": 0
+  },
+  "created_at": "2026-11-19T01:10:49.297Z",
+  "judge_version": "0.7.0",
+  "normalization_version": "2",
+  "mutator_version": "1",
+  "retention_version": "1",
+  "fixtures": [
+    {
+      "path": "benign/fixture_v1.jsonl",
+      "sha256": "8eb21189343a79afefee6ad628c353166d4c91a76f0faaecb77d779de60f5f54"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ],
+  "promoted_matches": [
+    "20261119T005133Z-0b84"
+  ],
+  "entries": [
+    {
+      "library_id": "lib-0001",
+      "canonical_sha256": "10ea1de6f13f88f6684f160d05755c65a591d7759184fc8abcee50f2eb4b1428",
+      "rule": {
+        "rule_id": "r-001",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "' OR '1'='1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "99bfaf6e-b8f8-4fa4-8133-e9a5123cdac1",
+        "created_at_log_seq": 1,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-001"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 1
+      }
+    },
+    {
+      "library_id": "lib-0002",
+      "canonical_sha256": "321b98ff65fb2d6eb63addf272bb240061d76f672f36798fbb04eb64fa3f5601",
+      "rule": {
+        "rule_id": "r-002",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\)+\\s*OR\\s+1\\s*=\\s*1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "58cfc6ac-a061-4ed0-a1fc-60dbdb70f1cd",
+        "created_at_log_seq": 13,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-002"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 2
+      }
+    },
+    {
+      "library_id": "lib-0003",
+      "canonical_sha256": "d9042beafd6069f6c8b86a83344ad8c684f4ab6660be4a53a72292f2bd567ea3",
+      "rule": {
+        "rule_id": "r-003",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "UNION SELECT",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "e7c5ee1f-1136-4fcd-8f3c-d4e526e392ef",
+        "created_at_log_seq": 21,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-003"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 3
+      }
+    },
+    {
+      "library_id": "lib-0004",
+      "canonical_sha256": "12c5dfc3e8f50844ab478ec4c57777bf62a1eb277cce27bdcb95d71e2a4be119",
+      "rule": {
+        "rule_id": "r-004",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\)\\)?\\s*OR\\s+1=1|'\\)\\)?\\s*OR\\s+1=2",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "3c1e348e-677a-4167-afab-f8dab7b102bc",
+        "created_at_log_seq": 25,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-004"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 4
+      }
+    }
+  ]
+}

@@ -1,0 +1,532 @@
+{
+  "schema_version": "0.1",
+  "library_version": 4,
+  "parent": {
+    "path": "data/library/rule_library_v0003.json",
+    "sha256": "93ca897c033ad84938c0ca5963e33ff61a9606ca7d88e22c2c2672253fc2d671",
+    "library_version": 3
+  },
+  "created_at": "2026-11-19T01:10:49.435Z",
+  "judge_version": "0.7.0",
+  "normalization_version": "2",
+  "mutator_version": "1",
+  "retention_version": "1",
+  "fixtures": [
+    {
+      "path": "benign/fixture_v1.jsonl",
+      "sha256": "8eb21189343a79afefee6ad628c353166d4c91a76f0faaecb77d779de60f5f54"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ],
+  "promoted_matches": [
+    "20261119T005133Z-0b84",
+    "20261119T005410Z-4ed0",
+    "20261119T005624Z-dc00",
+    "20261119T005846Z-37ca"
+  ],
+  "entries": [
+    {
+      "library_id": "lib-0001",
+      "canonical_sha256": "10ea1de6f13f88f6684f160d05755c65a591d7759184fc8abcee50f2eb4b1428",
+      "rule": {
+        "rule_id": "r-001",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "' OR '1'='1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "99bfaf6e-b8f8-4fa4-8133-e9a5123cdac1",
+        "created_at_log_seq": 1,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-001"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 1
+      }
+    },
+    {
+      "library_id": "lib-0002",
+      "canonical_sha256": "321b98ff65fb2d6eb63addf272bb240061d76f672f36798fbb04eb64fa3f5601",
+      "rule": {
+        "rule_id": "r-002",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\)+\\s*OR\\s+1\\s*=\\s*1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "58cfc6ac-a061-4ed0-a1fc-60dbdb70f1cd",
+        "created_at_log_seq": 13,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-002"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 2
+      }
+    },
+    {
+      "library_id": "lib-0003",
+      "canonical_sha256": "d9042beafd6069f6c8b86a83344ad8c684f4ab6660be4a53a72292f2bd567ea3",
+      "rule": {
+        "rule_id": "r-003",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "UNION SELECT",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "e7c5ee1f-1136-4fcd-8f3c-d4e526e392ef",
+        "created_at_log_seq": 21,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-003"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 3
+      }
+    },
+    {
+      "library_id": "lib-0004",
+      "canonical_sha256": "12c5dfc3e8f50844ab478ec4c57777bf62a1eb277cce27bdcb95d71e2a4be119",
+      "rule": {
+        "rule_id": "r-004",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\)\\)?\\s*OR\\s+1=1|'\\)\\)?\\s*OR\\s+1=2",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "3c1e348e-677a-4167-afab-f8dab7b102bc",
+        "created_at_log_seq": 25,
+        "created_match": "20261119T005133Z-0b84"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005133Z-0b84",
+        "rule_id": "r-004"
+      },
+      "promoted_in_version": 1,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005133Z-0b84/retention.jsonl",
+        "line": 4
+      }
+    },
+    {
+      "library_id": "lib-0005",
+      "canonical_sha256": "2122e4bd3466c83c67bc3312f6718b1e294e280b42815480dc15af6a905226be",
+      "rule": {
+        "rule_id": "r-001",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "body",
+            "op": "regex",
+            "pattern": "(?i)'\\s*or\\s*'?1'?\\s*=\\s*'?1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "7b7a58f0-2c09-41f5-b550-bb6ef9eaecbf",
+        "created_at_log_seq": 1,
+        "created_match": "20261119T005410Z-4ed0"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005410Z-4ed0",
+        "rule_id": "r-001"
+      },
+      "promoted_in_version": 2,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005410Z-4ed0/retention.jsonl",
+        "line": 1
+      }
+    },
+    {
+      "library_id": "lib-0006",
+      "canonical_sha256": "9a7b4cda8886e3670aee532546c2dfb171d1f3eef9bb2c555e0bba2824e69b0b",
+      "rule": {
+        "rule_id": "r-002",
+        "cwe": "CWE-79",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "<script",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "140a35b4-3d06-45c9-8e35-97f09235e4bc",
+        "created_at_log_seq": 9,
+        "created_match": "20261119T005410Z-4ed0"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005410Z-4ed0",
+        "rule_id": "r-002"
+      },
+      "promoted_in_version": 2,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005410Z-4ed0/retention.jsonl",
+        "line": 2
+      }
+    },
+    {
+      "library_id": "lib-0007",
+      "canonical_sha256": "de4630c590638ed2dda8ff241180fa2b32404a2979497f8d0ed16b63f5a2496c",
+      "rule": {
+        "rule_id": "r-003",
+        "cwe": "CWE-79",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "onerror",
+            "case_insensitive": true
+          },
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "<img[^>]*onerror",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "defea90c-e185-4369-90dc-0e794232e9f5",
+        "created_at_log_seq": 10,
+        "created_match": "20261119T005410Z-4ed0"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005410Z-4ed0",
+        "rule_id": "r-003"
+      },
+      "promoted_in_version": 2,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005410Z-4ed0/retention.jsonl",
+        "line": 3
+      }
+    },
+    {
+      "library_id": "lib-0008",
+      "canonical_sha256": "16a56a1535fa2371901506762050105908bc432b459b2eded7b8073d7f2ab834",
+      "rule": {
+        "rule_id": "r-001",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\s*OR\\s*'1'\\s*=\\s*'1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "e460edbb-d3eb-4a30-a8b1-04e6506caa60",
+        "created_at_log_seq": 2,
+        "created_match": "20261119T005624Z-dc00"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005624Z-dc00",
+        "rule_id": "r-001"
+      },
+      "promoted_in_version": 3,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005624Z-dc00/retention.jsonl",
+        "line": 1
+      }
+    },
+    {
+      "library_id": "lib-0009",
+      "canonical_sha256": "4a66ed69ed7b77e56b728dd1b2924b0d8212cff8f7b472f5b8ab3d03abe8b6ca",
+      "rule": {
+        "rule_id": "r-002",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\s*OR\\s+1\\s*=\\s*1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "50400103-02c5-44d7-b6bb-4e02be56fcb2",
+        "created_at_log_seq": 3,
+        "created_match": "20261119T005624Z-dc00"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005624Z-dc00",
+        "rule_id": "r-002"
+      },
+      "promoted_in_version": 3,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005624Z-dc00/retention.jsonl",
+        "line": 2
+      }
+    },
+    {
+      "library_id": "lib-0010",
+      "canonical_sha256": "a15b0d7f7ad8362190203a8e8131408e79802e9882912f8b2d23d5c116e7b932",
+      "rule": {
+        "rule_id": "r-003",
+        "cwe": "CWE-79",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "onerror",
+            "case_insensitive": true
+          },
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "<[a-z]+[^>]*\\bon[a-z]+\\s*=",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "f21d152b-54d1-4fdc-b1b9-3de2701a8729",
+        "created_at_log_seq": 15,
+        "created_match": "20261119T005624Z-dc00"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005624Z-dc00",
+        "rule_id": "r-003"
+      },
+      "promoted_in_version": 3,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005624Z-dc00/retention.jsonl",
+        "line": 3
+      }
+    },
+    {
+      "library_id": "lib-0011",
+      "canonical_sha256": "e375d9ea2ee759f0c1864a0e28c389f7d2d2b249f4ad4a7e32b7ffab86fbe521",
+      "rule": {
+        "rule_id": "r-004",
+        "cwe": "CWE-79",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "<svg",
+            "case_insensitive": true
+          },
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "onload\\s*=",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "815a1d80-a64e-4467-b9c9-a2f7bf94a546",
+        "created_at_log_seq": 21,
+        "created_match": "20261119T005624Z-dc00"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005624Z-dc00",
+        "rule_id": "r-004"
+      },
+      "promoted_in_version": 3,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005624Z-dc00/retention.jsonl",
+        "line": 4
+      }
+    },
+    {
+      "library_id": "lib-0012",
+      "canonical_sha256": "8ec0b59b2c8d155fb611dce037454d61190fbe61e85ffe8d0e3e1e2c57c5ccbd",
+      "rule": {
+        "rule_id": "r-005",
+        "cwe": "CWE-22",
+        "conditions": [
+          {
+            "field": "path",
+            "op": "contains",
+            "pattern": "../",
+            "case_insensitive": false
+          }
+        ],
+        "source_request_id": "ac88e2c4-1040-4032-a107-3fe4451f8c4b",
+        "created_at_log_seq": 24,
+        "created_match": "20261119T005624Z-dc00"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005624Z-dc00",
+        "rule_id": "r-005"
+      },
+      "promoted_in_version": 3,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005624Z-dc00/retention.jsonl",
+        "line": 5
+      }
+    },
+    {
+      "library_id": "lib-0013",
+      "canonical_sha256": "1c24314064528083765d16516c230ec1ecf736916401dabfbfe5f199690721a5",
+      "rule": {
+        "rule_id": "r-002",
+        "cwe": "CWE-22",
+        "conditions": [
+          {
+            "field": "path",
+            "op": "regex",
+            "pattern": "\\.\\.(/|\\\\|%2f|%5c)",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "c0a7f4f4-f9df-4ce8-abe6-62a6851785cf",
+        "created_at_log_seq": 4,
+        "created_match": "20261119T005846Z-37ca"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005846Z-37ca",
+        "rule_id": "r-002"
+      },
+      "promoted_in_version": 4,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005846Z-37ca/retention.jsonl",
+        "line": 2
+      }
+    },
+    {
+      "library_id": "lib-0014",
+      "canonical_sha256": "8caa6bd2daf39c78da6f4a023fb9ad51466a7ca2f2cee1fe08c6aada2ed2ded6",
+      "rule": {
+        "rule_id": "r-003",
+        "cwe": "CWE-79",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "<\\s*svg[^>]*onload\\s*=",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "1134294c-84e9-4a56-9166-acf2209332ed",
+        "created_at_log_seq": 6,
+        "created_match": "20261119T005846Z-37ca"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005846Z-37ca",
+        "rule_id": "r-003"
+      },
+      "promoted_in_version": 4,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005846Z-37ca/retention.jsonl",
+        "line": 3
+      }
+    },
+    {
+      "library_id": "lib-0015",
+      "canonical_sha256": "d76dfae6e04baa33a7ca2ac418bcd481616cf5885449eb0b6ae995e3fd961da5",
+      "rule": {
+        "rule_id": "r-005",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "'\\)*\\s*or\\s+1\\s*=\\s*1",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "5feb6189-01bc-4da9-915c-810136ce10dd",
+        "created_at_log_seq": 13,
+        "created_match": "20261119T005846Z-37ca"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005846Z-37ca",
+        "rule_id": "r-005"
+      },
+      "promoted_in_version": 4,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005846Z-37ca/retention.jsonl",
+        "line": 5
+      }
+    },
+    {
+      "library_id": "lib-0016",
+      "canonical_sha256": "8a0d9122ce06b8c00ea39b5633c04c443c11d2797354e3c19b8918b12bd0a89c",
+      "rule": {
+        "rule_id": "r-007",
+        "cwe": "CWE-89",
+        "conditions": [
+          {
+            "field": "body",
+            "op": "contains",
+            "pattern": "' OR 1=1--",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "8622b231-3d30-4baa-996f-8bc7ab6bdf55",
+        "created_at_log_seq": 23,
+        "created_match": "20261119T005846Z-37ca"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005846Z-37ca",
+        "rule_id": "r-007"
+      },
+      "promoted_in_version": 4,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005846Z-37ca/retention.jsonl",
+        "line": 7
+      }
+    },
+    {
+      "library_id": "lib-0017",
+      "canonical_sha256": "ef2e0b158b82bb75091d115c1c6d4170cd078b1ef04f99d5111ccb795a66b335",
+      "rule": {
+        "rule_id": "r-008",
+        "cwe": "CWE-79",
+        "conditions": [
+          {
+            "field": "query",
+            "op": "contains",
+            "pattern": "onerror",
+            "case_insensitive": true
+          },
+          {
+            "field": "query",
+            "op": "regex",
+            "pattern": "<\\s*img[^>]*on[a-z]+\\s*=",
+            "case_insensitive": true
+          }
+        ],
+        "source_request_id": "22c06d29-3256-43f3-b5c9-8be7d25014e0",
+        "created_at_log_seq": 25,
+        "created_match": "20261119T005846Z-37ca"
+      },
+      "promoted_from": {
+        "match_id": "20261119T005846Z-37ca",
+        "rule_id": "r-008"
+      },
+      "promoted_in_version": 4,
+      "retention_ref": {
+        "path": "data/library/retention/20261119T005846Z-37ca/retention.jsonl",
+        "line": 8
+      }
+    }
+  ]
+}

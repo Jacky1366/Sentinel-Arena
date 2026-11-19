@@ -1,0 +1,69 @@
+{
+  "schema_version": "0.1",
+  "match_id": "20261119T005846Z-37ca",
+  "promoted_at": "2026-11-19T01:10:49.439Z",
+  "judge_version": "0.7.0",
+  "normalization_version": "2",
+  "mutator_version": "1",
+  "retention_version": "1",
+  "base_seed": 0,
+  "match": {
+    "path": "data/runs/20261119T005846Z-37ca",
+    "match_json_sha256": "7328b40e8fa211b96798d73fd6ef3b486f4579c7a3499dab24d337e50e4720b0",
+    "purpose": "train",
+    "git_commit": "a8d7969505edb32ef7e432d6e3a8c2c80f46f37b"
+  },
+  "audit": {
+    "path": "data/audits/20261119T005846Z-37ca.jsonl",
+    "sha256": "805da512c116f5e3d28e295c33c41f99a3771d213d4c067e8da6e7cc3d19d3ac"
+  },
+  "parent_library": {
+    "path": "data/library/rule_library_v0003.json",
+    "sha256": "93ca897c033ad84938c0ca5963e33ff61a9606ca7d88e22c2c2672253fc2d671",
+    "library_version": 3
+  },
+  "fixtures": [
+    {
+      "path": "benign/fixture_v1.jsonl",
+      "sha256": "8eb21189343a79afefee6ad628c353166d4c91a76f0faaecb77d779de60f5f54"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ],
+  "seal": [
+    {
+      "path": "benign/holdout_v1.jsonl",
+      "sha256": "5066801817c8f1940accc89dba1a3513f2d241f8441029340e80b5a45534945e"
+    },
+    {
+      "path": "benign/fixture_v2_offline.jsonl",
+      "sha256": "6f6f786d1bf110481b893ea5947f2f47a2327965338778927cbab19479ca4a2b"
+    }
+  ],
+  "outputs": {
+    "variants": {
+      "path": "data/library/retention/20261119T005846Z-37ca/variants.jsonl",
+      "sha256": "0f207049d0011f74c3ab436af01c11b95380e9f13e7ac74e41053a68016212b3"
+    },
+    "retention": {
+      "path": "data/library/retention/20261119T005846Z-37ca/retention.jsonl",
+      "sha256": "aa5b6ce72147de8a8be93e87b277157379650a4486fa538b031404d5acc686d5"
+    },
+    "library": {
+      "path": "data/library/rule_library_v0004.json",
+      "library_version": 4
+    }
+  },
+  "summary": {
+    "candidates": 8,
+    "retained": 5,
+    "rejected": 3,
+    "reasons": {
+      "duplicate_exact": 3
+    },
+    "variants": 69,
+    "counting_variants": 37
+  }
+}

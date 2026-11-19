@@ -352,8 +352,10 @@ Branch `stage6.1b-gates`.
     type, whatever the landing; every CWE-22 source has a real `..` traversal.
   - Files `data/audits/<match_id>.jsonl` (committed); sheet
     `docs/audits/stage6_1_gate1_20261119T005133Z-0b84.md`.
-- **Promotion, in ascending match order (zero tokens).** v0000 → v0005, 19 rules
-  (sha256 `324a1eceace9…`); 19 retained, 7 rejected:
+- **Promotion, in ascending match order (zero tokens).** v0000 → v0005, 19 rules; 19
+  retained, 7 rejected. Library v5 sha256:
+  `324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7` (checked against the
+  committed file by `tests/test_gate_6_1b_gate1_evidence.py`).
   - `4ed0` r-004 and `500b` r-004 (CWE-22, `path contains ".."`): `offline_fixture_hit`.
     They fire on `fixture_v2_offline` yh04 `/ftp/minutes..2026.md`, the over-broad
     traversal rule D31 was added to catch.
@@ -368,7 +370,6 @@ Branch `stage6.1b-gates`.
     match).
   - So the library arm is expected to save about 27 Blue AI calls versus the empty arm,
     with no new false positives on the fixture traffic.
-
 ```
 Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on the Gate 3 sources
   ai-vs-ai-gate3-match1: 9/26 lines answered by the library (9 attack, 0 benign)
