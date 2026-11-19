@@ -110,6 +110,13 @@ after the designer's GO.*
 - No new files. Tests in `tests/test_openai_adapter.py`, `tests/test_llm_client.py`,
   `tests/test_go_token.py`, `tests/test_key_hygiene.py` and `tests/test_stage6_3_offline.py`.
 
+## Addendum (2026-11-19): D40 evasion arm (final experiment, scope freeze)
+
+- Red prompt v2 = v1 + the pre-registered directive (`red/ai_red.py` `RED_PROMPTS`), a
+  per-agent `timeout_s`, and `run_match.py --red-prompt-version / --red-timeout-s`.
+- Gate B-evasion with stop-on-refusal.
+- No new files. Tests in `tests/test_stage6_3_offline.py` and `tests/test_go_token.py`.
+
 ## New files
 
 - `docs/plans/stage6_3_step0.md`

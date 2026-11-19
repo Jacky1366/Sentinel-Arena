@@ -37,6 +37,7 @@ PAID = [  # (tool module, argv, gate id)
                                                         / "train-6.1b-gate1-match1"),
                         "--real-calls"], "gate-6.3-C"),
     ("stage6_3_check", ["--gate", "B-deepseek", "--real-calls"], "gate-6.3-B-deepseek"),
+    ("stage6_3_check", ["--gate", "B-evasion", "--real-calls"], "gate-6.3-B-evasion"),
 ]
 
 

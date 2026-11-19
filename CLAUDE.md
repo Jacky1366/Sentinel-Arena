@@ -127,7 +127,7 @@ runner/schedule.py      seeded interleaving; preserves Red order AND benign orde
 runner/go_token.py      the GO token: gate tools need ARENA_GO=<gate id>; any real AI client a well-formed token (6.1b)
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
 red/scripted_red.py     write labeled record, then fire one attack (one step at a time); write_and_send shared with AI Red
-red/ai_red.py           AI Red (5.6): fixed prompt (RED_PROMPT_VERSION), one proposal per slot, reply validation (OpenAI)
+red/ai_red.py           AI Red (5.6): versioned prompts (v1; v2 = v1 + the D40 evasion directive), one proposal per slot, reply validation
 red/red_guard.py        rules of engagement (D15): scope/method/encoding/above-root/label/size guards, run by the body
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)

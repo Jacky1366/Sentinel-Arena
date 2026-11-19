@@ -203,6 +203,10 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
         cs = a.get("chunk_size")
         if cs is not None and (isinstance(cs, bool) or not isinstance(cs, int) or cs < 1):
             raise ConfigError(f"agents.{agent}.chunk_size must be a positive integer")
+        ts = a.get("timeout_s")
+        if ts is not None and (isinstance(ts, bool) or not isinstance(ts, (int, float))
+                               or ts <= 0):
+            raise ConfigError(f"agents.{agent}.timeout_s must be a positive number")
         rc = a.get("round_cap")
         if rc is not None and (isinstance(rc, bool) or not isinstance(rc, int) or rc < 1):
             raise ConfigError(f"agents.{agent}.round_cap must be a positive integer")
@@ -247,6 +251,23 @@ def load_config(path: Path = CONFIG_PATH) -> dict:
 
 def agent_max_output_tokens(cfg: dict, agent: str) -> int:
     return cfg["agents"][agent].get("max_output_tokens") or cfg["max_output_tokens"]
+
+
+def agent_timeout(cfg: dict, agent: str) -> float:
+    """The agent's client timeout in seconds: agents.<agent>.timeout_s, else the global."""
+    return cfg["agents"][agent].get("timeout_s") or cfg["timeout_s"]
+
+
+def with_timeout(cfg: dict, agent: str, seconds: float | None) -> dict:
+    """A copy of cfg with agents.<agent>.timeout_s set (None: unchanged). Used for
+    --red-timeout-s (Stage 6.3 evasion arm: DeepSeek at effort max can exceed 60 s)."""
+    if seconds is None:
+        return cfg
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or seconds <= 0:
+        raise ConfigError(f"timeout_s must be a positive number, not {seconds!r}")
+    out = json.loads(json.dumps(cfg))
+    out["agents"][agent]["timeout_s"] = seconds
+    return out
 
 
 def agent_request(cfg: dict, agent: str) -> dict:
@@ -891,7 +912,7 @@ class LLMClient:
             try:
                 reply = adapter.call(model=model, system=system, messages=messages,
                                      max_output_tokens=max_out,
-                                     timeout=self.cfg["timeout_s"], api_key=key,
+                                     timeout=agent_timeout(self.cfg, agent), api_key=key,
                                      request=request, output_schema=output_schema,
                                      cache=cache, cache_turns=cache_turns)
             except GoTokenError:

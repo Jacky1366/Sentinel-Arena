@@ -481,6 +481,13 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
       `data/golden/audits/`, the sheet
       `docs/audits/stage6_3_gateB_deepseek_20261119T071647Z-3ffc.md`.
     - The designer's audit is pending; the hard stop is Nov 21 evening.
+- **D40 evasion arm (designer Nov 19; the final experiment, then scope freeze).** Built on
+  the fake provider.
+  - Red prompt v2 = v1 + the pre-registered evasion directive (sha256 `a826b6f4…`, v1
+    unchanged): `run_match.py --red-prompt-version`.
+  - Red-only client timeout 180 s: `--red-timeout-s`, recorded in `red_params.request.timeout_s`.
+  - Gate B-evasion: `tools/stage6_3_check.py --gate B-evasion`, token `gate-6.3-B-evasion`,
+    seeds 6321–6323. It stops after a match in which Red's calls were refused.
 - **Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5): built on the fake provider.**
   - Red turn caching: 5-minute breakpoint on the latest user turn.
   - Refusals surface `stop_details`.

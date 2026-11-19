@@ -958,6 +958,11 @@
                     "string",
                     "null"
                   ]
+                },
+                "timeout_s": {
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "description": "The Red client timeout in seconds (Stage 6.3, D40; additive in 0.8). Absent in earlier manifests."
                 }
               }
             },

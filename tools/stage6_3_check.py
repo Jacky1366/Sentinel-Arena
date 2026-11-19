@@ -62,6 +62,11 @@ SONNET_THINKING = "between_tools"
 # Gate B with a DeepSeek Red, an additional treatment arm; new seeds.
 DEEPSEEK_ARM = {"model": "deepseek-v4-pro", "provider": "deepseek", "effort": "max",
                 "seeds": (6311, 6312, 6313), "sheet": "stage6_3_gateB_deepseek"}
+# Gate B-evasion (D40, the final experiment): Gate B-deepseek + ONE variable, the
+# pre-registered evasion directive (Red prompt v2); Red client timeout 180 s. A refusal
+# of the directive stops the gate after that match (never retried or reworded).
+EVASION_ARM = {**DEEPSEEK_ARM, "seeds": (6321, 6322, 6323), "sheet": "stage6_3_gateB_evasion",
+               "prompt_version": "2", "timeout_s": 180, "stop_on_refusal": True}
 # Gate A Red candidates the designer named (Nov 18), probed one at a time, conditionally:
 # model -> (provider, effort). Anthropic Red is a SAME-FAMILY arm with the Anthropic Blue
 # (reported separately, never pooled with cross-family results).
@@ -287,6 +292,20 @@ def library_ok(path: Path = LIB_V5) -> list[str]:
     return [] if actual == LIB_V5_SHA else [f"{path}: sha256 {actual} != recorded v5 {LIB_V5_SHA}"]
 
 
+def red_refusals(match_dir: Path) -> list[str]:
+    """Red calls a provider declined: stop_reason refusal, or a 400 rejection (a
+    pre-generation safety block looks like a bad request)."""
+    out = []
+    for c in jl(Path(match_dir) / lc.API_CALLS):
+        if c["agent"] != "red":
+            continue
+        if c.get("stop_reason") == "refusal":
+            out.append(f"round {c['round']}: stop_reason refusal")
+        elif c.get("error_type") == "bad_request":
+            out.append(f"round {c['round']}: HTTP {c.get('http_status')} bad_request")
+    return out
+
+
 def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = None,
            test_set: Path = TEST_SET, library: Path = LIB_V5, arm: dict | None = None,
            **run_kw) -> int:
@@ -302,6 +321,8 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
               f"library v5 read-only)")
         code, d = run_match.run_match(seed=seed, red_engine="ai", red_model=arm["model"],
                                       red_effort=arm["effort"], red_provider=arm["provider"],
+                                      red_prompt_version=arm.get("prompt_version"),
+                                      red_timeout_s=arm.get("timeout_s"),
                                       red_max_output_tokens=RED_MAX_OUTPUT,
                                       red_caching="on", engine="claude",
                                       blue_model=BLUE_LIVE, blue_rules_mode="on",
@@ -313,6 +334,12 @@ def gate_b(prices: dict, sheet_dir: Path | None = None, audits: Path | None = No
             continue
         ok &= code in (0, 4)
         dirs.append(d)
+        refused = red_refusals(d) if arm.get("stop_on_refusal") else []
+        if refused:
+            print(f"  STOP: Red refused the directive in {d.name} (recorded, never retried "
+                  f"or reworded): {refused}")
+            ok = False
+            break
     ids = [json.loads((d / "match.json").read_text())["match_id"] for d in dirs]
     if ids:
         register_test_ids(ids, test_set)
@@ -397,7 +424,7 @@ def gate_c(prices: dict, match_dirs: list[Path], root: Path | None = None, ops=N
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--gate", choices=("A", "B", "C", "B-deepseek"), required=True)
+    ap.add_argument("--gate", choices=("A", "B", "C", "B-deepseek", "B-evasion"), required=True)
     ap.add_argument("--estimate", action="store_true", help="Gate A: zero-token cost estimate")
     ap.add_argument("--probe", action="store_true", help="Gate A: 2 real calls (token gate-6.3-A)")
     ap.add_argument("--probe-red", choices=sorted(PROBE_CANDIDATES), default=None,
@@ -433,7 +460,11 @@ def main(argv: list[str] | None = None) -> int:
             "C": f"{2 * len(args.matches or [])} replays: {BLUE_STRONG} + v5, {BLUE_LIVE} + v0000",
             "B-deepseek": f"{len(DEEPSEEK_ARM['seeds'])} eval matches, Red "
                           f"{DEEPSEEK_ARM['model']} effort {DEEPSEEK_ARM['effort']} vs Blue "
-                          f"{BLUE_LIVE} + library v5 (read-only), seeds {DEEPSEEK_ARM['seeds']}"}
+                          f"{BLUE_LIVE} + library v5 (read-only), seeds {DEEPSEEK_ARM['seeds']}",
+            "B-evasion": f"{len(EVASION_ARM['seeds'])} eval matches, Red "
+                         f"{EVASION_ARM['model']} effort {EVASION_ARM['effort']} prompt v2 "
+                         f"(evasion directive, D40), timeout {EVASION_ARM['timeout_s']} s vs Blue "
+                         f"{BLUE_LIVE} + library v5 (read-only), seeds {EVASION_ARM['seeds']}"}
     print(f"Stage 6.3 Gate {args.gate}: {plan[args.gate]}")
     if not args.real_calls:
         print("REFUSED: pass --real-calls (designer GO only). Nothing was called.")
@@ -445,9 +476,10 @@ def main(argv: list[str] | None = None) -> int:
     a_models = tuple(m for m in (probe_red, BLUE_STRONG if probe_blue else None) if m)
     problems = price_problems(prices, a_models if args.gate == "A" else
                               (RED_MODEL, BLUE_LIVE) if args.gate == "B" else
-                              (DEEPSEEK_ARM["model"], BLUE_LIVE) if args.gate == "B-deepseek"
+                              (DEEPSEEK_ARM["model"], BLUE_LIVE)
+                              if args.gate in ("B-deepseek", "B-evasion")
                               else (BLUE_STRONG, BLUE_LIVE))
-    if args.gate in ("B", "C", "B-deepseek"):
+    if args.gate in ("B", "C", "B-deepseek", "B-evasion"):
         problems += library_ok()
     if args.gate == "C":
         problems += check_sources(args.matches)
@@ -461,6 +493,8 @@ def main(argv: list[str] | None = None) -> int:
         return probe(red_model=probe_red, blue=probe_blue, red_effort=args.probe_effort)
     if args.gate == "B-deepseek":
         return gate_b(prices, arm=DEEPSEEK_ARM)
+    if args.gate == "B-evasion":
+        return gate_b(prices, arm=EVASION_ARM)
     return gate_b(prices) if args.gate == "B" else gate_c(prices, args.matches)
 
 
