@@ -16,8 +16,9 @@ from collections.abc import Mapping
 
 ENV = "ARENA_GO"
 # The single exit (agents/llm_client.py) accepts any well-formed token: a gate id or a
-# manual run named by a short description, e.g. manual-red-model-probe.
-TOKEN_RE = re.compile(r"^(gate-[a-z0-9][a-z0-9.-]{0,40}|manual-[a-z0-9][a-z0-9-]{2,60})$")
+# manual run named by a short description, e.g. manual-red-model-probe. Gate ids may carry
+# an upper-case letter (gate-6.3-A); every gate id in tests/test_go_token.py must pass.
+TOKEN_RE = re.compile(r"^(gate-[A-Za-z0-9][A-Za-z0-9.-]{0,40}|manual-[a-z0-9][a-z0-9-]{2,60})$")
 
 
 def valid(value: str | None) -> bool:

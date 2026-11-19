@@ -51,6 +51,14 @@ def nothing_may_run(monkeypatch):
         monkeypatch.setattr(obj, name, _boom)
 
 
+def test_every_gate_id_is_well_formed_for_the_single_exit():
+    # a gate id the tool accepts but llm_client.require_go rejects would refuse the GO'd
+    # run at the exit (Stage 6.3 Gate A: gate-6.3-A once failed the lower-case pattern)
+    for _, _, gate in PAID:
+        assert go_token.valid(gate), gate
+        lc.require_go({go_token.ENV: gate})
+
+
 def test_tests_never_carry_the_token():
     assert go_token.ENV not in os.environ
     name = "ARENA" + "_GO"  # built, so this file does not match its own pattern
