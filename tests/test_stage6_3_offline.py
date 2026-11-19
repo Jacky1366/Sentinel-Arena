@@ -255,8 +255,9 @@ def test_probe_one_red_candidate_only(tmp_path, capsys, model):
                    red_model=model, blue=False) == 0
     assert len(oa.calls) == 1 and an.calls == [] and not (tmp_path / "p" / "blue").exists()
     assert oa.calls[0]["model"] == model
-    assert oa.calls[0]["request"]["effort"] == g.PROBE_CANDIDATES[model]
-    assert f"effort {g.PROBE_CANDIDATES[model]}" in capsys.readouterr().out
+    assert oa.calls[0]["request"]["effort"] == g.PROBE_CANDIDATES[model][1]
+    assert oa.calls[0]["max_output_tokens"] == g.PROBE_RED_MAX_OUTPUT
+    assert f"effort {g.PROBE_CANDIDATES[model][1]}" in capsys.readouterr().out
 
 
 def test_probe_blue_only_sends_between_tools(tmp_path, capsys):
@@ -289,3 +290,31 @@ def test_probe_prints_a_safety_refusal_and_never_retries(tmp_path, capsys):
 def test_probe_cli_accepts_only_the_named_candidates():
     with pytest.raises(SystemExit):
         g.main(["--gate", "A", "--probe", "--probe-red", "gpt-6.2-astra"])
+
+
+def test_anthropic_red_candidate_needs_a_verified_price():
+    prices = cost_stats.load_prices()
+    assert any("claude-opus-5-5" in p for p in g.price_problems(prices, ("claude-opus-5-5",)))
+
+
+@pytest.mark.parametrize("model", ["claude-opus-5-5", "claude-sonnet-5-5"])
+def test_probe_anthropic_red_candidate(tmp_path, capsys, model):
+    from llm_fakes import FakeAdapter
+    from test_run_match_ai_vs_ai import RED_REPLY
+    prices = json.loads(json.dumps(cost_stats.load_prices()))
+    prices["models"][model]["verified"] = True  # stands in for the designer's check
+    oa, an = FakeAdapter(provider="openai"), FakeAdapter(provider="anthropic", text=RED_REPLY)
+    fac = lambda cfg: lc.LLMClient(config=cfg, prices=prices,  # noqa: E731
+                                   adapters={"openai": oa, "anthropic": an}, env={},
+                                   sleep=lambda s: None,
+                                   dotenv_path=REPO / "nonexistent" / "no.env")
+    assert g.probe(out_root=tmp_path / "p", client_factory=fac, red_model=model,
+                   blue=False) == 0
+    assert oa.calls == [] and len(an.calls) == 1
+    kw = an.calls[0]
+    assert kw["model"] == model and kw["max_output_tokens"] == g.PROBE_RED_MAX_OUTPUT
+    assert kw["request"] == {"thinking": None, "effort": "medium"}
+    assert kw["cache"] is True and kw["cache_turns"] is True
+    rec = json.loads((tmp_path / "p" / "red" / lc.API_CALLS).read_text().splitlines()[0])
+    assert rec["provider"] == "anthropic" and rec["agent"] == "red"
+    assert "Red proposal: attack" in capsys.readouterr().out

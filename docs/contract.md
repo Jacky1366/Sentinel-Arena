@@ -1388,6 +1388,20 @@ request bytes are exactly those of Stages 5.4 / 5.6 (tested byte for byte).
   not cached. TTL **30 minutes**, set on the request, never on a breakpoint; a 12-hour
   write is never requested, and if one is ever reported or requested it is
   `unpriced_cache_write_tokens` (§6.3) and stops the match.
+- **Red (Anthropic; Stage 6.3 candidate).** Red is multi-turn, so the client asks the
+  adapter for turn caching (`cache_turns`, Red only; Blue keeps the single system
+  breakpoint above, byte for byte). With caching on: the system block carries the 5-minute
+  breakpoint, **every** user turn is sent as one text block, and only the **latest** user
+  turn carries `cache_control: {type: ephemeral, ttl: "5m"}` (2 markers per request; the
+  API allows 4). Request N+1 extends request N byte for byte apart from the moving marker
+  (moving a marker is not an edit), so N's breakpoint is read through the lookback window
+  and the new one writes the previous reply plus the new turn at the 5-minute write price.
+  TTL **5 minutes**: Red's calls run seconds apart. Earlier thinking blocks are never sent
+  back (Red keeps only its JSON reply), which the history check allows. `thinking` is
+  omitted (adaptive; Opus 5.5 and Sonnet 5.5 reject `disabled`), so thinking tokens count
+  toward `max_output_tokens`. A safety refusal is HTTP 200 with `stop_reason: refusal`: a
+  failed Red turn (`brain_failure`, reason `refusal`). Its `stop_details` is shown by the
+  probe and never stored.
 - **Cost.** `stats/cost.py` prices reads at `cached_input` and writes at `cache_write`;
   `cache_savings_usd` is net of the write premium and may be negative. The terminal summary
   prints one line per agent: cost, calls, cache read / write tokens, net savings and the

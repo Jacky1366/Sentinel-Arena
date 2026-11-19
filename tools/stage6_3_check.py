@@ -53,9 +53,16 @@ TEST_SET = REPO / "config" / "test_set.json"
 PROFILE = [REPO / "data" / "golden" / f"train-6.1b-gate1-match{i}" for i in range(1, 6)]
 PROBE_LOG = REPO / "data" / "golden" / "scripted-baseline-benign-match" / "proxy.jsonl"
 SONNET_THINKING = "between_tools"
-# Gate A Red candidates the designer named (Nov 18), probed one at a time, conditionally.
-PROBE_CANDIDATES = {"gpt-6.1-sol": "medium", "gpt-6.1-terra": "medium",
-                    "gpt-5.6-sol": "medium", "gpt-6-luna": "high"}
+# Gate A Red candidates the designer named (Nov 18), probed one at a time, conditionally:
+# model -> (provider, effort). Anthropic Red is a SAME-FAMILY arm with the Anthropic Blue
+# (reported separately, never pooled with cross-family results).
+PROBE_CANDIDATES = {"gpt-6.1-sol": ("openai", "medium"), "gpt-6.1-terra": ("openai", "medium"),
+                    "gpt-5.6-sol": ("openai", "medium"), "gpt-6-luna": ("openai", "high"),
+                    "claude-opus-5-5": ("anthropic", "medium"),
+                    "claude-sonnet-5-5": ("anthropic", "medium")}
+# Probe-only output budget: room to MEASURE reasoning / thinking use (the Gate B budget is
+# fixed afterwards by a D-entry).
+PROBE_RED_MAX_OUTPUT = 8192
 OUTPUT_MULTS = (1, 3)  # Sol at effort medium: reasoning tokens unknown until the probe
 
 
@@ -138,14 +145,19 @@ def print_estimate(e: dict) -> None:
 
 
 def gate_config(base: dict | None = None, model: str | None = None,
-                effort: str | None = None) -> dict:
+                effort: str | None = None, provider: str | None = None,
+                max_output_tokens: int | None = None) -> dict:
     """The D33 Red treatment over the config: Sol at effort medium, caching on (Gate 3).
-    model / effort override it for a Gate A candidate probe only."""
+    model / effort / provider / max_output_tokens override it for a Gate A probe only."""
     cfg = base if base is not None else lc.load_config()
     cfg = lc.with_caching(cfg, "red", "on")
     cfg = lc.with_effort(cfg, "red", effort or RED_EFFORT)
     cfg = json.loads(json.dumps(cfg))
     cfg["agents"]["red"]["model"] = model or RED_MODEL
+    if provider is not None:
+        cfg["agents"]["red"]["provider"] = provider
+    if max_output_tokens is not None:
+        cfg["agents"]["red"]["max_output_tokens"] = max_output_tokens
     return cfg
 
 
@@ -180,7 +192,10 @@ def probe(out_root: Path | None = None, client_factory=None,
             if not r.ok and r.error:
                 notes.append(f"error {agent}: {r.error}")
             elif r.ok and r.stop_reason == "refusal":
-                notes.append(f"refusal {agent}: {(r.text or '')[:500]}")
+                notes.append(f"refusal {agent}: {(r.text or '')[:500]} "
+                             f"details={getattr(r, 'stop_details', None)}")
+            if r.ok and r.raw_usage:
+                notes.append(f"raw usage {agent}: {json.dumps(r.raw_usage, sort_keys=True)}")
             return r
 
     def make(cfg):
@@ -189,8 +204,9 @@ def probe(out_root: Path | None = None, client_factory=None,
     root = out_root or REPO / "data" / "runs" / f"probe-6.3-{mid}"
     runs = []
     if red_model is not None:
-        effort = PROBE_CANDIDATES[red_model]
-        cfg = gate_config(model=red_model, effort=effort)
+        provider, effort = PROBE_CANDIDATES[red_model]
+        cfg = gate_config(model=red_model, effort=effort, provider=provider,
+                          max_output_tokens=PROBE_RED_MAX_OUTPUT)
         (root / "red").mkdir(parents=True)
         red = ai_red.AIRed(make(cfg), red_model, root / "red", mid, round_cap=1)
         p = red.propose(None, 1)
@@ -364,7 +380,7 @@ def main(argv: list[str] | None = None) -> int:
     probe_red = None if args.probe_half == "blue" else (args.probe_red or RED_MODEL)
     probe_blue = args.probe_half != "red"
     a_plan = " + ".join(
-        ([f"1 {probe_red} Red proposal at effort {PROBE_CANDIDATES[probe_red]} (dry run)"]
+        ([f"1 {probe_red} Red proposal at effort {PROBE_CANDIDATES[probe_red][1]} (dry run)"]
          if probe_red else []) +
         ([f"1 {BLUE_STRONG} Blue call (thinking {SONNET_THINKING})"] if probe_blue else []))
     plan = {"A": f"probe: {a_plan}",

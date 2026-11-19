@@ -313,6 +313,7 @@ class Reply:
     http_status: int | None = 200
     stop_reason: str | None = None      # provider's stop reason (e.g. end_turn, refusal)
     raw_usage: dict | None = None       # provider's usage object as reported (never stored)
+    stop_details: dict | None = None    # Anthropic refusal details (never stored)
 
 
 @dataclass(frozen=True)
@@ -326,6 +327,7 @@ class Result:
     refusal: dict | None = None         # {scope, reason} if the body refused
     stop_reason: str | None = None      # of the successful attempt
     raw_usage: dict | None = None       # of the successful attempt (Gate 1 evidence)
+    stop_details: dict | None = None    # of the successful attempt (Anthropic refusals)
 
 
 class Adapter(Protocol):
@@ -334,7 +336,8 @@ class Adapter(Protocol):
 
     def call(self, *, model: str, system: str, messages: list[dict],
              max_output_tokens: int, timeout: float, api_key: str | None,
-             request: dict, output_schema: dict | None, cache: bool = False) -> Reply: ...
+             request: dict, output_schema: dict | None, cache: bool = False,
+             cache_turns: bool = False) -> Reply: ...
 
 
 # Usage mappings. Common rule: input_tokens = full-price input only; the whole
@@ -421,6 +424,28 @@ def anthropic_system(system: str, cache: bool) -> str | list[dict]:
              "cache_control": {"type": "ephemeral", "ttl": CACHE_TTL["anthropic"]}}]
 
 
+def anthropic_messages(messages: list[dict], cache_turns: bool) -> list[dict]:
+    """Caching for a multi-turn agent (Red, Stage 6.3): every user turn becomes one text
+    block and the LATEST one carries a 5-minute breakpoint. Request N+1 is a byte-exact
+    extension of request N, so N's breakpoint is read through the lookback window and
+    the new breakpoint writes what follows it (the previous reply + the new turn). Earlier
+    turns keep the block form without a marker (moving a marker is not an edit). Off
+    (and Blue's one-line calls): the messages unchanged."""
+    if not cache_turns:
+        return messages
+    out = []
+    last = max((i for i, m in enumerate(messages) if m["role"] == "user"), default=-1)
+    for i, m in enumerate(messages):
+        if m["role"] != "user":
+            out.append(m)
+            continue
+        block = {"type": "text", "text": m["content"]}
+        if i == last:
+            block["cache_control"] = {"type": "ephemeral", "ttl": CACHE_TTL["anthropic"]}
+        out.append({"role": "user", "content": [block]})
+    return out
+
+
 class AnthropicAdapter:
     provider = "anthropic"
     needs_key = True
@@ -429,7 +454,7 @@ class AnthropicAdapter:
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema, cache=False):
+             request, output_schema, cache=False, cache_turns=False):
         if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
             raise ConfigError("no API key passed")
         if self.http_client_factory is None:  # a real client: the GO token, before the SDK
@@ -444,13 +469,19 @@ class AnthropicAdapter:
                                      timeout=timeout, max_retries=0, open_telemetry=False,
                                      **extra)
         resp = client.messages.create(model=model, system=anthropic_system(system, cache),
-                                      messages=messages, max_tokens=max_output_tokens,
+                                      messages=anthropic_messages(messages,
+                                                                  cache and cache_turns),
+                                      max_tokens=max_output_tokens,
                                       **anthropic_request_kwargs(request, output_schema))
         # Read by block type: thinking blocks (if any) are never the answer.
         text = "".join(b.text for b in resp.content if getattr(b, "type", None) == "text")
         raw = resp.usage.model_dump(mode="json", exclude_none=True)
+        details = getattr(resp, "stop_details", None)
+        if details is not None and hasattr(details, "model_dump"):
+            details = details.model_dump(mode="json", exclude_none=True)
         return Reply(text=text, usage=anthropic_usage(resp.usage, raw),
-                     stop_reason=resp.stop_reason, raw_usage=raw)
+                     stop_reason=resp.stop_reason, raw_usage=raw,
+                     stop_details=details if isinstance(details, dict) else None)
 
 
 OPENAI_BASE_URL = "https://api.openai.com/v1"  # explicit: OPENAI_BASE_URL is never read
@@ -555,7 +586,8 @@ class OpenAIAdapter:
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
     def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema, cache=False):
+             request, output_schema, cache=False, cache_turns=False):
+        # cache_turns is implied: the OpenAI scheme already marks every user turn.
         if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
             raise ConfigError("no API key passed")
         kwargs = openai_request_kwargs(request, output_schema, cache)
@@ -755,6 +787,7 @@ class LLMClient:
         max_out = agent_max_output_tokens(self.cfg, agent)
         request = agent_request(self.cfg, agent)
         cache = agent_caching(self.cfg, agent) == "on"
+        cache_turns = agent == "red"  # Red is multi-turn; Blue caches its system prompt only
         attempts_sent = 0
 
         for attempt in range(1, self.cfg["max_retries"] + 2):
@@ -788,7 +821,7 @@ class LLMClient:
                                      max_output_tokens=max_out,
                                      timeout=self.cfg["timeout_s"], api_key=key,
                                      request=request, output_schema=output_schema,
-                                     cache=cache)
+                                     cache=cache, cache_turns=cache_turns)
             except GoTokenError:
                 raise  # never swallowed as a failed call
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
@@ -824,7 +857,8 @@ class LLMClient:
                                       u.unpriced_cache_write_tokens,
                                   "output_tokens": u.output_tokens, "latency_ms": latency})
             return Result(ok=True, text=reply.text, usage=u, attempts=attempts_sent,
-                          stop_reason=reply.stop_reason, raw_usage=reply.raw_usage)
+                          stop_reason=reply.stop_reason, raw_usage=reply.raw_usage,
+                          stop_details=getattr(reply, "stop_details", None))
         raise AssertionError("unreachable")
 
 

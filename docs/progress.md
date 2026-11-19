@@ -391,6 +391,18 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
     output, safety-block mapping, mock-transport tests.
   - D18 caveat: implicit caching can't be switched off.
   - Not built now.
+- **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
+  - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
+    `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent
+    time-of-day rates) and a paid usage check.
+  - Its Anthropic-compatible endpoint is unusable for us: it only accepts `claude*` model
+    names and has no structured output.
+- **Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5): built on the fake provider.**
+  - Red turn caching: 5-minute breakpoint on the latest user turn.
+  - Refusals surface `stop_details`.
+  - Probe takes candidates with a provider switch and an 8192 probe output budget.
+  - Same-family arm: reported separately, never pooled.
+  - Waiting for the designer to verify the Opus 5.5 price, and a GO for one probe.
 
 ### Stage 6.2 + 6.4 — Autonomy table (M6) + dashboard MVP (M8)
 Plan `docs/plans/stage6_2_4_step0.md`, run end to end under the autonomy policy. Zero

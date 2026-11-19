@@ -78,6 +78,16 @@ after the designer's GO.*
   cut replies off (`max_tokens` → brain failure). Raising it would be a second variable;
   the probe measures it first.
 
+## Addendum (2026-11-18): Gate A candidate tracks
+
+- OpenAI's stronger models were refused by its cyber safeguards; Luna at high was allowed.
+- Gemini and DeepSeek were estimated over half a day each: future work.
+- Anthropic Red candidate (Opus 5.5, fallback Sonnet 5.5), ~4 h: turn caching for Red in the
+  Anthropic adapter (5-minute breakpoint on the latest user turn), `stop_details` surfaced
+  for refusals, probe candidates with provider switch and an 8192 probe output budget. No
+  new files; tests in `tests/test_caching.py` and `tests/test_stage6_3_offline.py`.
+- Same-family design note recorded in `docs/stage6_decisions.md`.
+
 ## New files
 
 - `docs/plans/stage6_3_step0.md`

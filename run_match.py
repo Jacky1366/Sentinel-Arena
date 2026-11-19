@@ -537,7 +537,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="ai: prompt caching (default: config/llm.json agents.red.caching)"
                              ". on = explicit breakpoint per user turn, 30-minute TTL")
     parser.add_argument("--red", choices=("scripted", "ai"), default="scripted",
-                        help="Red engine: scripted payload set, or ai (OpenAI; real, paid "
+                        help="Red engine: scripted payload set, or ai (provider from config/llm.json; real, paid "
                              "API calls through agents/llm_client.py)")
     parser.add_argument("--red-model", default=None,
                         help="ai: model id (default: config/llm.json agents.red.model)")

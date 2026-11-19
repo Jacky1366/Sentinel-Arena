@@ -203,6 +203,20 @@ source rounds (`audit_scope` scopes train matches only).
 - **B:** 3 live eval matches, seeds 6301–6303.
 - **C:** Gate B's logs replayed with Sonnet + v5 and with Haiku + v0000.
 
+**Gate A findings and candidate tracks (2026-11-18).**
+- OpenAI's cyber safeguards refused `gpt-6.1-sol`, `gpt-6.1-terra` and `gpt-5.6-sol` (HTTP
+  400 before generation, "apply for Daybreak access"). `gpt-6-luna` at effort high was
+  allowed. Sonnet 5.5 rejects `thinking: disabled`; `between_tools` is its "off".
+- Gemini (no adapter, ~1–1.5 days) and DeepSeek (Responses-compatible, ~1 day plus an
+  off-peak price guard) are **future work**.
+- **Anthropic Red candidate** (`claude-opus-5-5`, fallback `claude-sonnet-5-5`; never
+  Fable): built on the fake provider. Probe only after the designer verifies the Opus 5.5
+  price and gives a GO.
+- **Design note: same-family arm.** An Anthropic Red against an Anthropic Blue is a
+  same-family arm. Family effects could bias detection in either direction, so it is
+  reported as a **separately labelled treatment** and **never pooled** with cross-family
+  results.
+
 ## Implementation notes (Stage 6.1a, 2026-11-17)
 
 - **Formats.** Verdicts 0.4 (only with a library; 0.3 frozen as `verdict_v0_3`); `match.json`

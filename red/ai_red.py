@@ -1,5 +1,6 @@
 """AI Red engine (Stage 5.6, `--red ai`): one proposed request per slot, through
-agents/llm_client.py (OpenAI, gpt-6-luna). D5, D6, D7, D13, D15.
+agents/llm_client.py (default OpenAI gpt-6-luna; the provider comes from config, and an
+Anthropic Red is a Stage 6.3 candidate). D5, D6, D7, D13, D15.
 
 The model proposes exactly ONE request per turn (method, path, body, label,
 rationale) as structured output. This module makes the call and validates the
