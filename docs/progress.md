@@ -440,6 +440,18 @@ Prediction (zero token): library v5 (19 rules, sha256 324a1eceace9) alone, on th
     $0.002933 / 52 calls, below both the estimate ($0.0043 / ~63) and rules-off cached
     ($0.0052). As the caveat said, that base came from different sources.
   - **Holdout (TEST, offline):** 0 hits for all 19 library rules on the 40-entry holdout.
+- **Finding: the library and in-match rules overlap (18, not 27, calls saved).** In the
+  empty arm, Blue's own in-match rules already answered 9 of the 27 lines the library
+  answers (3 per match). Those lines cost no AI call in either arm, so the library's
+  saving over rules-on-empty is 27 − 9 = 18 calls. It is a saving over the AI path only,
+  not over all rule-answered lines. Predict savings against the rules-on baseline,
+  subtracting the lines in-match rules would answer anyway.
+- **Finding: the library arm invented 0 rules, so the library saturates quickly.** With the
+  library loaded, every attack line was answered before the AI saw it, so no in-match rule
+  was proposed (the empty arm invented 6 / 5 / 7). Against the same Red distribution
+  (gpt-6-luna, prompt v1), more train matches would mostly add duplicates; Gate 1 already
+  rejected 5 exact duplicates and flagged 4 behavioural ones. The library grows only from
+  novel attacks. This bears on 6.3 and Stage 7 (a stronger or more varied Red).
 
 ### Stage 6.1a — Rule library, retention, variants, offline benign data (body)
 Step 0 plan `docs/plans/stage6_1_step0.md`, approved Nov 17 with amendments; decisions

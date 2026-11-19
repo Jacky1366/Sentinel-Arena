@@ -245,6 +245,7 @@ tests/test_train_test_wall.py  writer unreachable from match/replay code; leak t
 tests/test_holdout_set.py   offline benign drafts, mocked capture + seal, drift check
 tests/test_stage6_1_gates_offline.py  gate tool refusals, prediction, Gates 1-2 on the fake provider
 tests/test_gate_6_1b_gate1_evidence.py  committed Gate 1 train matches, audits, library v0000-v0005 + retention; v5 sha = progress.md
+tests/test_gate_6_1b_gate2_evidence.py  committed M5 replays (gate-6.1b-2, -2b): hashes, sources, library snapshots, cost
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 
