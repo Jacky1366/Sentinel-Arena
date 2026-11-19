@@ -1516,7 +1516,9 @@ def test_anomaly_kinds_valid():
 
 def test_benign_verdict_enums_match_taxonomy():
     enum = SCHEMAS["benign_result"]["properties"]["verdict"]["enum"]
-    assert sorted(x for x in enum if x is not None) == sorted(TAXONOMY)
+    # Open Blue (D42) can label a benign line `other` (a false positive); it is the same
+    # Blue-only extension as the verdict schema. taxonomy.json is unchanged.
+    assert sorted(x for x in enum if x is not None) == sorted([*TAXONOMY, "other"])
 
 
 def test_committed_benign_baseline_validates_and_is_clean():

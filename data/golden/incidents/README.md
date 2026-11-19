@@ -40,3 +40,16 @@ in `config/test_set.json` and nothing here is scored.
   **preserved** (not deleted); its copy under `data/runs/` remains too. The match id was
   auto-registered in `config/test_set.json` by the gate before the FAIL — pending the
   designer's direction on removing it (archived failed runs do not belong in test_set.json).
+
+## gate-6.3-C-open-run1 (20261119T184904Z-e35c) — open-Blue replays FAILED (build bug; preserved)
+
+- The first gate-6.3-C-open run (D42). The prompt-FP check (2c) COMPLETED and is valid:
+  original v2 FP 0/57, open v3-open FP 7/57 (holdout + fixture). The 6 open-Blue REPLAYS
+  (2a free-play, 2b deepseek) FAILED: open Blue's `other` verdict (and a benign line labelled
+  `other`) hit Judge schemas that still had only the taxonomy values — `benign_result` (fact
+  4a), `round_record`'s detected-true branch, and the `unmatched_verdict` anomaly. The fake
+  offline test never labelled a BENIGN line `other`, so these paths were uncovered.
+- Build bug, not a provider/safety issue. Fixed by extending those three current schemas to
+  allow `other`, requiring a library for open mode (0.4 rows), and adding a full-Judge offline
+  test that labels an attack AND a benign line `other`. The gate was then re-run.
+- Preserved here (not deleted). Nothing from this run is in test_set.json.

@@ -1,0 +1,262 @@
+{
+  "schema_version": "0.3",
+  "replay_id": "20261119T185027Z-cbbd",
+  "started_at": "2026-11-19T18:50:27.129Z",
+  "finished_at": "2026-11-19T18:50:47.172Z",
+  "status": "failed",
+  "failed_step": "judge_benign",
+  "error": "ValueError: benign_result for request_id 3a1bf843-8874-48e5-bd03-dc939b7bf52d is schema-invalid: 'other' is not one of ['CWE-89', 'CWE-79', 'CWE-22', 'benign', None]",
+  "judge_version": "0.7.0",
+  "source": {
+    "match_id": "20261119T073045Z-de63",
+    "path": "data/golden/eval-6.3-gateB-deepseek-match2",
+    "match_json_sha256": "c93ab681e33cb3943b0ea238a677264a3ab4831b00509452dfe320034c12ee45",
+    "status": "completed",
+    "judge_version": "0.7.0",
+    "blue_engine": "claude",
+    "red_engine": "ai",
+    "artifacts": {
+      "anomalies.jsonl": {
+        "sha256": "cd744a4df120b0a3ccc09a668a34b6aeb77adbf507ddacdcf61e19631f8b8899",
+        "bytes": 243
+      },
+      "api_calls.jsonl": {
+        "sha256": "58fa9f80b2517322ec27ba25d5db0b3ada93a638ab8f11d5661c45f15caeae8e",
+        "bytes": 17497
+      },
+      "benign_requests.jsonl": {
+        "sha256": "7a7b74bc47e96840fabc317a5d4a5d4ec82bca3e93294b934f2d9ea35555fcbb",
+        "bytes": 3815
+      },
+      "benign_results.jsonl": {
+        "sha256": "9167d611188023740a25f05465102ca2db9fed9c497f94592ebe3954909f1bf6",
+        "bytes": 4258
+      },
+      "challenge_snapshots.jsonl": {
+        "sha256": "96bd17fd7377215275182d6eb985d1bd45cf3840031c41d89a0d57e83bfbb4cd",
+        "bytes": 5057
+      },
+      "landed.jsonl": {
+        "sha256": "14f19253d65c5798db39e0440fccf09bb3ff1fac38e51292bfe194889264c71c",
+        "bytes": 2119
+      },
+      "library.json": {
+        "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+        "bytes": 17436
+      },
+      "proxy.jsonl": {
+        "sha256": "424656af103f36b6bb4008c27f3d6487db7537adf33d2fe295e1edb373b8f7f8",
+        "bytes": 5308
+      },
+      "red_attacks.jsonl": {
+        "sha256": "4190b0d77c75286a59f48d5f4935555ac4b033f63f7fdbdc7d0690d5b48bd035",
+        "bytes": 5116
+      },
+      "red_unsent.jsonl": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "rounds.jsonl": {
+        "sha256": "ef824c91062cee4306009f7bb3841136218e556553a5e8ebc0169d56955f40e1",
+        "bytes": 3231
+      },
+      "rule_rejections.jsonl": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      "rule_results.jsonl": {
+        "sha256": "c57a1c117017cdba8b54ea0aab9081e65680406eb3ee0beba2d8d6b20ea177fd",
+        "bytes": 1341
+      },
+      "rules.jsonl": {
+        "sha256": "fdc8d7ac5eb9ae633e2f3f9abcb7919006f2836e6c62a2b9f12ff56117208cd5",
+        "bytes": 1194
+      },
+      "verdicts.jsonl": {
+        "sha256": "f861fa86664cebf3e6edbbc1bb4bd8740b45b4f0b175762ac3fd15a94e7c11ab",
+        "bytes": 10182
+      }
+    },
+    "copied": [
+      "benign_requests.jsonl",
+      "challenge_snapshots.jsonl",
+      "proxy.jsonl",
+      "red_attacks.jsonl",
+      "red_unsent.jsonl"
+    ]
+  },
+  "blue_engine": "claude",
+  "blue_params": {
+    "provider": "anthropic",
+    "model": "claude-haiku-5-5",
+    "chunk_size": 1,
+    "prompt_version": "3-open",
+    "system_prompt_sha256": "4561f150b92f05938835f57ab85c8981c2c831bc2d9f869975b594f4abf2c41b",
+    "rules": {
+      "mode": "on",
+      "max_rules": 10
+    },
+    "caching": {
+      "mode": "on",
+      "ttl": "5m"
+    },
+    "library": {
+      "path": "data/library/rule_library_v0005.json",
+      "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+      "library_version": 5,
+      "entries": 19
+    },
+    "sdk": {
+      "package": "anthropic",
+      "version": "2.3.0"
+    },
+    "request": {
+      "max_output_tokens": 512,
+      "thinking": "disabled",
+      "effort": "low",
+      "output_format": "json_schema",
+      "temperature": null,
+      "temperature_note": "not settable: Haiku 5.5 and API version 2026-10-21 reject sampling parameters; run-to-run variation is measured"
+    }
+  },
+  "git": {
+    "commit": "e273ebd28b7dd54255e3192d4697a4b9cd709107",
+    "dirty": false
+  },
+  "models": {
+    "blue": {
+      "provider": "anthropic",
+      "model": "claude-haiku-5-5"
+    }
+  },
+  "budget": {
+    "limits": {
+      "red": {
+        "max_calls": 60,
+        "max_tokens": 400000,
+        "max_usd": 0.25
+      },
+      "blue": {
+        "max_calls": 100,
+        "max_tokens": 300000,
+        "max_usd": 0.25
+      },
+      "analyst": {
+        "max_calls": 0,
+        "max_tokens": 0,
+        "max_usd": 0
+      },
+      "match": {
+        "max_calls": null,
+        "max_tokens": null,
+        "max_usd": 0.5
+      }
+    },
+    "stopped_by": null
+  },
+  "price_table": {
+    "path": "config/prices.json",
+    "sha256": "87887d57515d1d705f741e6f7447e12c7e3f10625393b6a1f3def0f1a0c0a86e",
+    "as_of": "2026-11-18"
+  },
+  "cost": {
+    "total_usd": 0.001252,
+    "failed_attempts_usd": 0.0,
+    "cache_savings_usd": 0.003739,
+    "attempts": 20,
+    "failed_attempts": 0,
+    "refused": 0,
+    "tokens": {
+      "input": 1697,
+      "cached_input": 41540,
+      "cache_write": 0,
+      "output": 1334
+    },
+    "by_agent": {
+      "blue": {
+        "usd": 0.001252,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003739,
+        "attempts": 20,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1697,
+          "cached_input": 41540,
+          "cache_write": 0,
+          "output": 1334
+        }
+      }
+    },
+    "by_model": {
+      "claude-haiku-5-5": {
+        "usd": 0.001252,
+        "failed_attempts_usd": 0.0,
+        "cache_savings_usd": 0.003739,
+        "attempts": 20,
+        "failed_attempts": 0,
+        "refused": 0,
+        "tokens": {
+          "input": 1697,
+          "cached_input": 41540,
+          "cache_write": 0,
+          "output": 1334
+        }
+      }
+    },
+    "lower_bound": false,
+    "cached_at_input_price": false,
+    "unpriced_usage": false,
+    "prices_verified": true
+  },
+  "artifacts": {
+    "api_calls.jsonl": {
+      "sha256": "1c8d5252af7ae61a9abc07dcfe9d719daee5e80f381033c3a6c6a791a681bf6a",
+      "bytes": 11482
+    },
+    "benign_requests.jsonl": {
+      "sha256": "7a7b74bc47e96840fabc317a5d4a5d4ec82bca3e93294b934f2d9ea35555fcbb",
+      "bytes": 3815
+    },
+    "challenge_snapshots.jsonl": {
+      "sha256": "96bd17fd7377215275182d6eb985d1bd45cf3840031c41d89a0d57e83bfbb4cd",
+      "bytes": 5057
+    },
+    "landed.jsonl": {
+      "sha256": "14f19253d65c5798db39e0440fccf09bb3ff1fac38e51292bfe194889264c71c",
+      "bytes": 2119
+    },
+    "library.json": {
+      "sha256": "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7",
+      "bytes": 17436
+    },
+    "proxy.jsonl": {
+      "sha256": "424656af103f36b6bb4008c27f3d6487db7537adf33d2fe295e1edb373b8f7f8",
+      "bytes": 5308
+    },
+    "red_attacks.jsonl": {
+      "sha256": "4190b0d77c75286a59f48d5f4935555ac4b033f63f7fdbdc7d0690d5b48bd035",
+      "bytes": 5116
+    },
+    "red_unsent.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rounds.jsonl": {
+      "sha256": "ef824c91062cee4306009f7bb3841136218e556553a5e8ebc0169d56955f40e1",
+      "bytes": 3231
+    },
+    "rule_rejections.jsonl": {
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    "rules.jsonl": {
+      "sha256": "f8e42b39a8bcd5d02dfddd5c207a3186abed50da62f9182ee7ec6269d7fefa85",
+      "bytes": 1169
+    },
+    "verdicts.jsonl": {
+      "sha256": "82e2d7c80ec6cf68a2288249fd283a4d6c3d7443c847c30aa0bf866252537570",
+      "bytes": 9941
+    }
+  }
+}

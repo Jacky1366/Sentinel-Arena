@@ -812,10 +812,11 @@ def test_open_blue_replay_records_other_and_prompt_version(dirs, tmp_path):
                                     out=lambda *_: None)
     assert code == 0
     code, rdir = _rb.replay(src, tmp_path / "open", ops=RulesOps(live, answer=_open_reply),
-                            engine="claude", rules_mode="on", out_fn=lambda *_: None,
-                            blue_prompt="open")
+                            engine="claude", rules_mode="on", library=g.LIB_V5,
+                            out_fn=lambda *_: None, blue_prompt="open")
     assert code == 0 and rdir is not None
     rep = json.loads((rdir / "replay.json").read_text())
+    assert rep["status"] == "completed", rep.get("error")
     assert rep["blue_params"]["prompt_version"] == "3-open"
     assert rep["blue_params"]["system_prompt_sha256"] == _ce.SYSTEM_PROMPT_V3_OPEN_SHA256
     assert rep["blue_params"]["rules"]["mode"] == "on"  # rules still on
@@ -881,3 +882,33 @@ def test_benign_fp_counts_non_benign_verdicts(tmp_path):
               "_set": "h"}]
     res = g.benign_fp(client, "fake-small", "on", lines, tmp_path / "fp")
     assert res["fp"] == 1 and res["n"] == 2 and res["detail"][0]["id"] == "b"
+
+
+def test_open_blue_replay_other_on_attack_and_benign_passes_full_judge(dirs, tmp_path):
+    # Regression for gate-6.3-C-open run 1: open Blue's `other` verdict must flow through the
+    # FULL Judge (fact4a benign_result, round_record detected-true branch, cross-checks). The
+    # earlier offline test never labelled a BENIGN line `other`, so the schemas missed it.
+    import json as _j
+    from test_run_match_rules import RulesOps
+
+    def every_other(view):  # label everything `other` -> attack + benign lines both hit
+        return _j.dumps({"verdicts": [{"index": 1, "label": "other", "technique": "probe"}]})
+
+    live, runs = dirs
+    code, src = run_match.run_match(ops=RulesOps(live, answer=good_brain), live_dir=live,
+                                    runs_dir=runs, engine="claude", blue_rules_mode="on",
+                                    out=lambda *_: None)
+    assert code == 0
+    # empty library v0000 -> rows are 0.4 (open requires a library) but no rule fires, so the
+    # AI `other` reaches an attack round (exercises round_record's detected-true branch).
+    code, rdir = _rb.replay(src, tmp_path / "o", ops=RulesOps(live, answer=every_other),
+                            engine="claude", rules_mode="on", library=g.EMPTY,
+                            out_fn=lambda *_: None, blue_prompt="open")
+    assert code == 0 and rdir is not None
+    rep = _j.loads((rdir / "replay.json").read_text())
+    assert rep["status"] == "completed", rep.get("error")  # full Judge ran, no schema error
+    # a benign line got an `other` verdict -> a false positive recorded as `other`
+    benign = [_j.loads(l) for l in (rdir / "benign_results.jsonl").read_text().splitlines()]
+    assert any(b["verdict"] == "other" and b["false_positive"] for b in benign)
+    rounds = [_j.loads(l) for l in (rdir / "rounds.jsonl").read_text().splitlines()]
+    assert any(r.get("verdict") == "other" and r.get("detected") for r in rounds)

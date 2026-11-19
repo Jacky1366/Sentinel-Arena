@@ -412,6 +412,8 @@ def classify(proxy_log: Path, match_id: str, client: Client, model: str, run_dir
         raise ValueError(f"unknown Blue prompt {prompt_key!r}")
     if prompt_key == "open" and rules_mode != "on":
         raise ValueError("the open Blue prompt (D42) runs in rules mode on")
+    if prompt_key == "open" and library is None:
+        raise ValueError("the open Blue prompt (D42) needs library v5 (its rows are 0.4)")
     if rules_mode == "off":
         return BlueOutput(classify_log(proxy_log, match_id, client, model, run_dir,
                                        chunk_size, unscored))
