@@ -1441,8 +1441,11 @@ attack class) plus the D15 header amendment.
   header name, a non-string value and header injection (`\r` / `\n`). These two headers are
   **not** in the proxy log (method/path/query/body/status) and are never shown to Blue (D14),
   so header presence cannot leak ground truth. Methods stay GET/POST (unchanged).
-- **Labels.** `red_attacks.jsonl` may carry `label: "other"` and an optional free-text
-  `technique`, plus the `headers` it sent. `other` is a Red-only extension of the red_attack,
+- **Labels.** `red_attacks.jsonl` may carry `label: "other"`, an optional free-text
+  `technique`, and the `headers` (Cookie / Authorization) it sent. Red proposes these as FLAT
+  fields (`technique` / `cookie` / `authorization` strings, `""` = none) because DeepSeek's
+  strict json_schema rejects nested objects; `validate_reply` rebuilds the stored `headers`
+  object. `other` is a Red-only extension of the red_attack,
   round_record and landed_fact label enums; `config/taxonomy.json`, the verdict enum, the
   rule `cwe` and `challenge_map` are unchanged (Blue still emits only the three CWEs +
   benign). A free-play match is identified by `red_params.prompt_version == "3"`.
