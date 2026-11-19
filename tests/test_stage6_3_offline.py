@@ -104,10 +104,11 @@ def test_promotion_refuses_an_eval_match(tmp_path, dirs, monkeypatch):
 def test_register_test_ids_appends_once(tmp_path):
     p = tmp_path / "ts.json"
     p.write_text((REPO / "config" / "test_set.json").read_text())
+    before = len(json.loads(p.read_text())["match_ids"])
     g.register_test_ids(["20261120T000000Z-eeee"], p)
     g.register_test_ids(["20261120T000000Z-eeee"], p)
     ids = json.loads(p.read_text())["match_ids"]
-    assert ids.count("20261120T000000Z-eeee") == 1 and len(ids) == 7
+    assert ids.count("20261120T000000Z-eeee") == 1 and len(ids) == before + 1
 
 
 # ---- Gate A: estimate (zero token) ------------------------------------------------------

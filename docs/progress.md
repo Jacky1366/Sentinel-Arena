@@ -402,6 +402,16 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
   - **Prices:** Opus 5.5 designer-verified, Sonnet re-confirmed, the Haiku >100K tier
     present.
   - **Estimate:** Gate B ≈ $0.009–0.014, Gate C ≈ $0.084.
+- **Gate B (designer GO, Nov 18): PASS, $0.014543.**
+  - 3 eval matches, seeds 6301–6303, at commit `28b3043`.
+  - Four facts PASS on each match.
+  - Raw detection: 9/10, 9/10, 10/10. FP 0/17 on each match.
+  - Red output peaked at 1,743 of 8,192 tokens; no cut-offs.
+  - The match ids are registered in `config/test_set.json`. Evidence:
+    `data/golden/eval-6.3-gateB-match{1,2,3}/`, with full audit scaffolds in
+    `data/golden/audits/` and the sheet
+    `docs/audits/stage6_3_gateB_20261119T061057Z-6177.md`.
+  - The designer's full audit is pending.
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

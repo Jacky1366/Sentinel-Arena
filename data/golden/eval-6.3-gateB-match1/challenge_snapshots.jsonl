@@ -1,0 +1,27 @@
+{"request_id": "2a821e3f-87ca-4088-a3aa-010ff08d0752", "traffic": "benign", "before_solved": [], "after_solved": [], "taken_at": "2026-11-19T06:11:07.429Z"}
+{"request_id": "9f33b887-06c9-4e12-b668-502e98d5d80c", "traffic": "benign", "before_solved": [], "after_solved": [], "taken_at": "2026-11-19T06:11:10.733Z"}
+{"request_id": "0dbb8fbf-45c9-481a-9c0b-e1afedf2bb37", "traffic": "red", "before_solved": [], "after_solved": [], "taken_at": "2026-11-19T06:11:18.878Z"}
+{"request_id": "c01c7b9c-51e7-43df-9e25-7ccb1782d8ba", "traffic": "benign", "before_solved": [], "after_solved": [], "taken_at": "2026-11-19T06:11:22.140Z"}
+{"request_id": "8adb8653-ceeb-4f98-8d75-3bbdde851314", "traffic": "red", "before_solved": [], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:25.295Z"}
+{"request_id": "20b75beb-1713-4acf-aa39-e6d987441b33", "traffic": "benign", "before_solved": ["Error Handling"], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:28.579Z"}
+{"request_id": "298970c1-853a-4b70-bd17-b0e140bc1157", "traffic": "benign", "before_solved": ["Error Handling"], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:31.882Z"}
+{"request_id": "a55fa2b4-e0fc-4c32-b382-3b692b746b69", "traffic": "red", "before_solved": ["Error Handling"], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:38.546Z"}
+{"request_id": "cd24bb08-7069-4751-b266-80b5261788b6", "traffic": "red", "before_solved": ["Error Handling"], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:49.683Z"}
+{"request_id": "dc5d4395-95b3-4539-84a7-61c1a9ea987a", "traffic": "benign", "before_solved": ["Error Handling"], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:52.969Z"}
+{"request_id": "8cc699c9-fd1b-4a34-9d41-da38ad68d096", "traffic": "benign", "before_solved": ["Error Handling"], "after_solved": ["Error Handling"], "taken_at": "2026-11-19T06:11:56.272Z"}
+{"request_id": "817f0994-5bbf-4ec2-ade8-a74592cf2cf9", "traffic": "red", "before_solved": ["Error Handling"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:01.108Z"}
+{"request_id": "b865f488-f905-4a6c-953e-21f0f5961e47", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:10.441Z"}
+{"request_id": "c572af6b-3f50-4005-bf2f-dc5deff6e214", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:13.710Z"}
+{"request_id": "e79afbd2-ed65-447b-b312-596fe60d10b7", "traffic": "red", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:24.415Z"}
+{"request_id": "fa3fb104-84c6-4b62-ae96-47dab00f4526", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:27.723Z"}
+{"request_id": "d1f60189-2ada-463d-893d-b4d86975f293", "traffic": "red", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:38.115Z"}
+{"request_id": "e3f07b30-d8b1-4efa-ad26-e618060ceb12", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:41.445Z"}
+{"request_id": "10f7f2df-84ff-4fc9-9418-f0e0d151fae5", "traffic": "red", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:12:59.307Z"}
+{"request_id": "46e80f4d-cb65-4722-b894-25934992b0fd", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:02.604Z"}
+{"request_id": "9d7de381-e37e-492c-985f-2adc6dfcb59d", "traffic": "red", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:11.773Z"}
+{"request_id": "b09287f4-5f25-4875-bde9-646c666221a0", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:15.055Z"}
+{"request_id": "266da139-0752-4e15-9187-9e85df264464", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:18.341Z"}
+{"request_id": "5fc01beb-faef-4d3e-aa5b-182cd031eff9", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:21.612Z"}
+{"request_id": "1f2a75c2-53f7-4aeb-aef5-69249921bfe8", "traffic": "red", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:36.976Z"}
+{"request_id": "0c5341c5-21c4-4cea-af24-23600af05248", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:40.275Z"}
+{"request_id": "c43ef0b1-7631-4299-acaa-21334497bf27", "traffic": "benign", "before_solved": ["Error Handling", "Login Admin"], "after_solved": ["Error Handling", "Login Admin"], "taken_at": "2026-11-19T06:13:43.561Z"}
