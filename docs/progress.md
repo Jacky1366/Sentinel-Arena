@@ -423,6 +423,15 @@ the fake provider (zero tokens). Each gate needs its own GO and token.
   - **Library transfer:** v5 answered 6–8 of 27 lines per match on Luna-high traffic, saving
     5–6 Haiku AI calls per match against the empty library at equal detection and FP.
   - **Cost:** Sonnet ≈ 15–18× Haiku per replay ($0.020–0.023 vs $0.0012–0.0017).
+- **D42 open Blue (designer Nov 19; replay analysis, no new matches).** Built on the fake
+  provider; `tests/test_stage6_3_offline.py`.
+  - Blue prompt v3-open (widened definition + `other` + flat `technique`), PROMPTS['open'],
+    `replay_blue.py --blue-prompt open` (rules on, library v5). Live Blue (v1/v2) unchanged.
+  - `other` added to the verdict / round_record enums (Blue-only; taxonomy.json/rules
+    unchanged); the core Judge is unchanged.
+  - Gate-6.3-C-open: open-Blue replays of the free-play (2a) + deepseek (2b) logs, and the
+    prompt-FP check (2c, original vs open) over the holdout + fixture.
+  - Waiting for the GO on gate-6.3-C-open.
 - **Future work (designer Nov 18): DeepSeek as a third-provider Red.**
   - Estimated at ~1 day: the existing Responses-API adapter with a new base URL and a
     `deepseek` provider, plus an off-peak price guard (`prices.json` can't represent

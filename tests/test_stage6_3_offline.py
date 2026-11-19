@@ -829,3 +829,55 @@ def test_open_blue_replay_needs_rules_on(tmp_path):
                             out=tmp_path / "r", ops=FakeOps(tmp_path), engine="scripted",
                             blue_prompt="open", out_fn=lambda *_: None)
     assert code == 2 and rdir is None  # scripted + open -> refused
+
+
+def test_gate_c_open_offline(dirs, tmp_path, monkeypatch, capsys):
+    # synthetic source (NOT test-set data): a fake AI-vs-AI match, replayed with open Blue;
+    # the FP check runs over tiny tmp holdout/fixture. No committed golden/test logs touched.
+    from test_run_match_rules import RulesOps
+    from llm_fakes import make_client
+    live, runs = dirs
+    monkeypatch.setattr(g, "BLUE_LIVE", "fake-small")
+    code, src = run_match.run_match(ops=RulesOps(live, answer=good_brain), live_dir=live,
+                                    runs_dir=runs, engine="claude", blue_rules_mode="on",
+                                    out=lambda *_: None)
+    assert code == 0
+    hold = tmp_path / "hold.jsonl"
+    hold.write_text(json.dumps({"benign_id": "xh1", "category": "normal", "look_alike": None,
+                                "method": "GET", "path": "/", "query": "", "body": ""}) + "\n")
+    fix = tmp_path / "fix.jsonl"
+    fix.write_text(json.dumps({"benign_id": "n1", "category": "normal", "method": "GET",
+                               "path": "/rest/products/search", "query": "q=apple",
+                               "body": ""}) + "\n")
+    blue_llm, _ = make_client(adapter=None, tmp_path=tmp_path)  # benign-returning fake
+    code = g.gate_c_open(PRICES, root=tmp_path / "co", ops=RulesOps(live, answer=good_brain),
+                         library=g.LIB_V5, blue_llm=blue_llm, holdout=hold, fixture=fix,
+                         freeplay=[src], deepseek=[])
+    out = capsys.readouterr().out
+    assert code == 0, out
+    rep = json.loads((tmp_path / "co" / f"{src.name}-open" / "replay.json").read_text())
+    assert rep["blue_params"]["prompt_version"] == "3-open"
+    assert "prompt false positives (2c)" in out
+    assert "original v2" in out and "open v3-open" in out
+    # the FP runner wrote one api_calls dir per prompt, with one call per benign line
+    for pk in ("on", "open"):
+        calls = [json.loads(l) for l in
+                 (tmp_path / "co" / f"fp-{pk}" / lc.API_CALLS).read_text().splitlines()]
+        assert len(calls) == 2  # 1 holdout + 1 fixture line
+
+
+def test_benign_fp_counts_non_benign_verdicts(tmp_path):
+    from llm_fakes import make_client, FakeAdapter
+    import json as _j
+    # a brain that flags the SQLi line and passes the benign one
+    def brain(view):
+        if "OR 1=1" in view.get("query", ""):
+            return _j.dumps({"verdicts": [{"index": 1, "label": "CWE-89"}]})
+        return _j.dumps({"verdicts": [{"index": 1, "label": "benign"}]})
+    from test_blue_rules import Brain
+    client, _ = make_client(adapter=Brain(brain), tmp_path=tmp_path)
+    lines = [{"method": "GET", "path": "/", "query": "q=x", "body": "", "_id": "a", "_set": "h"},
+             {"method": "GET", "path": "/", "query": "q=' OR 1=1--", "body": "", "_id": "b",
+              "_set": "h"}]
+    res = g.benign_fp(client, "fake-small", "on", lines, tmp_path / "fp")
+    assert res["fp"] == 1 and res["n"] == 2 and res["detail"][0]["id"] == "b"

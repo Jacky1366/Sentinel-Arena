@@ -52,6 +52,11 @@ RED_MODEL, RED_EFFORT, RED_MAX_OUTPUT = "gpt-6-luna", "high", 8192
 BLUE_LIVE, BLUE_STRONG = "claude-haiku-5-5", "claude-sonnet-5-5"
 LIB_DIR = REPO / "data" / "library"
 LIB_V5 = LIB_DIR / "rule_library_v0005.json"
+# D42 open Blue (replay analysis): the arms' committed logs, and the benign sets for the FP check.
+FREEPLAY_LOGS = [REPO / "data" / "golden" / f"eval-6.3-gateB-freeplay-match{i}" for i in (1, 2, 3)]
+DEEPSEEK_LOGS = [REPO / "data" / "golden" / f"eval-6.3-gateB-deepseek-match{i}" for i in (1, 2, 3)]
+HOLDOUT = REPO / "benign" / "holdout_v1.jsonl"   # TEST (GO: gate-6.3-C-open)
+FIXTURE = REPO / "benign" / "fixture_v1.jsonl"   # train benign, as seen in-match
 LIB_V5_SHA = "324a1eceace9499606284230f4997cb961da39af6ec67ab2a6d7c4e70a168bc7"
 EMPTY = LIB_DIR / "rule_library_v0000.json"
 TEST_SET = REPO / "config" / "test_set.json"
@@ -449,10 +454,95 @@ def gate_c(prices: dict, match_dirs: list[Path], root: Path | None = None, ops=N
 
 # --------------------------------------------------------------------------
 
+def _benign_lines(path, tag):
+    """Proxy-shaped {method,path,query,body} dicts from a benign set, tagged with the id."""
+    out = []
+    for e in jl(path):
+        out.append({"method": e["method"], "path": e["path"], "query": e.get("query", ""),
+                    "body": e.get("body", ""), "_id": e.get("benign_id"), "_set": tag})
+    return out
+
+
+def benign_fp(blue_llm, model, prompt_key, lines, run_dir) -> dict:
+    """Run ONE Blue AI call per benign line with the chosen prompt; FP = verdict != benign.
+    Isolates the prompt's own false positives (no library rules). Pure of rule state."""
+    _, system, _, schema = claude_engine.PROMPTS[prompt_key]
+    open_mode = prompt_key == "open"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    mid = run_match.new_match_id()
+    fps, n = [], 0
+    for i, line in enumerate(lines, start=1):
+        r = blue_llm.complete("blue", model, system,
+                              claude_engine.build_messages([line], system), run_dir=run_dir,
+                              log_seq_first=i, log_seq_last=i, match_id=mid,
+                              output_schema=schema)
+        v, _ = claude_engine.validate_reply(r.text, r.stop_reason, 1, rules=True,
+                                            open_mode=open_mode)
+        label = v[1][0] if v else None
+        n += 1
+        if label is not None and label != "benign":
+            fps.append({"id": line["_id"], "set": line["_set"], "verdict": label})
+    return {"prompt": prompt_key, "fp": len(fps), "n": n, "detail": fps}
+
+
+def gate_c_open(prices: dict, root: Path | None = None, ops=None, library: Path = LIB_V5,
+                blue_llm=None, holdout: Path = HOLDOUT, fixture: Path = FIXTURE,
+                freeplay=None, deepseek=None) -> int:
+    """D42: open Blue (v3-open) by replay on the free-play (2a) and DeepSeek (2b) logs, plus
+    the prompt-FP check (2c) for the original and open prompts over the holdout + fixture."""
+    ops = ops or run_match.Ops()
+    gid = run_match.new_match_id()
+    root = root or replay_blue.REPLAYS / f"gate-6.3-C-open-{gid}"
+    freeplay = FREEPLAY_LOGS if freeplay is None else freeplay
+    deepseek = DEEPSEEK_LOGS if deepseek is None else deepseek
+    ok = True
+
+    def open_replay(d):
+        nonlocal ok
+        code, rdir = replay_blue.replay(Path(d), root / f"{Path(d).name}-open",
+                                        engine="claude", model=BLUE_LIVE, rules_mode="on",
+                                        caching="on", library=library, blue_prompt="open",
+                                        out_fn=lambda *_: None, ops=ops)
+        if rdir is None:
+            print(f"=== {Path(d).name} open: REFUSED (exit {code})")
+            ok = False
+        else:
+            ok &= code in (0, 4)
+        return rdir
+
+    for tag, logs in (("free-play (2a)", freeplay), ("deepseek (2b)", deepseek)):
+        print(f"\n### open Blue replays — {tag}")
+        for d in logs:
+            rdir = open_replay(d)
+            if rdir is None:
+                continue
+            orig = {r["round"]: r for r in jl(Path(d) / "rounds.jsonl")}
+            new = {r["round"]: r for r in jl(rdir / "rounds.jsonl")}
+            gained = [rn for rn in sorted(new) if new[rn].get("detected") is True
+                      and orig.get(rn, {}).get("detected") is not True]
+            lost = [rn for rn in sorted(new) if orig.get(rn, {}).get("detected") is True
+                    and new[rn].get("detected") is not True]
+            od = sum(1 for r in orig.values() if r.get("detected") is True)
+            nd = sum(1 for r in new.values() if r.get("detected") is True)
+            print(f"  {Path(d).name:34} detected orig {od} -> open {nd}  "
+                  f"gained rounds {gained}  lost {lost}")
+
+    print("\n### prompt false positives (2c): AI-only over holdout (TEST) + fixture")
+    blue_llm = blue_llm or ops.blue_client(lc.with_caching(lc.load_config(), "blue", "on"),
+                                           prices)
+    lines = _benign_lines(holdout, "holdout") + _benign_lines(fixture, "fixture")
+    for prompt_key in ("on", "open"):  # "on" = original v2, "open" = v3-open
+        res = benign_fp(blue_llm, BLUE_LIVE, prompt_key, lines, root / f"fp-{prompt_key}")
+        name = "original v2" if prompt_key == "on" else "open v3-open"
+        print(f"  {name:14} FP {res['fp']}/{res['n']}  {res['detail']}")
+    print(f"\nRESULT: {'PASS' if ok else 'FAIL'} -> {replay_blue._rel(root)}")
+    return 0 if ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--gate",
-                    choices=("A", "B", "C", "B-deepseek", "B-evasion", "B-freeplay"),
+                    choices=("A", "B", "C", "B-deepseek", "B-evasion", "B-freeplay", "C-open"),
                     required=True)
     ap.add_argument("--estimate", action="store_true", help="Gate A: zero-token cost estimate")
     ap.add_argument("--probe", action="store_true", help="Gate A: 2 real calls (token gate-6.3-A)")
@@ -496,6 +586,8 @@ def main(argv: list[str] | None = None) -> int:
                          f"{EVASION_ARM['model']} effort {EVASION_ARM['effort']} prompt v2 "
                          f"(evasion directive, D40), timeout {EVASION_ARM['timeout_s']} s vs Blue "
                          f"{BLUE_LIVE} + library v5 (read-only), seeds {EVASION_ARM['seeds']}",
+            "C-open": f"open Blue (v3-open) replays of the free-play + deepseek logs + the "
+                      f"prompt-FP check on the holdout + fixture (D42)",
             "B-freeplay": f"{len(FREEPLAY_ARM['seeds'])} eval matches, Red "
                           f"{FREEPLAY_ARM['model']} effort {FREEPLAY_ARM['effort']} prompt v3 "
                           f"(free-play, D41), {FREEPLAY_ARM['max_output_tokens']} tok, timeout "
@@ -515,8 +607,9 @@ def main(argv: list[str] | None = None) -> int:
                               (RED_MODEL, BLUE_LIVE) if args.gate == "B" else
                               (DEEPSEEK_ARM["model"], BLUE_LIVE)
                               if args.gate in ("B-deepseek", "B-evasion", "B-freeplay")
+                              else (BLUE_LIVE,) if args.gate == "C-open"
                               else (BLUE_STRONG, BLUE_LIVE))
-    if args.gate in ("B", "C", "B-deepseek", "B-evasion", "B-freeplay"):
+    if args.gate in ("B", "C", "B-deepseek", "B-evasion", "B-freeplay", "C-open"):
         problems += library_ok()
     if args.gate == "C":
         problems += check_sources(args.matches)
@@ -535,6 +628,8 @@ def main(argv: list[str] | None = None) -> int:
         return gate_b(prices, arm=EVASION_ARM)
     if args.gate == "B-freeplay":
         return gate_b(prices, arm=FREEPLAY_ARM)
+    if args.gate == "C-open":
+        return gate_c_open(prices)
     return gate_b(prices) if args.gate == "B" else gate_c(prices, args.matches)
 
 

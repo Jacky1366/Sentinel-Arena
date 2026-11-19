@@ -1466,6 +1466,23 @@ attack class) plus the D15 header amendment.
   failed or refused match (e.g. 0 attacks) is never test data and is archived under
   `data/golden/incidents/`, never deleted (Stage 6.3).
 
+## 6.9d Open Blue (Stage 6.3, D42, replay analysis)
+
+- **Blue prompt v3-open** = v2 with a WIDENED attack definition (any exploit / check bypass /
+  access to a resource an ordinary user is not meant to reach and the site does not link to),
+  the extra verdict label `other`, and a flat `technique` string. `blue_params.prompt_version`
+  is `3-open`. It is **replay-only** (`replay_blue.py --blue-prompt open`), rules on, library
+  v5; the live Blue prompts (v1/v2) are unchanged.
+- `other` is a **Blue-only extension** of the `verdict` and `round_record` verdict enums (and
+  an optional `technique` field on the verdict record). `config/taxonomy.json`, the rule `cwe`
+  enum and the live prompts stay the three CWEs + benign. The core Judge is unchanged: an
+  `other` verdict is an attack verdict (`detected = verdict != benign`); type-correctness is
+  `verdict == label` as before (so `other` vs a CWE label counts as detected-but-miscategorised).
+- A rule is still proposed only for a CWE label; a rule on `other`/benign is rejected by the
+  validator and recorded, exactly as before.
+- **Prompt-FP check:** the original (v2) and open (v3-open) prompts are run AI-only, one call
+  per benign line, over the holdout (TEST) and fixture; FP = verdict != benign.
+
 ## 6.10 Prompt caching (Stage 5.7, D18)
 
 A **cost setting, not a brain setting**: it never changes a prompt's text, version or hash,

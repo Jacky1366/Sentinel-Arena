@@ -39,6 +39,7 @@ PAID = [  # (tool module, argv, gate id)
     ("stage6_3_check", ["--gate", "B-deepseek", "--real-calls"], "gate-6.3-B-deepseek"),
     ("stage6_3_check", ["--gate", "B-evasion", "--real-calls"], "gate-6.3-B-evasion"),
     ("stage6_3_check", ["--gate", "B-freeplay", "--real-calls"], "gate-6.3-B-freeplay"),
+    ("stage6_3_check", ["--gate", "C-open", "--real-calls"], "gate-6.3-C-open"),
 ]
 
 

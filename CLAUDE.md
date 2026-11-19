@@ -137,7 +137,7 @@ stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule cover
 stats/free_play.py      free-play measurement (D41): landing = any solve (+ category), detection binary over audited attempts; pure stats layer over the Judge
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
 blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude, --rules-mode)
-blue/claude_engine.py   AI Blue (5.4): fixed prompts v1 (off) / v2 (shadow, on), one stateless call per line, reply validation, rule-first flow (5.5)
+blue/claude_engine.py   AI Blue (5.4): prompts v1 (off) / v2 (shadow, on); v3-open (D42, replay-only: widened attack definition + other/technique); one stateless call per line, reply validation, rule-first flow (5.5)
 blue/rule_invention.py  the body's half of rule invention: fills ids/cwe/source, validates, caps -> rules / rejections
 judge/fact1_landed.py   pure landed computation over artifacts (no network)
 judge/fact2_detected.py pure detected/type_correct computation; 0.1/0.2 verdicts; instrument_failure cross-check vs api_calls.jsonl
@@ -168,7 +168,7 @@ tools/verify_red_guard.py     zero-token probe: the above_root guard matches rea
 tools/audit_match.py          D16 label audit: scaffold / validate / apply (raw vs audited, --json) / sheet; AI labels only; replay folders
 tools/stage5_6_smoke.py       Gate 1 (5.6): ONE AI-Red generation, nothing sent (--real-call; GO only)
 tools/stage5_6_check.py       Gate 2 (5.6): 3 seeded --red ai matches, prints every attack (--real-calls; GO only)
-tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source)
+tools/replay_blue.py          D17: Blue + full Judge on a copy of a frozen match -> data/replays/<id>/ (never writes the source); --blue-prompt open (D42), --thinking (6.3)
 tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/shadow/on, prints every rule (--real-calls; GO only)
 tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
 tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + JSON (6.2, zero token)
