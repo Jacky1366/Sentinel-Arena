@@ -144,7 +144,24 @@ def gate_config(base: dict | None = None) -> dict:
 
 def probe(out_root: Path | None = None, client_factory=None) -> int:
     """ONE Sol Red proposal (dry run, nothing sent) + ONE Sonnet Blue call (prompt v2)."""
-    make = client_factory or (lambda cfg: lc.LLMClient(config=cfg))
+    base_make = client_factory or (lambda cfg: lc.LLMClient(config=cfg))
+    errors: list[str] = []  # the client's key-redacted error text, never written to disk
+
+    class _Seen:
+        def __init__(self, client):
+            self._c = client
+
+        def __getattr__(self, name):
+            return getattr(self._c, name)
+
+        def complete(self, *a, **kw):
+            r = self._c.complete(*a, **kw)
+            if not r.ok and r.error:
+                errors.append(f"{a[0] if a else kw.get('agent')}: {r.error}")
+            return r
+
+    def make(cfg):
+        return _Seen(base_make(cfg))
     mid = run_match.new_match_id()
     root = out_root or REPO / "data" / "runs" / f"probe-6.3-{mid}"
     red_dir, blue_dir = root / "red", root / "blue"
@@ -169,6 +186,8 @@ def probe(out_root: Path | None = None, client_factory=None) -> int:
             ok &= c["ok"] is True and c.get("stop_reason") not in ("max_tokens", "max_output_tokens",
                                                                      "incomplete")
     print(f"  Red proposal: {p.kind}{'' if p.kind != 'instrument_failure' else ' ' + str(p.reason)}")
+    for e in errors:  # already redacted by llm_client (keys never reach here)
+        print(f"  error {e}")
     print(f"RESULT: {'PASS' if ok else 'CHECK'} -> {root.relative_to(REPO) if root.is_relative_to(REPO) else root}")
     return 0 if ok else 1
 

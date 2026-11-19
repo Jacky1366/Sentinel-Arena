@@ -181,3 +181,41 @@ def test_gates_b_and_c_offline(dirs, tmp_path, monkeypatch, capsys):
 def test_gate_c_refuses_non_eval_sources():
     probs = g.check_sources([REPO / "data" / "golden" / "train-6.1b-gate1-match1"])
     assert probs and "purpose 'train'" in probs[0]
+
+
+# ---- Gate A: probe (fake provider) -------------------------------------------------------
+
+def _probe_factory(script, env):
+    from llm_fakes import FakeAdapter, FakeError  # noqa: F401
+    from test_run_match_ai_vs_ai import RED_REPLY
+    oa = FakeAdapter(script=list(script.get("openai", ())), provider="openai", text=RED_REPLY)
+    an = FakeAdapter(script=list(script.get("anthropic", ())), provider="anthropic")
+    return lambda cfg: lc.LLMClient(config=cfg, prices=cost_stats.load_prices(),
+                                    adapters={"openai": oa, "anthropic": an}, env=env,
+                                    sleep=lambda s: None,
+                                    dotenv_path=REPO / "nonexistent" / "no.env")
+
+
+def test_probe_prints_redacted_provider_errors(tmp_path, capsys):
+    from llm_fakes import FakeError
+    secret = "probe" + "secret" + "value" + "123456"  # built at runtime (key hygiene)
+    env = {"ARENA_OPENAI_API_KEY": secret, "ARENA_ANTHROPIC_API_KEY": secret}
+    fac = _probe_factory({"openai": [FakeError(f"Unsupported parameter 'x' ({secret})", 400)],
+                          "anthropic": [FakeError("thinking.type: 'disabled' not allowed", 400)]},
+                         env)
+    assert g.probe(out_root=tmp_path / "p", client_factory=fac) == 1
+    out = capsys.readouterr().out
+    assert "error red: " in out and "Unsupported parameter 'x'" in out
+    assert "error blue: " in out and "thinking.type" in out
+    assert secret not in out
+    for f in (tmp_path / "p").rglob("*"):  # error text never reaches disk
+        if f.is_file():
+            assert "Unsupported" not in f.read_text() and secret not in f.read_text()
+
+
+def test_probe_passes_on_clean_replies(tmp_path, capsys):
+    assert g.probe(out_root=tmp_path / "p", client_factory=_probe_factory({}, {})) == 0
+    out = capsys.readouterr().out
+    assert "RESULT: PASS" in out and "error " not in out
+    red = [json.loads(l) for l in (tmp_path / "p" / "red" / lc.API_CALLS).read_text().splitlines()]
+    assert red[0]["model"] == "gpt-6.1-sol" and red[0]["ok"] is True
