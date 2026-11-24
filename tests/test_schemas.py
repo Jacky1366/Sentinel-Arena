@@ -1228,6 +1228,9 @@ INVALID["grounding_result"] = [
     ("unknown error code", lambda r: {**r, "ok": False, "errors": [{"code": "style", "path": "$", "detail": ""}]}),
     ("confidence not in D60", lambda r: {**r, "findings": [{"id": "F-01", "confidence": "Certain"}]}),
     ("missing stats", lambda r: {k: v for k, v in r.items() if k != "stats"}),
+]
+
+
 # Stage 7 #15: Compare bundle (contract 6.18).
 _VERDICT = {"verdict": "benign", "detected": False, "source": "ai", "reason": None}
 VALID["compare_bundle"] = {
