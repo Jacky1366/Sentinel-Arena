@@ -1,10 +1,10 @@
 {
   "schema_version": "0.2",
-  "_comment": "Analyst summary sources (Stage 7 #16). Paths and roles only; nearly all are TEST data (config/test_set.json, D35 eval): tools/build_summary.py refuses without ARENA_GO. The catalog follows the #16 plan (designer may cut or add).",
+  "_comment": "Analyst summary sources (Stage 7 #16). Paths and roles only; nearly all are TEST data (config/test_set.json, D35 eval): tools/build_summary.py refuses without ARENA_GO. The catalog follows the #16 plan (designer may cut or add). Labels and baselines are reader-facing (no internal ids, milestone or decision numbers; designer 2026-11-24): the analyst names experiments by label; ids stay in the evidence-manifest appendix.",
   "groups": [
     {
       "id": "gate_b",
-      "label": "Gate B: gpt-6-luna Red (effort high) vs original Blue (Haiku + library v5)",
+      "label": "Taxonomy attacks by an OpenAI attacker (gpt-6-luna) against the default defender",
       "kind": "taxonomy",
       "basis": "audited",
       "blue": "original",
@@ -16,7 +16,7 @@
     },
     {
       "id": "gate_b_deepseek",
-      "label": "Gate B-deepseek: deepseek-v4-pro Red (effort max) vs original Blue",
+      "label": "Taxonomy attacks by a DeepSeek attacker (deepseek-v4-pro) against the default defender",
       "kind": "taxonomy",
       "basis": "raw",
       "blue": "original",
@@ -28,7 +28,7 @@
     },
     {
       "id": "gate_b_evasion",
-      "label": "Gate B-evasion: deepseek-v4-pro Red + evasion directive (D40) vs original Blue",
+      "label": "Taxonomy attacks by a DeepSeek attacker told to evade detection, against the default defender",
       "kind": "taxonomy",
       "basis": "raw",
       "blue": "original",
@@ -40,7 +40,7 @@
     },
     {
       "id": "freeplay_original",
-      "label": "Gate B-freeplay: free-play Red (D41) vs original Blue (live)",
+      "label": "Free-play attacks (any technique) against the default defender",
       "kind": "freeplay",
       "basis": "audited",
       "blue": "original",
@@ -52,7 +52,7 @@
     },
     {
       "id": "freeplay_open",
-      "label": "Gate B-freeplay traffic, open Blue (v3-open, replay, analysis only)",
+      "label": "The same free-play traffic re-judged by the open-definition defender (analysis only)",
       "kind": "freeplay",
       "basis": "audited",
       "blue": "open",
@@ -64,7 +64,7 @@
     },
     {
       "id": "fp_check_original",
-      "label": "Prompt-FP check (D42 2c): original prompt on holdout + fixture",
+      "label": "False-alarm check of the default defender's prompt on sealed benign requests",
       "kind": "fp_check",
       "basis": null,
       "blue": "original",
@@ -74,7 +74,7 @@
     },
     {
       "id": "fp_check_open",
-      "label": "Prompt-FP check (D42 2c): open prompt on holdout + fixture",
+      "label": "False-alarm check of the open-definition prompt on sealed benign requests",
       "kind": "fp_check",
       "basis": null,
       "blue": "open",
@@ -84,7 +84,7 @@
     },
     {
       "id": "gate_c_sonnet",
-      "label": "Gate C: Gate B traffic, Sonnet + library v5 (replay)",
+      "label": "Taxonomy traffic re-judged by a stronger defender model (claude-sonnet-5-5) with the rule library",
       "kind": "taxonomy",
       "basis": "audited",
       "blue": "original",
@@ -96,7 +96,7 @@
     },
     {
       "id": "gate_c_haiku_empty",
-      "label": "Gate C: Gate B traffic, Haiku + empty library (replay)",
+      "label": "Taxonomy traffic re-judged by the default defender model without the rule library",
       "kind": "taxonomy",
       "basis": "audited",
       "blue": "original",
@@ -108,7 +108,7 @@
     },
     {
       "id": "m5_library",
-      "label": "M5: Gate 3 traffic, Haiku + library v5 (rules on)",
+      "label": "Cross-match rule library cost comparison: defender with the rule library",
       "kind": "taxonomy",
       "basis": "audited",
       "blue": "original",
@@ -120,7 +120,7 @@
     },
     {
       "id": "m5_empty",
-      "label": "M5: Gate 3 traffic, Haiku + empty library (rules on)",
+      "label": "Cross-match rule library cost comparison: defender with rules but an empty library",
       "kind": "taxonomy",
       "basis": "audited",
       "blue": "original",
@@ -132,7 +132,7 @@
     },
     {
       "id": "m5_rules_off",
-      "label": "M5: Gate 3 traffic, Haiku, rules off",
+      "label": "Cross-match rule library cost comparison: defender without rules",
       "kind": "taxonomy",
       "basis": "audited",
       "blue": "original",
@@ -149,49 +149,49 @@
       "of": "m5_library.cost_usd",
       "vs": "m5_rules_off.cost_usd",
       "mode": "relative",
-      "baseline": "rules off (Haiku, no rules)"
+      "baseline": "the defender without rules"
     },
     {
       "id": "m5.cost_change_vs_empty_library",
       "of": "m5_library.cost_usd",
       "vs": "m5_empty.cost_usd",
       "mode": "relative",
-      "baseline": "rules on with an empty library"
+      "baseline": "the defender with rules but an empty library"
     },
     {
       "id": "m5.empty_library_cost_change_vs_rules_off",
       "of": "m5_empty.cost_usd",
       "vs": "m5_rules_off.cost_usd",
       "mode": "relative",
-      "baseline": "rules off (Haiku, no rules)"
+      "baseline": "the defender without rules"
     },
     {
       "id": "m5.calls_change_vs_empty_library",
       "of": "m5_library.ai_calls",
       "vs": "m5_empty.ai_calls",
       "mode": "relative",
-      "baseline": "rules on with an empty library"
+      "baseline": "the defender with rules but an empty library"
     },
     {
       "id": "m5.calls_change_vs_rules_off",
       "of": "m5_library.ai_calls",
       "vs": "m5_rules_off.ai_calls",
       "mode": "relative",
-      "baseline": "rules off (Haiku, no rules)"
+      "baseline": "the defender without rules"
     },
     {
       "id": "freeplay.open_detection_change_vs_original",
       "of": "freeplay_open.detection",
       "vs": "freeplay_original.detection",
       "mode": "points",
-      "baseline": "original Blue on the same free-play traffic"
+      "baseline": "the default defender on the same free-play traffic"
     },
     {
       "id": "fp_check.open_fp_change_vs_original",
       "of": "fp_check_open.fp",
       "vs": "fp_check_original.fp",
       "mode": "points",
-      "baseline": "the original prompt on the same sealed benign requests"
+      "baseline": "the default defender's prompt on the same sealed benign requests"
     }
   ]
 }

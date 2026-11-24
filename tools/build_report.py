@@ -50,7 +50,46 @@ CANDIDATES = [  # designer Q1 (2026-11-24): this order, stop at the first that a
     {"model": "claude-sonnet-5-5", "provider": "anthropic",
      "request": {"thinking": "between_tools"}},  # Sonnet rejects "disabled" (6.3 Gate A)
 ]
+# designer (2026-11-24): gpt-6.1-sol, falling back in order to gpt-6.1-terra, then claude-sonnet-5-5
+REPORT_ORDER = ("gpt-6.1-sol", "gpt-6.1-terra", "claude-sonnet-5-5")
 ANALYST_CAP = {"max_calls": 12, "max_tokens": 600000, "max_usd": 1.0}
+
+
+class LedgerPreflightError(ValueError):
+    """A ledger record for this run would be refused: raised BEFORE any paid call."""
+
+
+def preflight_ledger(run_id: str, cands, prices: dict | None = None) -> None:
+    """Validate complete api_calls.jsonl records (success and failure shapes) for every
+    model this run may call, against api_call.schema.json, BEFORE any client is built.
+    Root-cause fix for the 2026-11-24 incident: a paid call whose ledger line was refused
+    afterwards went unrecorded. agents/llm_client.py is unchanged; this mirrors its lines."""
+    prices = prices if prices is not None else cost_mod.load_prices()
+    ts = lc.utc_now()
+    for cand in cands:
+        base = {"schema_version": "0.2", "match_id": run_id, "timestamp": ts, "agent": "analyst",
+                "provider": cand["provider"], "model": cand["model"], "round": None,
+                "log_seq_first": None, "log_seq_last": None, "attempt": 1,
+                "prompt_sha256": draft_mod.prompt_sha256()}
+        entry = cost_mod.entry_for(prices, cand["model"])
+        if entry is None or entry.get("verified") is not True:
+            raise LedgerPreflightError(f"{cand['model']}: no verified price entry")
+        if entry.get("peak") is not None:
+            base["rate_window"] = cost_mod.rate_window(entry, ts)
+        ok = {**base, "ok": True, "error_type": None, "http_status": 200, "refusal": None,
+              "stop_reason": "end_turn", "input_tokens": 1, "cached_input_tokens": 0,
+              "cache_write_tokens": 0, "unpriced_cache_write_tokens": 0, "output_tokens": 1,
+              "latency_ms": 1}
+        fail = {**base, "ok": False, "error_type": "timeout", "http_status": None, "refusal": None,
+                "stop_reason": None, "input_tokens": None, "cached_input_tokens": None,
+                "cache_write_tokens": None, "unpriced_cache_write_tokens": None,
+                "output_tokens": None, "error_excerpt": "x", "latency_ms": 1}
+        for line in (ok, fail):
+            errors = [e.message for e in lc.API_CALL_SCHEMA.iter_errors(line)]
+            if errors:
+                raise LedgerPreflightError(
+                    f"REFUSED before any paid call: a ledger record for {cand['model']} would be "
+                    f"invalid: {errors[:3]}")
 MAX_OUTPUT = 16384
 TIMEOUT_S = 300
 
@@ -102,6 +141,7 @@ def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
     if msg:
         raise PermissionError(msg)
     run_id = run_match.new_match_id()  # api_call.schema.json: a match-id-shaped id
+    preflight_ledger(run_id, CANDIDATES)  # before any folder, summary read or paid call
     run_dir = out / f"probe-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     summary = summary if summary is not None else build_the_summary(manifest, env, run_dir)
@@ -138,47 +178,62 @@ def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
     return {**doc, "run_dir": str(run_dir)}
 
 
-def report(env=None, model: str | None = None, manifest: Path = build_summary.MANIFEST,
+def report(env=None, models=None, manifest: Path = build_summary.MANIFEST,
            out: Path = OUT, client_factory=None, summary: dict | None = None,
-           publish: bool = True, dash: Path = DASH_REPORT) -> dict:
+           publish: bool = False, dash: Path = DASH_REPORT) -> dict:
+    """The report run: the analyst loop (max 3 attempts per model) with the designer's
+    fallback order, all inside ONE run folder (one $1 cap). Renders on the first grounded
+    draft. publish=False by default: nothing in the repo changes until the designer has read
+    the report (then --render <folder> --publish)."""
     env = os.environ if env is None else env
     msg = go_token.check(RUN_TOKEN, env)
     if msg:
         raise PermissionError(msg)
-    base = lc.load_config()
-    model = model or base["agents"]["analyst"].get("model")
-    cand = next((c for c in CANDIDATES if c["model"] == model), None)
-    if cand is None:
-        raise ValueError(f"no analyst model (set agents.analyst.model or --model); got {model!r}")
+    models = list(models or REPORT_ORDER)
+    cands = []
+    for m in models:
+        c = next((c for c in CANDIDATES if c["model"] == m), None)
+        if c is None:
+            raise ValueError(f"unknown analyst model {m!r}")
+        cands.append(c)
     run_id = run_match.new_match_id()
+    preflight_ledger(run_id, cands)  # before any folder, summary read or paid call
     run_dir = out / f"report-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     summary = summary if summary is not None else build_the_summary(manifest, env, run_dir)
     if not (run_dir / "summary.json").exists():
         _write(run_dir / "summary.json", summary)
     prices = cost_mod.load_prices()
-    cfg = analyst_config(base, cand)
-    client = client_factory(cfg) if client_factory else lc.LLMClient(config=cfg, prices=prices)
-    o = draft_mod.run(client, model, summary, run_dir, match_id=run_id)
-    meta = {"report_id": run_dir.name, "run_id": run_id, "model": model, "provider": cand["provider"],
-            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+    base = lc.load_config()
+    tried, o, cand = [], None, None
+    for cand in cands:
+        cfg = analyst_config(base, cand)
+        client = client_factory(cfg) if client_factory else lc.LLMClient(config=cfg, prices=prices)
+        o = draft_mod.run(client, cand["model"], summary, run_dir, match_id=run_id)
+        tried.append({"model": cand["model"], "stop": o.stop, "attempts": o.attempts, "log": o.log,
+                      **_calls_for(run_dir, cand["model"], prices)})
+        if o.draft is not None:
+            _write(run_dir / f"draft-{cand['model']}.json", o.draft)
+        if o.ok or o.stop == "refused" and o.log and o.log[-1].get("refusal"):
+            break  # accepted, or the body's cap refused: no point trying the next model
+    meta = {"report_id": run_dir.name, "run_id": run_id, "model": cand["model"],
+            "provider": cand["provider"], "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "prompt_version": draft_mod.PROMPT_VERSION, "prompt_sha256": draft_mod.prompt_sha256(),
-            "attempts": o.attempts, "stop": o.stop, "go_token": RUN_TOKEN, "log": o.log,
+            "attempts": o.attempts, "stop": o.stop, "go_token": RUN_TOKEN, "tried": tried,
             "cost_usd": cost_mod.summarize(cost_mod.read_calls(run_dir / lc.API_CALLS),
                                            prices)["total_usd"],
             "template_sha256": render.template_sha256()}
     _write(run_dir / "meta.json", meta)
-    if o.draft is not None:
+    if o.ok:
         _write(run_dir / "draft.json", o.draft)
-    if o.grounding is not None:
         _write(run_dir / "grounding_result.json", o.grounding)
-    if not o.ok:
-        return {**meta, "ok": False, "run_dir": str(run_dir)}
-    html = render.render(summary, o.draft, o.grounding, meta)
-    (run_dir / "report.html").write_text(html, encoding="utf-8")
-    if publish:
-        publish_dashboard(html, meta, dash)
-    return {**meta, "ok": True, "run_dir": str(run_dir)}
+        html = render.render(summary, o.draft, o.grounding, meta)
+        (run_dir / "report.html").write_text(html, encoding="utf-8")
+        if publish:
+            publish_dashboard(html, meta, dash)
+    elif o.grounding is not None:
+        _write(run_dir / "grounding_result.json", o.grounding)
+    return {**meta, "ok": o.ok, "run_dir": str(run_dir)}
 
 
 def publish_dashboard(html: str, meta: dict, dash: Path = DASH_REPORT) -> None:
@@ -208,7 +263,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--probe", action="store_true")
     g.add_argument("--run", action="store_true")
     g.add_argument("--render", type=Path, default=None)
-    ap.add_argument("--model", default=None)
+    ap.add_argument("--models", default=None,
+                    help="comma-separated fallback order (default: gpt-6.1-sol,gpt-6.1-terra,claude-sonnet-5-5)")
     ap.add_argument("--publish", action="store_true", help="--render: also update the dashboard")
     args = ap.parse_args(argv)
     try:
@@ -223,9 +279,10 @@ def main(argv: list[str] | None = None) -> int:
                       f"{x['grounding_error_codes']} ${x['usd']:.6f}")
             print(f"probe {r['probe_id']}: chosen={r['chosen']} total ${r['total_usd']:.6f} -> {r['run_dir']}")
             return 0 if r["chosen"] else 1
-        r = report(model=args.model)
-        print(f"report {r['report_id']}: ok={r['ok']} stop={r['stop']} attempts={r['attempts']} "
-              f"${r['cost_usd']:.6f} -> {r['run_dir']}")
+        r = report(models=args.models.split(",") if args.models else None)
+        for t in r["tried"]:
+            print(f"  {t['model']:<18} stop={t['stop']:<17} attempts={t['attempts']} ${t['usd']:.6f}")
+        print(f"report {r['report_id']}: ok={r['ok']} model={r['model']} ${r['cost_usd']:.6f} -> {r['run_dir']}")
         return 0 if r["ok"] else 1
     except PermissionError as exc:
         print(str(exc))

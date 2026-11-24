@@ -34,13 +34,13 @@ VALID = {
         "executive_summary": "Original Blue detected {{gate_b.detection.pct}} of audited "
                              "taxonomy attacks (CWE-89, CWE-79, CWE-22), see F-01.",
         "methodology": "Blue (claude-haiku-5-5) read only the proxy log; Red was gpt-6-luna. "
-                       "Library v5 was read-only (D44). The demo shows Act 1 to Act 3.",
+                       "Library v5 was read-only. The demo shows Act 1 to Act 3.",
         "results": "Free-play detection was {{freeplay_original.detection}} "
                    "({{freeplay_original.detection.k}} of {{freeplay_original.detection.n}}).",
         "risk_register": "We describe three kinds of blindness: prompt scope, application "
                          "context and structural (§6).",
         "deployment_options": "Options A, B and C trade coverage against false alarms.",
-        "decision_criteria": "Criteria are listed below; the decision is human (D54).",
+        "decision_criteria": "Criteria are listed below; the decision is human.",
         "limitations": "Open Blue verdicts vary run to run; the audit came after its results.",
     },
     "findings": [
@@ -92,6 +92,8 @@ def planted(path, value):
     (("sections", "results"), "Detection was {gate_b.detection}.", "placeholder"),
     (("sections", "results"), "Detection was {{gate_b.detection}.", "placeholder"),
     (("sections", "results"), "Blue detected 12 of 19 attempts.", "bare_number"),
+    (("sections", "results"), "As decided in D44, open Blue is analysis only.", "bare_number"),  # D60 b amendment
+    (("sections", "results"), "The M5 replays cost less.", "bare_number"),
     (("sections", "results"), "Detection was 63.2%.", "bare_number"),
     (("sections", "results"), "Cost was $0.09 in total.", "bare_number"),
     (("sections", "results"), "Blue missed seven attacks.", "number_word"),
@@ -146,7 +148,7 @@ def test_reference_errors():
 
 def test_allowlisted_tokens_pass_and_every_error_is_reported():
     ok = planted(("sections", "methodology"),
-                 "CWE-89 and CWE-22, F-02, D41, §6.14, v5 and v3-open, gpt-6-luna, "
+                 "CWE-89 and CWE-22, F-02, §6.14, v5 and v3-open, gpt-6-luna, "
                  "claude-haiku-5-5, Act 2, three kinds of blindness.")
     assert check(ok, SUMMARY)["ok"]
     bad = planted(("sections", "methodology"), "It ran 3 times; one of the two runs had 5 misses.")

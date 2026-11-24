@@ -28,9 +28,12 @@
       "caching": "off"
     },
     "analyst": {
-      "provider": null,
-      "model": null,
-      "note": "AI analyst (Stage 7 #17, D53): post-hoc only, never in the loop, never a judge. Model chosen by the probe (tools/build_report.py --probe: gpt-6.1-sol, gpt-6.1-terra, gpt-5.6-sol, fallback claude-sonnet-5-5); provider/model are set here once chosen. Analyst runs use cap $1 (caps.analyst; tools/build_report.py also raises the match cap to $1 for the analyst run folder)."
+      "provider": "openai",
+      "model": "gpt-6.1-sol",
+      "note": "AI analyst (Stage 7 #17, D53): post-hoc only, never in the loop, never a judge. Model chosen by the probe (tools/build_report.py --probe: gpt-6.1-sol, gpt-6.1-terra, gpt-5.6-sol, fallback claude-sonnet-5-5); Chosen 2026-11-24 (designer, from the probe evidence): gpt-6.1-sol; report-run fallback order gpt-6.1-terra, then claude-sonnet-5-5 (tools/build_report.py REPORT_ORDER). Analyst runs use cap $1 (caps.analyst; tools/build_report.py also raises the match cap to $1 for the analyst run folder).",
+      "request": {
+        "effort": "medium"
+      }
     }
   },
   "timeout_s": 60,

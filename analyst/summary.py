@@ -73,14 +73,16 @@ def _manifest_of(d: Path) -> dict:
 def _source(gid: str, i: int, d: Path, registry, extra: list[Path] = ()) -> dict:
     m = _manifest_of(d)
     v = test_data.classify(d, registry)
-    arts = {name: _sha(d / name) for name in ARTIFACTS if (d / name).is_file()}
+    # a list of {file, sha256}: a "<artifact name>": "<hex>" map trips the secret scanner
+    # (generic-api-key on "api_calls.jsonl"; see .gitleaksignore for the archived 0.2-pre files)
+    arts = [{"file": name, "sha256": _sha(d / name)} for name in ARTIFACTS if (d / name).is_file()]
     for p in extra:
         if p is not None and Path(p).is_file():
-            arts[_rel(p)] = _sha(Path(p))
+            arts.append({"file": _rel(p), "sha256": _sha(Path(p))})
     return {"id": f"{gid}#{i}", "path": _rel(d),
             "match_id": m.get("match_id") or (m.get("source") or {}).get("match_id"),
             "replay_id": m.get("replay_id"), "purpose": m.get("purpose"),
-            "test_data": v.kind, "sha256": arts}
+            "test_data": v.kind, "artifacts": arts}
 
 
 def _fig_rate(k: int, n: int, basis: str, group: dict, sources: list[str], definition: str,

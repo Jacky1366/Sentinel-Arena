@@ -1188,6 +1188,8 @@ VALID["analyst_summary"] = {
 VALID["analyst_summary_v0_1"] = VALID["analyst_summary"]
 VALID["analyst_summary"] = {
     **VALID["analyst_summary_v0_1"], "schema_version": "0.2",
+    "sources": [{**{k: v for k, v in VALID["analyst_summary_v0_1"]["sources"][0].items() if k != "sha256"},
+                 "artifacts": [{"file": "rounds.jsonl", "sha256": "b" * 64}]}],
     "figures": {**VALID["analyst_summary_v0_1"]["figures"],
                 "m5.cost_change_vs_rules_off": {
                     "kind": "change", "mode": "relative", "value": -0.2565,

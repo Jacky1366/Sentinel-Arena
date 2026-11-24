@@ -12,6 +12,8 @@ exactly what to fix. Fail closed: a false reject only costs a retry within the a
                    interval as "95% CI a-b%", a change with its baseline, so the bare
                    interval endpoints ci_low / ci_high are not placeholder fields.)
   bare_number      after placeholders and allowlisted tokens are removed, no digit remains
+                   (D60 b amendment, 2026-11-24: decision numbers and internal milestone /
+                   gate ids are NOT allowed; experiments are named by their summary labels)
   number_word      no spelled-out number or fraction word, outside a few fixed phrases
   figure_ref       every finding's figure_refs entry is a summary figure; every placeholder
                    used in a finding is listed in its figure_refs
@@ -47,7 +49,6 @@ PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}")
 TOKEN_ALLOW = [
     re.compile(r"\bCWE-\d+\b"),                 # taxonomy ids
     re.compile(r"\bF-\d{2}\b"),                 # finding ids
-    re.compile(r"\bD\d{1,3}\b"),                # decision numbers
     re.compile(r"§\d+(?:\.\d+)*"),              # section references
     re.compile(r"\bv\d+(?:\.\d+)*\b"),          # library / prompt versions
 ]

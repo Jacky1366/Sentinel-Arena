@@ -347,7 +347,7 @@
           "replay_id",
           "purpose",
           "test_data",
-          "sha256"
+          "artifacts"
         ],
         "properties": {
           "id": {
@@ -382,11 +382,25 @@
               "unknown"
             ]
           },
-          "sha256": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string",
-              "pattern": "^[0-9a-f]{64}$"
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "file",
+                "sha256"
+              ],
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
             }
           }
         }

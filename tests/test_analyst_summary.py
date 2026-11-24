@@ -150,9 +150,9 @@ def test_sources_carry_hashes_and_test_data_kind(lab, tmp_path, registry):
                   prices=PRICES, registry=registry)
     by_id = {s["id"]: s for s in doc["sources"]}
     assert set(by_id) == {"dev_tax#1", "dev_tax#2", "dev_fp#1", "dev_fpc#1"}
-    assert by_id["dev_tax#1"]["test_data"] == "not_test" and "rounds.jsonl" in by_id["dev_tax#1"]["sha256"]
+    assert by_id["dev_tax#1"]["test_data"] == "not_test" and "rounds.jsonl" in {a["file"] for a in by_id["dev_tax#1"]["artifacts"]}
     assert by_id["dev_fpc#1"]["test_data"] == "unknown"  # no manifest
-    assert any(k.endswith(f"{FP_MID}.freeplay.jsonl") for k in by_id["dev_fp#1"]["sha256"])
+    assert any(a["file"].endswith(f"{FP_MID}.freeplay.jsonl") for a in by_id["dev_fp#1"]["artifacts"])
 
 
 def test_cli_refuses_test_or_unknown_sources_without_go(tmp_path, registry, monkeypatch):

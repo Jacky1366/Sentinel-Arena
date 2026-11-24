@@ -75,3 +75,18 @@ def test_committed_manifest_comparisons_name_their_baseline():
     assert {"m5.cost_change_vs_rules_off", "m5.cost_change_vs_empty_library",
             "m5.empty_library_cost_change_vs_rules_off"} <= set(ids)
     assert all("_change_vs_" in i and c["baseline"] for i, c in zip(ids, m["comparisons"]))
+
+
+def test_committed_labels_and_baselines_are_reader_facing():
+    """Designer 2026-11-24: experiments are named by labels the analyst can quote; no internal
+    ids, milestone / gate names or D-numbers, and they pass the grounding prose checks."""
+    import re
+    from analyst import grounding
+    m = json.loads(build_summary.MANIFEST.read_text())
+    models = {"gpt-6-luna", "deepseek-v4-pro", "claude-sonnet-5-5"}
+    texts = [g["label"] for g in m["groups"]] + [c["baseline"] for c in m["comparisons"]]
+    for t in texts:
+        rest = grounding._strip_allowed(t, models)
+        assert not re.search(r"\d", rest), t
+        assert not grounding.NUMBER_WORDS.search(rest), t
+        assert not re.search(r"\b(Gate|M\d|D\d)", t), t

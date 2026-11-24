@@ -165,6 +165,12 @@ model ids, version tags). **Spelled-out numbers and fraction words are rejected 
 of fixed phrases (e.g. "three kinds of blindness", "Act 1" … "Act 3"). The check fails
 closed: a false reject only costs a retry within the analyst cap (D53).
 
+*(b) amendment (designer, 2026-11-24, #17).* Decision numbers (D-numbers) and internal
+milestone / gate ids (e.g. "M5", "Gate B") are **not** allowed in the report body: readers do not
+know them. Every experiment in `summary.json` carries a reader-facing label, which the analyst
+uses; the ids appear only in the report's appendices (evidence manifest, decision references).
+The grounding check's token allowlist no longer includes D-numbers.
+
 *(c) Where the summary lives.* Development builds go to
 `data/runs/analyst/` (git-ignored). The final `summary.json` used for the report is committed
 with the report under `data/golden/` in #17.

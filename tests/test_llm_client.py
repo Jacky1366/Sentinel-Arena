@@ -425,7 +425,7 @@ def test_committed_config_loads_with_designer_caps():
     assert {a: lc.agent_caching(cfg, a) for a in ("red", "blue")} == {"red": "off",
                                                                      "blue": "off"}
     assert {a: cfg["agents"][a]["provider"] for a in lc.AGENTS} == {
-        "red": "openai", "blue": "anthropic", "analyst": None}
+        "red": "openai", "blue": "anthropic", "analyst": "openai"}  # #17: gpt-6.1-sol
 
 
 @pytest.mark.parametrize("mutate", [

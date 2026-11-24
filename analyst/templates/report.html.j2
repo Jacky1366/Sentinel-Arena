@@ -65,7 +65,7 @@
 
 <h2>3. Methodology {{ by("AI") }}</h2>
 <p>{{ prose(sections.methodology) }}</p>
-<p class="muted">Fixed facts (code): Red attacks a test web application through a logging proxy; Blue reads only the proxy log after the traffic; a deterministic Judge scores each round. Confidence levels follow pre-registered rules (D60): audited or ground-truth figures with n ≥ 20 are High, below 20 Moderate, unaudited labels Low, open Blue capped at Moderate.</p>
+<p class="muted">Fixed facts (code): Red attacks a test web application through a logging proxy; Blue reads only the proxy log after the traffic; a deterministic Judge scores each round. Confidence levels follow pre-registered rules: audited or ground-truth figures with n ≥ 20 are High, below 20 Moderate, unaudited labels Low, open Blue capped at Moderate.</p>
 
 <h2>4. Results {{ by("code") }}</h2>
 <p>{{ prose(sections.results) }} <span class="by by-ai">narrative by AI</span></p>
@@ -77,7 +77,7 @@
 </table>
 
 <h2>5. Key findings {{ by("AI") }}</h2>
-<p class="muted">Finding text by the AI; each finding's confidence is assigned by code (the lowest among the figures it cites, D60).</p>
+<p class="muted">Finding text by the AI; each finding's confidence is assigned by code (the lowest among the figures it cites).</p>
 {% for f in findings %}
 <div class="finding">
   <h3>{{ f.id }} · {{ prose(f.title) }} <span class="conf conf-{{ (f.confidence or "low")|lower }}">{{ f.confidence or "—" }}</span></h3>
@@ -113,13 +113,13 @@
 <p>{{ prose(sections.limitations) }}</p>
 <div class="box"><b>Fixed disclosures (code).</b>
   <ul>
-    <li>The free-play audit was done after open-Blue results were known (D52).</li>
-    <li>Open Blue's verdicts vary run to run; its figures are capped at Moderate (D42, D60).</li>
-    <li>The n ≥ 20 confidence threshold was set knowing the sample sizes; it puts the free-play detection figures at Moderate, against our own headline (D60).</li>
-    {% if meta.provider == "openai" %}<li>The evidence includes an OpenAI attacker (gpt-6-luna, Gate B); an OpenAI analyst model commenting on it is disclosed here (D53).</li>
-    {% elif meta.provider == "anthropic" %}<li>The analyst model is from the same family as Blue (Anthropic); disclosed here (D53).</li>
-    {% else %}<li>Analyst provider: {{ meta.provider }} (D53).</li>{% endif %}
-    <li>The analyst never recommends an option; the decision is human (D54).</li>
+    <li>The free-play audit was done after open-Blue results were known.</li>
+    <li>Open Blue's verdicts vary run to run; its figures are capped at Moderate.</li>
+    <li>The n ≥ 20 confidence threshold was set knowing the sample sizes; it puts the free-play detection figures at Moderate, against our own headline.</li>
+    {% if meta.provider == "openai" %}<li>The evidence includes an OpenAI attacker (gpt-6-luna); an OpenAI analyst model commenting on it is disclosed here.</li>
+    {% elif meta.provider == "anthropic" %}<li>The analyst model is from the same family as Blue (Anthropic); disclosed here.</li>
+    {% else %}<li>Analyst provider: {{ meta.provider }}.</li>{% endif %}
+    <li>The analyst never recommends an option; the decision is human.</li>
   </ul>
 </div>
 
@@ -137,7 +137,7 @@
   <tr><th>Source</th><th>Path</th><th>Match</th><th>Purpose</th><th>Artifacts (sha256)</th></tr>
   {% for s in summary.sources %}
   <tr><td><code>{{ s.id }}</code></td><td><code>{{ s.path }}</code></td><td><code>{{ s.match_id or "—" }}</code></td><td>{{ s.purpose or "—" }}</td>
-    <td>{% for name, h in s.sha256|dictsort %}<code>{{ name }} {{ h[:12] }}</code>{{ "; " if not loop.last }}{% endfor %}</td></tr>
+    <td>{% for a in s.artifacts %}<code>{{ a.file }} {{ a.sha256[:12] }}</code>{{ "; " if not loop.last }}{% endfor %}</td></tr>
   {% endfor %}
 </table>
 
@@ -145,6 +145,7 @@
 <div class="box">
   <p>Sections marked "written by AI" were drafted by <b>{{ meta.model }}</b> ({{ meta.provider }}) on {{ meta.date }} with prompt v{{ meta.prompt_version }} (sha256 <code>{{ meta.prompt_sha256 }}</code>), in {{ meta.attempts }} attempt(s), at a cost of {{ meta.cost_usd|usd_appendix }} (GO <code>{{ meta.go_token }}</code>).</p>
   <p>The AI saw a code-built summary of frozen evidence (no attack payloads) and wrote prose with placeholders only. Code checked every placeholder and reference (grounding check: {{ "passed" if ground.ok else "FAILED" }}), filled in every number, and assigned every confidence level. Humans review the text and make the decision.</p>
+  <p class="muted">Decision references (project records, for auditors): confidence rules D60; analyst model and inputs D53; analysis, not recommendation D54; rendering D56; report structure D57; free-play audit timing D52; open-Blue instability D42.</p>
   <p class="muted">All figures with stats precision: {% for r in results %}<code>{{ r.key }}</code> = {{ r.text if r.f.kind != "usd" else (r.f.value|usd_appendix) }}{{ "; " if not loop.last }}{% endfor %}</p>
 </div>
 </body>

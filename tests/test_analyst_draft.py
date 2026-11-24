@@ -93,8 +93,8 @@ def test_probe_and_report_refuse_without_their_exact_go(tmp_path):
     with pytest.raises(PermissionError, match="manual-analyst-probe"):
         br.probe(env={}, out=tmp_path, client_factory=lambda c: None, summary=af.summary())
     with pytest.raises(PermissionError, match="manual-analyst-report"):
-        br.report(env={"ARENA_GO": br.PROBE_TOKEN}, out=tmp_path, model="gpt-6.1-sol",
-                  client_factory=lambda c: None, summary=af.summary(), publish=False)
+        br.report(env={"ARENA_GO": br.PROBE_TOKEN}, out=tmp_path, models=["gpt-6.1-sol"],
+                  client_factory=lambda c: None, summary=af.summary())
     assert not list(tmp_path.iterdir())
 
 
@@ -106,9 +106,9 @@ def test_the_candidate_order_and_sonnet_fallback():
 
 def test_report_run_writes_the_folder_and_publishes(tmp_path):
     dash = tmp_path / "dash"
-    r = br.report(env={"ARENA_GO": br.RUN_TOKEN}, out=tmp_path, model="gpt-6.1-terra",
+    r = br.report(env={"ARENA_GO": br.RUN_TOKEN}, out=tmp_path, models=["gpt-6.1-terra"],
                   client_factory=lambda cfg: af.StubClient([af.draft()]), summary=af.summary(),
-                  dash=dash)
+                  dash=dash, publish=True)
     d = tmp_path / r["report_id"]
     assert r["ok"] and {p.name for p in d.iterdir()} >= {"summary.json", "draft.json",
                                                           "grounding_result.json", "meta.json", "report.html"}
@@ -180,3 +180,40 @@ def test_strict_schema_keeps_every_property_name():
     assert _names(D.strict_schema()) == _names(json.loads(as_text))
     f = D.strict_schema()["properties"]["findings"]["items"]
     assert set(f["required"]) == {"id", "title", "text", "figure_refs", "evidence_refs"}
+
+
+def test_ledger_preflight_refuses_before_any_paid_call(tmp_path, monkeypatch):
+    """Root-cause fix (2026-11-24): a record the ledger would refuse fails BEFORE money."""
+    monkeypatch.setattr(br.run_match, "new_match_id", lambda: "probe-not-a-match-id")
+    called = []
+    for fn, tok in ((br.probe, br.PROBE_TOKEN), (br.report, br.RUN_TOKEN)):
+        with pytest.raises(br.LedgerPreflightError, match="before any paid call"):
+            fn(env={"ARENA_GO": tok}, out=tmp_path, client_factory=lambda c: called.append(c),
+               summary=af.summary())
+    assert called == [] and not list(tmp_path.iterdir())
+
+
+def test_ledger_preflight_needs_a_verified_price():
+    with pytest.raises(br.LedgerPreflightError, match="verified price"):
+        br.preflight_ledger("20261124T000000Z-abcd", [{"model": "no-such-model", "provider": "openai"}])
+    br.preflight_ledger("20261124T000000Z-abcd", br.CANDIDATES)  # every candidate is fine
+
+
+def test_report_falls_back_in_the_designers_order(tmp_path):
+    bad = af.draft()
+    bad["sections"]["results"] = "We recommend option B."
+    script = {"gpt-6.1-sol": [bad] * 3, "gpt-6.1-terra": [af.draft()]}
+    seen = []
+
+    def factory(cfg):
+        m = cfg["agents"]["analyst"]["model"]
+        seen.append(m)
+        return af.StubClient(script[m])
+    r = br.report(env={"ARENA_GO": br.RUN_TOKEN}, out=tmp_path, client_factory=factory,
+                  summary=af.summary())
+    assert br.REPORT_ORDER == ("gpt-6.1-sol", "gpt-6.1-terra", "claude-sonnet-5-5")
+    assert seen == ["gpt-6.1-sol", "gpt-6.1-terra"] and r["ok"] and r["model"] == "gpt-6.1-terra"
+    assert [t["stop"] for t in r["tried"]] == ["grounding_failed", "accepted"]
+    d = tmp_path / r["report_id"]
+    assert (d / "report.html").exists() and (d / "draft-gpt-6.1-sol.json").exists()
+    assert not (tmp_path / "dash").exists()  # nothing published until the designer has read it

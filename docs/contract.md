@@ -1710,8 +1710,9 @@ a change with its baseline). There is no confidence field (code assigns it, D60)
 `grounding_result.schema.json` (`"0.1"`): `ok`, every error (`code`, JSON `path`, `detail`),
 `stats`, and on success each finding's confidence (the lowest D60 confidence among its cited
 figures). Error codes: `schema`, `placeholder` (unknown figure or stray braces),
-`bare_number` (a digit outside the token allowlist: CWE ids, F-NN, D-numbers, § references,
-`v` versions, model ids from the summary), `number_word` (spelled-out numbers and fraction
+`bare_number` (a digit outside the token allowlist: CWE ids, F-NN, § references, `v`
+versions, model ids from the summary; D-numbers and milestone / gate ids are not allowed, D60 b
+amendment), `number_word` (spelled-out numbers and fraction
 words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"Act 3"),
 `figure_ref`, `evidence_ref`, `recommendation` (D54) and `confidence_claim`. Fail closed.
 
