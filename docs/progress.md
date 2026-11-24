@@ -28,7 +28,7 @@ file artifacts defined in a data contract.
 | 6.1a | Rule library, retention, variant mutator, offline benign data, M5 tooling (body) | Nov 17– (Stage 6) | Built on the fake provider (Nov 17); D24 amendment + (d′) approved, Docker stage checks 2/3/4/5.2 PASS, Gate 0 holdout capture + seal done (Nov 18); branch `stage6.1a-rule-library` |
 | 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits; Gate 2b rules-off arm ($0.0039): 79 calls / $0.003945 |
 | 6.2 + 6.4 | Autonomy table (M6) + dashboard MVP (M8) | Stage 6 | Built (Nov 18, zero tokens): `tools/autonomy_table.py` (+ committed 6.1b table), `tools/export_dashboard.py`, offline `dashboard/dist/index.html`; branch `stage6.2-4-autonomy-dashboard` |
-| 6.3 | Flagship gate (M7): Sol Red, Sonnet Blue, library transfer | Stage 6 (target Nov 26) | Tooling built on the fake provider (Nov 18); Gate A (prices + estimate) awaiting GO; branch `stage6.3-flagship` |
+| 6.3 | Flagship gate (M7): Sol Red, Sonnet Blue, library transfer | Stage 6 (target Nov 26) | Done (Nov 19): Gates A, B, C, B-deepseek, B-evasion, B-freeplay, C-open (D42) all PASS; audits per D43; merged in PR #9 (Nov 19) |
 | 7 | Live demo, Compare view, analyst report (epic #20) | Nov 24 – Dec 3 | Planned Nov 24 (`docs/plans/stage7_plan.md`, D45–D59); #11 housekeeping in progress |
 
 Next milestone: Stage 7 demo (Dec 3; epic #20).

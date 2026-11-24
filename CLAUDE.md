@@ -329,10 +329,18 @@ Everything else — implementation choices, test moves/refactors, docs, schema b
 pure-code sub-stages — decide yourself, apply it, and list it under "Decided without
 asking" in your report. Escalate only if unsure which category a step falls in.
 
-Merge policy (Stage 7): you may merge your own PR (Create a merge commit) only if all
-tests pass, it carries none of the labels needs-GO / test-set / paid, and it touches none
-of: the Judge, docs/contract.md, data/library/, data/golden/, config/test_set.json,
-agents/llm_client.py. Otherwise stop and ask me to review and merge.
+Stage 7 lanes (designer, 2026-11-24; apply from #12 on).
+- Important lane: #16 and #17. Stop for my review of the Step 0 plan, and stop again for
+  my review before merging.
+- Fast lane: every other Stage 7 issue. Put the plan in the PR description and proceed
+  without waiting. Merge your own PR (Create a merge commit) once all tests pass. For
+  dashboard changes, attach screenshots to the PR.
+- Escalation: a fast-lane PR that touches the Judge, docs/contract.md, data/library/,
+  data/golden/, config/test_set.json, agents/llm_client.py, CLAUDE.md or
+  docs/*_decisions.md moves to the important lane.
+- Never idle: when blocked on my review or GO, move to the next unblocked fast-lane issue.
+- GO is unchanged: every paid call and every test-set read still needs my explicit GO
+  token. Keep reporting "Decided without asking" in every PR.
 
 ## Working notes
 
@@ -418,10 +426,13 @@ agents/llm_client.py. Otherwise stop and ask me to review and merge.
   change in `rules/` (shared by Blue and the Judge; the Judge never imports `blue/`).
 - Never change `rules/normalize.py` behaviour without a new NORMALIZATION_VERSION
   and the 31-verdict gate (`tests/test_normalize.py`).
-- **Claude in Chrome (Stage 7, designer 2026-11-24):** the browser may open only the
-  dashboard (the live server on `127.0.0.1` or `file://`). Never open Juice Shop or the
-  proxy port (`127.0.0.1:8080`): browser requests would be written to the proxy log and
-  contaminate any match in progress.
+- **Claude in Chrome (Stage 7, designer 2026-11-24): allowlist.** The browser may open
+  ONLY the dashboard: the live server on `127.0.0.1` or `file://`. Every other port of the
+  lab stack is off limits: the arena proxy (`127.0.0.1:8080`; requests are written to the
+  proxy log and contaminate any match in progress), the Judge admin port
+  (`127.0.0.1:8081`), and Juice Shop's own port if it is ever published (a direct visit can
+  change Juice Shop state even without touching the proxy log: solved challenges are
+  sticky).
 - ALL arena traffic goes through `runner/arena_client.py`. Never tune Blue's
   signatures and the benign set against each other. A change to
   `benign/benign_set.json` needs a re-run of `tools/verify_benign_set.py` (a test
