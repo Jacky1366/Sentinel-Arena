@@ -95,6 +95,10 @@ def check(events, match_dir):
     assert all("usd" in e for e in events if e["type"] == "api_call")
     fin = events[-2]
     assert fin["status"] == m["status"] and fin["cost_usd"] == m["cost"]["total_usd"]
+    assert fin["started_at"] == m["started_at"] and fin["finished_at"] == m["finished_at"]
+    # the plan precedes every traffic event, also when one poll sees everything (catch-up)
+    assert types.index("match_plan") < min(types.index(t) for t in
+                                            ("red_attack", "benign_request", "api_call"))
     assert fin["tail_counts"]["malformed"] == 0
 
 

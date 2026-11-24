@@ -29,7 +29,7 @@ ARENA_GO=manual-<what> .venv/bin/python -u run_match.py <flags> 2>&1 | tee data/
 
 ## Events
 
-Each SSE message is `id: N` + `data: {"id": N, "type": ..., "match_id": ..., ...}`. Artifact
+Each SSE message is `id: N` + `data: {"id": N, "type": ..., "observed_at": <UTC, when the server saw it>, "match_id": ..., ...}`. Artifact
 events carry the line as `row`. A client connecting mid-match receives the whole current
 match first; `match_started` starts a new history (reset the view).
 
