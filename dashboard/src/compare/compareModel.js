@@ -12,7 +12,6 @@ export function armCards(bundle) {
       role: a.blue === "original" ? "default defender" : "analysis only",
       detected: g.detected, attempts: g.attempts, detPct: pct(g.detected, g.attempts),
       landedDetected: g.landed_detected, landedAttempts: g.landed_attempts,
-      benignFp: g.benign_fp, benign: g.benign,
       fpCheck: bundle.fp_check ? bundle.fp_check[a.id] ?? null : null,
     };
   });

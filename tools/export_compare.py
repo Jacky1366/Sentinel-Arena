@@ -9,8 +9,10 @@ Each arm lists one folder per match, in the same match order (a match folder, or
 of it). Per Red round (rounds.jsonl, joined by request_id): the Red record (label,
 technique, method, path), the free-play binary audit (attack attempt yes / no), landing
 (newly solved + catalog category) and each arm's verdict. Aggregates come from
-stats/free_play.summary (detection over audited attempts) and stats/match_stats.fp_rate
-(in-match benign FP), so they equal the committed free-play stats.
+stats/free_play.summary (detection over audited attempts), so they equal the committed free-play stats.
+In-match benign FP is deliberately NOT exported (designer, 2026-11-24): before it can be
+shown it must count unique requests (D60 a), explain its denominators and come through the
+analyst summary like every other figure.
 
 Gate (D59 + GO): every folder is classified by its manifest first; if any is test data or
 unknown, the export refuses unless ARENA_GO holds a well-formed token. The optional
@@ -103,8 +105,7 @@ def build(name: str, title: str, arms: list[dict], audits: Path | None = None,
     if len(set(ids)) != len(ids) or not all(ARM_RE.match(i) for i in ids):
         raise ValueError(f"bad or duplicate arm ids {ids}")
     matches, rows = [], []
-    agg = {a["id"]: {"detected": 0, "attempts": 0, "benign_fp": 0, "benign": 0,
-                     "landed_detected": 0} for a in arms}
+    agg = {a["id"]: {"detected": 0, "attempts": 0, "landed_detected": 0} for a in arms}
     for mi in range(n.pop()):
         dirs = {a["id"]: Path(a["folders"][mi]) for a in arms}
         mids = {aid: source_match_id(d) for aid, d in dirs.items()}
@@ -120,14 +121,10 @@ def build(name: str, title: str, arms: list[dict], audits: Path | None = None,
         per_match = {}
         for a in arms:
             s = free_play.summary(dirs[a["id"]], audit)
-            fp = ms.fp_rate(_jl(dirs[a["id"]] / "benign_results.jsonl"))
-            per_match[a["id"]] = {"detection": s["detection"], "audited": s["audited"],
-                                  "benign_fp": {"num": fp.num, "den": fp.den}}
+            per_match[a["id"]] = {"detection": s["detection"], "audited": s["audited"]}
             if s["detection"]:
                 agg[a["id"]]["detected"] += s["detection"]["num"]
                 agg[a["id"]]["attempts"] += s["detection"]["den"]
-            agg[a["id"]]["benign_fp"] += fp.num
-            agg[a["id"]]["benign"] += fp.den
         for rid, rr in sorted(per_arm_rounds[arms[0]["id"]].items(), key=lambda x: x[1]["round"]):
             red = reds.get(rid, {})
             f = fp_rows.get(rr["round"], {})

@@ -1727,8 +1727,10 @@ words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"A
   catalog category), each arm's verdict (verdict, detected, source, reason) and `divergent`
   (the arms disagree on `detected`).
 - **`matches` / `aggregate`:** per arm, detection over audited attempts
-  (`stats/free_play.summary`), in-match benign FP lines (`stats/match_stats.fp_rate`) and
-  landed attempts detected; so they equal the committed free-play stats.
+  (`stats/free_play.summary`) and landed attempts detected; so they equal the committed
+  free-play stats. In-match benign FP is not exported (designer, 2026-11-24): it may appear
+  only once it counts unique requests (D60 a), its denominators are explained, and it
+  reaches the dashboard through the analyst summary.
 - **`fp_check`:** the optional D42 2c prompt-FP panel (holdout + fixture), null unless
   exported with its own GO. **`notes`:** the D52 disclosures (selection, instability, audit
   timing, roles).

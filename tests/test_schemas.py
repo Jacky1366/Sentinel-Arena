@@ -1236,14 +1236,13 @@ VALID["compare_bundle"] = {
              {"id": "open", "label": "p", "blue": "open"}],
     "matches": [{"match": 1, "match_id": "m", "audit": None, "red_model": "deepseek-v4-pro",
                  "folders": {"original": "a", "open": "b"},
-                 "per_arm": {"original": {"detection": {"num": 1, "den": 2}, "audited": True,
-                                          "benign_fp": {"num": 0, "den": 17}}}}],
+                 "per_arm": {"original": {"detection": {"num": 1, "den": 2}, "audited": True}}}],
     "rows": [{"match": 1, "match_id": "m", "round": 1, "request_id": "r", "label": "other",
               "technique": "t", "method": "GET", "path": "/x", "payload": "/x",
               "headers_set": [], "attack_attempt": "yes", "landed": False, "solved": [],
               "verdicts": {"original": _VERDICT, "open": {**_VERDICT, "detected": True}},
               "divergent": True}],
-    "aggregate": {"original": {"detected": 1, "attempts": 2, "benign_fp": 0, "benign": 17,
+    "aggregate": {"original": {"detected": 1, "attempts": 2,
                                "landed_detected": 0, "landed_attempts": 0}},
     "fp_check": None, "notes": {"selection": "s"},
 }
@@ -1253,6 +1252,8 @@ INVALID["compare_bundle"] = [
     ("attempt not in enum", lambda r: {**r, "rows": [{**r["rows"][0], "attack_attempt": "maybe"}]}),
     ("blue not in enum", lambda r: {**r, "arms": [{**r["arms"][0], "blue": "closed"}, r["arms"][1]]}),
     ("a header value", lambda r: {**r, "rows": [{**r["rows"][0], "headers": {"Cookie": "x"}}]}),
+    ("in-match benign FP (hidden until it is a summary figure)", lambda r: {**r, "aggregate": {
+        "original": {**r["aggregate"]["original"], "benign_fp": 0}}}),
 ]
 
 

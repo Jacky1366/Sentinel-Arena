@@ -97,7 +97,8 @@ def test_aggregates_equal_free_play_summary_and_fp_rate(tmp_path):
         assert (doc["aggregate"][aid]["detected"], doc["aggregate"][aid]["attempts"]) == (s["num"], s["den"])
     assert doc["aggregate"]["original"]["detected"] == 1 and doc["aggregate"]["open"]["detected"] == 2
     assert doc["aggregate"]["open"]["landed_detected"] == 2 and doc["aggregate"]["original"]["landed_detected"] == 1
-    assert (doc["aggregate"]["open"]["benign_fp"], doc["aggregate"]["open"]["benign"]) == (1, 3)
+    # in-match benign FP is not exported (hidden until it is a unique-request summary figure)
+    assert "benign_fp" not in json.dumps(doc) and "benign" not in doc["aggregate"]["open"]
 
 
 def test_arms_must_be_the_same_traffic(tmp_path):
@@ -138,7 +139,9 @@ def test_committed_compare_bundles_are_valid_and_match_the_committed_stats():
     agg = docs["freeplay"]["aggregate"]
     assert (agg["original"]["detected"], agg["original"]["attempts"]) == (12, 19)  # progress.md
     assert (agg["open"]["detected"], agg["open"]["attempts"]) == (14, 19)
-    assert docs["freeplay"]["fp_check"] is None  # the 2c holdout panel needs its own GO
+    fpc = docs["freeplay"]["fp_check"]  # D42 2c panel, exported under GO manual-compare-fp-panel
+    assert (fpc["original"]["fp"], fpc["original"]["n"]) == (0, 57)  # progress.md
+    assert (fpc["open"]["fp"], fpc["open"]["n"]) == (6, 57)
     js = (out / "compare.js").read_text()
     for name in docs:
         assert f'window.ARENA_COMPARE["{name}"]' in js

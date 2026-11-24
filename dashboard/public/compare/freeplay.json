@@ -26,22 +26,14 @@
       "num": 4,
       "den": 6
      },
-     "audited": true,
-     "benign_fp": {
-      "num": 0,
-      "den": 17
-     }
+     "audited": true
     },
     "open": {
      "detection": {
       "num": 4,
       "den": 6
      },
-     "audited": true,
-     "benign_fp": {
-      "num": 2,
-      "den": 17
-     }
+     "audited": true
     }
    },
    "folders": {
@@ -60,22 +52,14 @@
       "num": 2,
       "den": 7
      },
-     "audited": true,
-     "benign_fp": {
-      "num": 0,
-      "den": 17
-     }
+     "audited": true
     },
     "open": {
      "detection": {
       "num": 4,
       "den": 7
      },
-     "audited": true,
-     "benign_fp": {
-      "num": 2,
-      "den": 16
-     }
+     "audited": true
     }
    },
    "folders": {
@@ -94,22 +78,14 @@
       "num": 6,
       "den": 6
      },
-     "audited": true,
-     "benign_fp": {
-      "num": 0,
-      "den": 17
-     }
+     "audited": true
     },
     "open": {
      "detection": {
       "num": 6,
       "den": 6
      },
-     "audited": true,
-     "benign_fp": {
-      "num": 1,
-      "den": 16
-     }
+     "audited": true
     }
    },
    "folders": {
@@ -824,21 +800,28 @@
   "original": {
    "detected": 12,
    "attempts": 19,
-   "benign_fp": 0,
-   "benign": 51,
    "landed_detected": 5,
    "landed_attempts": 7
   },
   "open": {
    "detected": 14,
    "attempts": 19,
-   "benign_fp": 5,
-   "benign": 49,
    "landed_detected": 7,
    "landed_attempts": 7
   }
  },
- "fp_check": null,
+ "fp_check": {
+  "original": {
+   "fp": 0,
+   "n": 57,
+   "folder": "data/golden/replays/gate-6.3-C-open/fp-on"
+  },
+  "open": {
+   "fp": 6,
+   "n": 57,
+   "folder": "data/golden/replays/gate-6.3-C-open/fp-open"
+  }
+ },
  "notes": {
   "selection": "The per-match table is an illustrative selection; the header aggregates all matches.",
   "instability": "Open Blue's verdicts vary run to run (D42 2c).",

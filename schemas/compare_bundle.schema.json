@@ -44,9 +44,8 @@
           "folders": {"type": "object", "additionalProperties": {"type": "string"}},
           "per_arm": {"type": "object", "additionalProperties": {
             "type": "object", "additionalProperties": false,
-            "required": ["detection", "audited", "benign_fp"],
-            "properties": {"detection": {"$ref": "#/$defs/rate"}, "audited": {"type": "boolean"},
-                           "benign_fp": {"$ref": "#/$defs/rate"}}}}
+            "required": ["detection", "audited"],
+            "properties": {"detection": {"$ref": "#/$defs/rate"}, "audited": {"type": "boolean"}}}}
         }
       }
     },
@@ -79,9 +78,8 @@
     },
     "aggregate": {"type": "object", "additionalProperties": {
       "type": "object", "additionalProperties": false,
-      "required": ["detected", "attempts", "benign_fp", "benign", "landed_detected", "landed_attempts"],
+      "required": ["detected", "attempts", "landed_detected", "landed_attempts"],
       "properties": {"detected": {"type": "integer", "minimum": 0}, "attempts": {"type": "integer", "minimum": 0},
-                     "benign_fp": {"type": "integer", "minimum": 0}, "benign": {"type": "integer", "minimum": 0},
                      "landed_detected": {"type": "integer", "minimum": 0},
                      "landed_attempts": {"type": "integer", "minimum": 0}}}},
     "fp_check": {"type": ["object", "null"], "additionalProperties": {

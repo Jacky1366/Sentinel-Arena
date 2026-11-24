@@ -29,9 +29,6 @@ function ArmCard({ a }) {
         <span className="text-2xl text-slate-300">attack attempts detected ({a.detPct}%)</span>
       </div>
       <div className="text-xl text-yellow-300">★ landed attacks caught: <b>{a.landedDetected} / {a.landedAttempts}</b></div>
-      <div className="text-lg text-slate-400" title="Judge benign results of these matches / replays (lines, not unique requests)">
-        in-match benign lines flagged: {a.benignFp} / {a.benign}
-      </div>
     </div>
   );
 }
