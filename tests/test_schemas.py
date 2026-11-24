@@ -67,6 +67,9 @@ SCHEMA_NAMES = [
     "benign_offline_draft",
     "test_set",
     "free_play_audit",
+    "analyst_summary",
+    "analyst_draft",
+    "grounding_result",
 ]
 
 
@@ -1157,6 +1160,74 @@ INVALID = {
         ("extra property", _set("corrected", "x")),
     ],
 }
+
+
+# Stage 7 #16: analyst summary, draft and grounding result (contract 6.15-6.17).
+_RATE = {"kind": "rate", "value": 0.5, "k": 14, "n": 28, "pct": 50.0, "ci_low": 0.31,
+         "ci_high": 0.69, "unit": "rounds", "basis": "audited", "blue": "original",
+         "confidence": "High", "source_ids": ["gate_b#1"], "definition": "d"}
+VALID["analyst_summary"] = {
+    "schema_version": "0.1", "built_at": "2026-11-24T22:00:00Z",
+    "git": {"commit": "f" * 40, "dirty": False}, "judge_version": "0.7.0",
+    "confidence_rules": "D60", "manifest": {"path": "config/analyst_sources.json", "sha256": "a" * 64},
+    "groups": [{"id": "gate_b", "label": "Gate B", "kind": "taxonomy", "blue": "original",
+                "basis": "audited", "folders": 3, "notes": []}],
+    "sources": [{"id": "gate_b#1", "path": "data/golden/x", "match_id": "20261119T061057Z-6177",
+                 "replay_id": None, "purpose": "eval", "test_data": "test",
+                 "sha256": {"rounds.jsonl": "b" * 64}}],
+    "figures": {"gate_b.detection": _RATE,
+                "gate_b.cost_usd": {"kind": "usd", "value": 0.01, "n": 3, "unit": "USD",
+                                    "basis": "measured", "blue": "original",
+                                    "confidence": "Moderate", "source_ids": ["gate_b#1"],
+                                    "definition": "d"}},
+    "descriptive": {"groups": {"gate_b": {"red_models": ["gpt-6-luna"], "blue_models": [],
+                                          "dates": ["2026-11-19"]}}},
+}
+VALID["analyst_draft"] = {
+    "schema_version": "0.1",
+    "sections": {k: "text" for k in ("executive_summary", "methodology", "results",
+                                     "risk_register", "deployment_options",
+                                     "decision_criteria", "limitations")},
+    "findings": [{"id": "F-01", "title": "t", "text": "x {{gate_b.detection}}",
+                  "figure_refs": ["gate_b.detection"], "evidence_refs": ["gate_b#1"]}],
+    "options": [{"id": i, "summary": "s", "strengths": ["a"], "weaknesses": ["b"]}
+                for i in ("A", "B", "C")],
+    "criteria": [{"if_you_value": "v", "option": "A", "because": "b"}],
+}
+VALID["grounding_result"] = {
+    "schema_version": "0.1", "ok": True, "errors": [],
+    "stats": {"placeholders": 1, "findings": 1, "texts": 9},
+    "findings": [{"id": "F-01", "confidence": "High"}],
+}
+INVALID["analyst_summary"] = [
+    ("rate without a CI", lambda r: {**r, "figures": {"g.x": {k: v for k, v in _RATE.items()
+                                                              if k != "ci_low"}}}),
+    ("confidence not in D60", lambda r: {**r, "figures": {"g.x": {**_RATE, "confidence": "Certain"}}}),
+    ("count with a non-measured basis", lambda r: {**r, "figures": {"g.x": {
+        **r["figures"]["gate_b.cost_usd"], "basis": "audited"}}}),
+    ("n = 0", lambda r: {**r, "figures": {"g.x": {**_RATE, "n": 0}}}),
+    ("technique longer than 120", lambda r: {**r, "descriptive": {"groups": {"g": {
+        "red_models": [], "blue_models": [], "dates": [], "rounds": [{
+            "match_id": None, "round": 1, "label": "other", "technique": "x" * 121,
+            "attack_attempt": "yes", "detected": False, "solved": []}]}}}}),
+    ("a payload in a round", lambda r: {**r, "descriptive": {"groups": {"g": {
+        "red_models": [], "blue_models": [], "dates": [], "rounds": [{
+            "match_id": None, "round": 1, "label": "other", "technique": None,
+            "attack_attempt": "yes", "detected": False, "solved": [], "payload": "/x"}]}}}}),
+    ("confidence rules not D60", _set("confidence_rules", "D55")),
+]
+INVALID["analyst_draft"] = [
+    ("a confidence field", lambda r: {**r, "findings": [{**r["findings"][0], "confidence": "High"}]}),
+    ("a recommendation field", _set("recommendation", "B")),
+    ("finding id shape", lambda r: {**r, "findings": [{**r["findings"][0], "id": "F1"}]}),
+    ("two options", lambda r: {**r, "options": r["options"][:2]}),
+    ("option D", lambda r: {**r, "criteria": [{**r["criteria"][0], "option": "D"}]}),
+]
+INVALID["grounding_result"] = [
+    ("unknown error code", lambda r: {**r, "ok": False, "errors": [{"code": "style", "path": "$", "detail": ""}]}),
+    ("confidence not in D60", lambda r: {**r, "findings": [{"id": "F-01", "confidence": "Certain"}]}),
+    ("missing stats", lambda r: {k: v for k, v in r.items() if k != "stats"}),
+]
 
 
 # --------------------------------------------------------------------------

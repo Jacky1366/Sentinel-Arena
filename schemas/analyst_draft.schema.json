@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-arena.local/schemas/analyst_draft.schema.json",
+  "title": "Analyst draft (Stage 7 #16; contract 6.16)",
+  "description": "What the AI analyst returns (#17). Prose only; every quantity is a {{placeholder}} for a summary.json figure (D55). There is deliberately no confidence field (code assigns it, D60) and no recommendation field (D54). Checked by analyst/grounding.py.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sections", "findings", "options", "criteria"],
+  "$defs": {
+    "prose": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "short": {"type": "string", "minLength": 1, "maxLength": 600},
+    "option_id": {"enum": ["A", "B", "C"]}
+  },
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["executive_summary", "methodology", "results", "risk_register",
+                   "deployment_options", "decision_criteria", "limitations"],
+      "properties": {
+        "executive_summary": {"$ref": "#/$defs/prose"},
+        "methodology": {"$ref": "#/$defs/prose"},
+        "results": {"$ref": "#/$defs/prose"},
+        "risk_register": {"$ref": "#/$defs/prose"},
+        "deployment_options": {"$ref": "#/$defs/prose"},
+        "decision_criteria": {"$ref": "#/$defs/prose"},
+        "limitations": {"$ref": "#/$defs/prose"}
+      }
+    },
+    "findings": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "title", "text", "figure_refs", "evidence_refs"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^F-[0-9]{2}$"},
+          "title": {"$ref": "#/$defs/short"},
+          "text": {"$ref": "#/$defs/prose"},
+          "figure_refs": {"type": "array", "minItems": 1, "uniqueItems": true,
+                          "items": {"type": "string", "minLength": 1}},
+          "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true,
+                            "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "options": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "summary", "strengths", "weaknesses"],
+        "properties": {
+          "id": {"$ref": "#/$defs/option_id"},
+          "summary": {"$ref": "#/$defs/short"},
+          "strengths": {"type": "array", "minItems": 1, "maxItems": 6, "items": {"$ref": "#/$defs/short"}},
+          "weaknesses": {"type": "array", "minItems": 1, "maxItems": 6, "items": {"$ref": "#/$defs/short"}}
+        }
+      }
+    },
+    "criteria": {
+      "type": "array", "minItems": 1, "maxItems": 10,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["if_you_value", "option", "because"],
+        "properties": {
+          "if_you_value": {"$ref": "#/$defs/short"},
+          "option": {"$ref": "#/$defs/option_id"},
+          "because": {"$ref": "#/$defs/short"}
+        }
+      }
+    }
+  }
+}
