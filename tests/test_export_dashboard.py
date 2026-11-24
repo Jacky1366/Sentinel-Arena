@@ -101,8 +101,11 @@ def test_committed_demo_bundles_regenerate_byte_for_byte(tmp_path):
         sorted([*(f"{n}.json" for n in DEMO), "bundles.js"])
 
 
-NETWORK = re.compile(r"\bfetch\(|XMLHttpRequest|WebSocket|EventSource|sendBeacon|"
-                     r"navigator\.serviceWorker")
+NETWORK = re.compile(r"\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|navigator\.serviceWorker")
+# Stage 7 #13 (D48/D49): the ONE allowed connection is LIVE mode's same-origin SSE stream
+# from the read-only live server, opened only in src/battle/live.js and only when the page
+# is served over http from 127.0.0.1 / localhost. From file:// the page makes no request.
+SSE = 'new EventSource("events")'
 
 
 def test_the_built_dashboard_is_offline():
@@ -110,11 +113,17 @@ def test_the_built_dashboard_is_offline():
     refs = re.findall(r'(?:src|href)="([^"]*)"', html)
     assert refs == ["./data/bundles.js"]  # everything else is inlined
     assert not NETWORK.search(html)
+    assert html.count("EventSource") == 1 and html.count(SSE) == 1
     for p in (DASH / "src").rglob("*"):
         if p.is_file():
             text = p.read_text(encoding="utf-8")
             assert not NETWORK.search(text), p.name
             assert not re.search(r"https?://", text), p.name
+            if p.name == "live.js":
+                assert text.count("EventSource") == 1 and SSE in text
+                assert 'loc.protocol === "http:"' in text and '"127.0.0.1"' in text
+            else:
+                assert "EventSource" not in text, p.name
     for name in [*(f"{n}.json" for n in DEMO), "bundles.js"]:
         assert (DASH / "dist" / "data" / name).read_bytes() == \
             (DASH / "public" / "data" / name).read_bytes(), f"rebuild the dashboard: {name}"

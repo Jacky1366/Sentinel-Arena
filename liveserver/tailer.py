@@ -38,6 +38,7 @@ import re
 import sys
 import threading
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -80,7 +81,9 @@ class EventLog:
         with self._cond:
             if etype == "match_started":
                 self._events = []
-            ev = {"id": self._next_id, "type": etype, **data}
+            ev = {"id": self._next_id, "type": etype,
+                  "observed_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds")
+                  .replace("+00:00", "Z"), **data}
             self._next_id += 1
             self._events.append(ev)
             self._cond.notify_all()
@@ -188,6 +191,7 @@ class Tailer:
         if lock is not None and (self.match is None or lock["match_id"] != self.match.match_id):
             self._start(lock["match_id"], lock)
         self._read_transcript()
+        self._apply_transcript(pre_traffic_only=True)  # plan + reset precede any artifact
         if self.match is not None and not self.match.finished:
             self._poll_files(self.match)
         self._apply_transcript()
@@ -231,7 +235,7 @@ class Tailer:
         self.log.append("match_finished", {
             "match_id": m.match_id, "status": manifest.get("status"),
             "failed_step": manifest.get("failed_step"), "error": manifest.get("error"),
-            "finished_at": manifest.get("finished_at"),
+            "started_at": manifest.get("started_at"), "finished_at": manifest.get("finished_at"),
             "cost_usd": (manifest.get("cost") or {}).get("total_usd"),
             "tail_counts": dict(m.counts)})
         self.log.append("lock_released", {"match_id": m.match_id})
@@ -375,9 +379,14 @@ class Tailer:
             elif self._tx_match is not None:  # its match has not started here yet
                 self._tx_backlog.append(line)
 
-    def _apply_transcript(self) -> None:
+    def _apply_transcript(self, pre_traffic_only: bool = False) -> None:
+        """Apply ready transcript lines. pre_traffic_only: only the leading lines before the
+        first slot / failure line (the seed and reset lines are printed before traffic)."""
         ready, self._tx_ready = self._tx_ready, []
-        for line in ready:
+        for k, line in enumerate(ready):
+            if pre_traffic_only and (RE_SLOT.match(line) or RE_FAILED.match(line)):
+                self._tx_ready = ready[k:]
+                return
             self._transcript_line(line)
 
     def _transcript_line(self, line: str) -> None:
