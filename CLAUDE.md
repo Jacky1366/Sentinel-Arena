@@ -67,7 +67,8 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   benign_offline_draft.schema.json  benign/*.draft.json (offline benign drafts)
   test_set.schema.json            config/test_set.json
   free_play_audit.schema.json     free-play binary audit row (attack attempt yes/no, D41)
-  analyst_summary.schema.json     analyst summary.json (contract 6.15, #16): figures + sources + D60 confidence
+  analyst_summary.schema.json     analyst summary.json 0.2 (contract 6.15/6.15a, #16/#17): figures + sources + D60 confidence + baseline-named comparisons
+  analyst_summary_v0_1.schema.json  frozen 0.1 analyst summary schema
   analyst_draft.schema.json       the AI analyst's draft (contract 6.16): prose with {{placeholders}}, no confidence / recommendation field
   grounding_result.schema.json    grounding check result (contract 6.17)
   compare_bundle.schema.json      Compare bundle (contract 6.18, #15): N Blue arms on the same traffic, joined by request_id
@@ -141,6 +142,9 @@ stats/cost.py           pure cost over api_calls.jsonl + price table
 stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule coverage by origin / calls / cost; CP bound for 0/n
 analyst/confidence.py   D60 (a) as code: figure / finding confidence; exact Clopper-Pearson 95%
 analyst/summary.py      #16: summary.json from frozen evidence via the existing stats (no payloads, D53)
+analyst/fmt.py          #17: report number formats (designer Q4: % with count, 95% CI a–b%, change with baseline)
+analyst/draft.py        #17: the AI analyst: prompt v1 (data not instructions, no recommendation), values + confidence + CI shown, retry with grounding errors (max 3)
+analyst/render.py       #17: Jinja2 (pinned, autoescape) render of the frozen template analyst/templates/report.html.j2 (D56/D57)
 analyst/grounding.py    #16: grounding check (placeholders, bare numbers, number words, refs, recommendation; D55, D60 b)
 liveserver/             Stage 7 #12: read-only live server (stdlib, 127.0.0.1, SSE) + tailer; `python -m liveserver` (README)
 stats/test_data.py      D59: is a folder TEST data? by manifest (match_id, purpose, replay source), never by name; scannable() for any folder scan
@@ -183,6 +187,7 @@ tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/sha
 tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
 tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + JSON (6.2, zero token)
 tools/free_play.py            free-play (D41): binary audit scaffold/sheet + report
+tools/build_report.py         #17: --probe (GO manual-analyst-probe) / --run (GO manual-analyst-report) / --render; analyst cap $1
 tools/build_summary.py        #16: build / --check the analyst summary.json; refuses test or unknown sources without ARENA_GO (D59)
 config/analyst_sources.json   #16: the summary's source groups (paths and roles only)
 tools/export_compare.py       #15: N Blue arms on the same traffic -> dashboard/public/compare/<name>.json + compare.js (D59 + GO gate)
@@ -195,6 +200,7 @@ tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls +
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
 dashboard/src/battle/    Stage 7 #13: Battle view (three acts), pure model.js (LIVE + REPLAY), live.js (the ONE EventSource)
 dashboard/test/         node:test for the Battle model (run by tests/test_dashboard_battle.py)
+dashboard/src/report/   Stage 7 #17: Report tab (sandboxed iframe, print link); dashboard/public/report/report.{js,html} from tools/build_report.py
 dashboard/src/compare/  Stage 7 #15: Compare view (D52) + pure compareModel.js (node:test in dashboard/test/compare.test.mjs)
 dashboard/public/compare/  committed Compare bundles (freeplay: 3 free-play eval matches, original live vs open replay; GO manual-freeplay-export)
 dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
@@ -292,6 +298,10 @@ tests/test_gate_6_3_gateB_freeplay_evidence.py  committed Gate B-freeplay eval m
 tests/test_gate_6_3_c_open_evidence.py  committed open-Blue (D42) replays: hashes, v3-open prompt, 2a recovery of landed other-class misses, 2b taxonomy unchanged
 tests/test_gate_6_3_gateB_evasion_evidence.py  committed Gate B-evasion eval matches: hashes, prompt v2 sha, timeout, test-set registration, full audit
 tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
+tests/analyst_fakes.py      #17 synthetic summary / draft / stub analyst client (no provider, no test-set data)
+tests/test_analyst_comparisons.py  baseline-named comparisons (M5 trio), refusals, Q4 formats
+tests/test_analyst_draft.py       analyst prompt/input/strict schema, retry loop, refusals, probe order + $1 cap, report run (stub client)
+tests/test_analyst_render.py      XSS as text, code-formatted numbers, confidence by code, D57 sections + authorship, frozen template
 tests/test_analyst_confidence.py  D60 table, cap, finding minimum, CP interval vs committed figures
 tests/test_analyst_summary.py     summary figures = existing stats, no payloads, sources/hashes, CLI GO gate (synthetic data only)
 tests/test_analyst_grounding.py   planted bad drafts rejected per code, a valid draft accepted, confidence by code

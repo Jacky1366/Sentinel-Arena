@@ -30,7 +30,7 @@
     "analyst": {
       "provider": null,
       "model": null,
-      "note": "Not implemented. Provider unset and caps 0 until the designer sets them; the client refuses to run an agent with no provider."
+      "note": "AI analyst (Stage 7 #17, D53): post-hoc only, never in the loop, never a judge. Model chosen by the probe (tools/build_report.py --probe: gpt-6.1-sol, gpt-6.1-terra, gpt-5.6-sol, fallback claude-sonnet-5-5); provider/model are set here once chosen. Analyst runs use cap $1 (caps.analyst; tools/build_report.py also raises the match cap to $1 for the analyst run folder)."
     }
   },
   "timeout_s": 60,
@@ -51,9 +51,9 @@
       "max_usd": 0.25
     },
     "analyst": {
-      "max_calls": 0,
-      "max_tokens": 0,
-      "max_usd": 0
+      "max_calls": 12,
+      "max_tokens": 600000,
+      "max_usd": 1.0
     },
     "match": {
       "max_calls": null,

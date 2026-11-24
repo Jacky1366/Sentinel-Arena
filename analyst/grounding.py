@@ -7,7 +7,10 @@ exactly what to fix. Fail closed: a false reject only costs a retry within the a
   schema           the draft matches schemas/analyst_draft.schema.json (no confidence and no
                    recommendation field exist in it: code assigns confidence, D55)
   placeholder      every {{key}} / {{key.field}} resolves to a summary figure
-                   (field: value, k, n, pct, ci_low, ci_high); stray braces are rejected
+                   (field: value, k, n, pct; ci for rates); stray braces are rejected.
+                   (#17, designer Q4: a percentage always prints with its count, an
+                   interval as "95% CI a-b%", a change with its baseline, so the bare
+                   interval endpoints ci_low / ci_high are not placeholder fields.)
   bare_number      after placeholders and allowlisted tokens are removed, no digit remains
   number_word      no spelled-out number or fraction word, outside a few fixed phrases
   figure_ref       every finding's figure_refs entry is a summary figure; every placeholder
@@ -37,7 +40,8 @@ DRAFT_SCHEMA = Draft202012Validator(json.loads(
 RESULT_SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "grounding_result.schema.json").read_text(encoding="utf-8")))
 
-FIELDS = ("value", "k", "n", "pct", "ci_low", "ci_high")
+FIELDS = ("value", "k", "n", "pct", "ci")
+RATE_ONLY = ("k", "pct", "ci")
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}")
 # Tokens that carry digits but are not quantities.
 TOKEN_ALLOW = [
@@ -87,9 +91,11 @@ def resolve(ref: str, figures: dict) -> str | None:
     if ref in figures:
         return ref
     base, _, field = ref.rpartition(".")
-    if field in FIELDS and base in figures and field in figures[base]:
-        return base
-    return None
+    if field not in FIELDS or base not in figures:
+        return None
+    if field in RATE_ONLY and figures[base]["kind"] != "rate":
+        return None
+    return base
 
 
 def _strip_allowed(text: str, models: set[str]) -> str:

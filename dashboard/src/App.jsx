@@ -3,6 +3,7 @@ import Battle from "./battle/Battle.jsx";
 import { liveAvailable } from "./battle/live.js";
 import Compare from "./compare/Compare.jsx";
 import Inspect from "./Inspect.jsx";
+import Report from "./report/Report.jsx";
 
 // Sentinel Arena dashboard (Stage 7, D49): one index.html, two modes, three views.
 //   LIVE   — opened from the live server on 127.0.0.1 (python -m liveserver): events over SSE.
@@ -70,10 +71,7 @@ export default function App() {
         ? <Battle key={src} source={source} onCompare={() => setTab("compare")} />
         : <Placeholder title="Nothing to show" issue="#13" text="Open this page from the live server, or export a bundle." />)}
       {tab === "compare" && <Compare />}
-      {tab === "report" && (
-        <Placeholder title="Report" issue="#17"
-          text="The code-grounded evaluation report and the human decision record (D53–D57). Not built yet." />
-      )}
+      {tab === "report" && <Report />}
       {tab === "inspect" && <Inspect />}
     </div>
   );

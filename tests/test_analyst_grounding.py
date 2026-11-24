@@ -45,8 +45,7 @@ VALID = {
     },
     "findings": [
         {"id": "F-01", "title": "Taxonomy attacks are detected",
-         "text": "Detection {{gate_b.detection.pct}}, CI {{gate_b.detection.ci_low}} to "
-                 "{{gate_b.detection.ci_high}}.",
+         "text": "Detection {{gate_b.detection}}, {{gate_b.detection.ci}}.",
          "figure_refs": ["gate_b.detection"], "evidence_refs": ["gate_b#1"]},
         {"id": "F-02", "title": "Free-play reaches outside the taxonomy",
          "text": "Detection fell to {{freeplay_original.detection.pct}}; the open prompt's "
@@ -73,7 +72,7 @@ def test_a_valid_draft_is_accepted_with_code_assigned_confidence():
     assert res["ok"], res["errors"]
     assert res["findings"] == [{"id": "F-01", "confidence": "High"},
                                {"id": "F-02", "confidence": "Moderate"}]  # the lowest cited
-    assert res["stats"]["placeholders"] >= 10 and res["stats"]["findings"] == 2
+    assert res["stats"]["placeholders"] >= 9 and res["stats"]["findings"] == 2
 
 
 def planted(path, value):
@@ -88,6 +87,8 @@ def planted(path, value):
 @pytest.mark.parametrize("path,value,code", [
     (("sections", "results"), "Detection was {{gate_b.nonexistent}}.", "placeholder"),
     (("sections", "results"), "Detection was {{gate_b.detection.median}}.", "placeholder"),
+    (("sections", "results"), "Lower bound {{gate_b.detection.ci_low}}.", "placeholder"),  # Q4
+    (("sections", "results"), "Cost {{gate_b.cost_usd.ci}}.", "placeholder"),  # rates only
     (("sections", "results"), "Detection was {gate_b.detection}.", "placeholder"),
     (("sections", "results"), "Detection was {{gate_b.detection}.", "placeholder"),
     (("sections", "results"), "Blue detected 12 of 19 attempts.", "bare_number"),

@@ -5,3 +5,5 @@ python-dotenv
 google-re2==1.1.20251105
 anthropic==2.3.0
 openai==3.41.0
+jinja2==3.1.4
+markupsafe==3.0.4

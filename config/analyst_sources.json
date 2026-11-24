@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.1",
+  "schema_version": "0.2",
   "_comment": "Analyst summary sources (Stage 7 #16). Paths and roles only; nearly all are TEST data (config/test_set.json, D35 eval): tools/build_summary.py refuses without ARENA_GO. The catalog follows the #16 plan (designer may cut or add).",
   "groups": [
     {
@@ -141,6 +141,57 @@
         "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match2-off",
         "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match3-off"
       ]
+    }
+  ],
+  "comparisons": [
+    {
+      "id": "m5.cost_change_vs_rules_off",
+      "of": "m5_library.cost_usd",
+      "vs": "m5_rules_off.cost_usd",
+      "mode": "relative",
+      "baseline": "rules off (Haiku, no rules)"
+    },
+    {
+      "id": "m5.cost_change_vs_empty_library",
+      "of": "m5_library.cost_usd",
+      "vs": "m5_empty.cost_usd",
+      "mode": "relative",
+      "baseline": "rules on with an empty library"
+    },
+    {
+      "id": "m5.empty_library_cost_change_vs_rules_off",
+      "of": "m5_empty.cost_usd",
+      "vs": "m5_rules_off.cost_usd",
+      "mode": "relative",
+      "baseline": "rules off (Haiku, no rules)"
+    },
+    {
+      "id": "m5.calls_change_vs_empty_library",
+      "of": "m5_library.ai_calls",
+      "vs": "m5_empty.ai_calls",
+      "mode": "relative",
+      "baseline": "rules on with an empty library"
+    },
+    {
+      "id": "m5.calls_change_vs_rules_off",
+      "of": "m5_library.ai_calls",
+      "vs": "m5_rules_off.ai_calls",
+      "mode": "relative",
+      "baseline": "rules off (Haiku, no rules)"
+    },
+    {
+      "id": "freeplay.open_detection_change_vs_original",
+      "of": "freeplay_open.detection",
+      "vs": "freeplay_original.detection",
+      "mode": "points",
+      "baseline": "original Blue on the same free-play traffic"
+    },
+    {
+      "id": "fp_check.open_fp_change_vs_original",
+      "of": "fp_check_open.fp",
+      "vs": "fp_check_original.fp",
+      "mode": "points",
+      "baseline": "the original prompt on the same sealed benign requests"
     }
   ]
 }

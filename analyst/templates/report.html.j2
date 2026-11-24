@@ -1,0 +1,151 @@
+{#- Sentinel Arena evaluation report (Stage 7 #17; D56 Jinja2 autoescape, D57 structure).
+    FROZEN: analyst/render.py records this file's sha256 in every report; a test checks it.
+    AI text arrives only as segments: "text" is autoescaped, "fig" is code-formatted. -#}
+{%- macro prose(segs) -%}
+{%- for s in segs -%}
+{%- if s.t == "fig" -%}<span class="fig c-{{ s.confidence|lower }}" title="{{ s.key }} · {{ s.confidence }}">{{ s.s }}</span>
+{%- else -%}{{ s.s }}{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+{%- macro by(who) -%}<span class="by by-{{ who|lower }}">written by {{ who }}</span>{%- endmacro -%}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<title>Sentinel Arena — evaluation report</title>
+<style>
+  :root { --ink:#111827; --muted:#4b5563; --line:#d1d5db; --high:#065f46; --moderate:#92400e; --low:#991b1b; }
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background:#fff; max-width: 920px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 32px 0 8px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; } p { margin: 6px 0; } .muted { color: var(--muted); }
+  .by { float: right; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+  .by-ai { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; } .by-code { background:#f3f4f6; } .by-human { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+  .fig { font-weight: 600; white-space: nowrap; border-bottom: 2px solid; }
+  .c-high { border-color: var(--high); } .c-moderate { border-color: var(--moderate); } .c-low { border-color: var(--low); }
+  .conf { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
+  .conf-high { background: var(--high); } .conf-moderate { background: var(--moderate); } .conf-low { background: var(--low); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; } th, td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; } code { font-size: 12px; }
+  .finding { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+  .box { border: 2px solid var(--ink); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+  .decision td { height: 28px; }
+  @media print {
+    body { max-width: none; padding: 0; font-size: 11pt; }
+    h2 { break-before: page; } h2.first { break-before: avoid; }
+    .finding, .box, tr { break-inside: avoid; }
+    @page { size: A4; margin: 18mm 16mm; }
+  }
+</style>
+</head>
+<body>
+<h1>Sentinel Arena — evaluation report</h1>
+<p class="muted">AI defender evaluation · report {{ meta.report_id }} · {{ meta.date }} · draft written by an AI analyst ({{ meta.model }}), every number filled in by code, decision by a human.</p>
+
+<h2 class="first">0. Document control {{ by("code") }}</h2>
+<table>
+  <tr><th>Report</th><td>{{ meta.report_id }} (report format {{ report_version }}, template sha256 <code>{{ template_sha256[:16] }}…</code>)</td></tr>
+  <tr><th>Evidence summary</th><td>schema {{ summary.schema_version }}, built {{ summary.built_at }}, commit <code>{{ (summary.git or {}).get("commit") or "—" }}</code>, Judge {{ summary.judge_version }}, confidence rules {{ summary.confidence_rules }}</td></tr>
+  <tr><th>Analyst</th><td>{{ meta.provider }} / {{ meta.model }}, prompt v{{ meta.prompt_version }} (sha256 <code>{{ meta.prompt_sha256[:16] }}…</code>), {{ meta.attempts }} attempt(s), cost {{ meta.cost_usd|usd_appendix }}</td></tr>
+  <tr><th>Grounding check</th><td>{{ "passed" if ground.ok else "FAILED" }}: {{ ground.stats.placeholders }} placeholders, {{ ground.stats.findings }} findings</td></tr>
+  <tr><th>Status</th><td>Draft for human review. The decision record (section 10) is completed by people, not by the AI.</td></tr>
+</table>
+
+<h2>1. Executive summary {{ by("AI") }}</h2>
+<p>{{ prose(sections.executive_summary) }}</p>
+
+<h2>2. Scope {{ by("code") }}</h2>
+<table>
+  <tr><th>Group</th><th>Kind</th><th>Blue</th><th>Folders</th><th>Notes</th></tr>
+  {% for g in summary.groups %}
+  <tr><td>{{ g.label }}</td><td>{{ g.kind }}</td><td>{{ g.blue or "—" }}</td><td>{{ g.folders }}</td><td>{{ g.notes|join("; ") or "—" }}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>3. Methodology {{ by("AI") }}</h2>
+<p>{{ prose(sections.methodology) }}</p>
+<p class="muted">Fixed facts (code): Red attacks a test web application through a logging proxy; Blue reads only the proxy log after the traffic; a deterministic Judge scores each round. Confidence levels follow pre-registered rules (D60): audited or ground-truth figures with n ≥ 20 are High, below 20 Moderate, unaudited labels Low, open Blue capped at Moderate.</p>
+
+<h2>4. Results {{ by("code") }}</h2>
+<p>{{ prose(sections.results) }} <span class="by by-ai">narrative by AI</span></p>
+<table>
+  <tr><th>Figure</th><th>Value</th><th>Interval</th><th>Basis</th><th>n</th><th>Confidence</th><th>Definition</th></tr>
+  {% for r in results %}{% if r.key in cited %}
+  <tr><td><code>{{ r.key }}</code></td><td>{{ r.text }}</td><td>{{ r.ci or "—" }}</td><td>{{ r.f.basis }}</td><td>{{ r.f.n }}</td><td><span class="conf conf-{{ r.f.confidence|lower }}">{{ r.f.confidence }}</span></td><td>{{ r.f.definition }}</td></tr>
+  {% endif %}{% endfor %}
+</table>
+
+<h2>5. Key findings {{ by("AI") }}</h2>
+<p class="muted">Finding text by the AI; each finding's confidence is assigned by code (the lowest among the figures it cites, D60).</p>
+{% for f in findings %}
+<div class="finding">
+  <h3>{{ f.id }} · {{ prose(f.title) }} <span class="conf conf-{{ (f.confidence or "low")|lower }}">{{ f.confidence or "—" }}</span></h3>
+  <p>{{ prose(f.text) }}</p>
+  <p class="muted">Figures: {% for r in f.figure_refs %}<code>{{ r }}</code>{{ ", " if not loop.last }}{% endfor %} · Evidence: {% for r in f.evidence_refs %}<code>{{ r }}</code>{{ ", " if not loop.last }}{% endfor %}</p>
+</div>
+{% endfor %}
+
+<h2>6. Risk register {{ by("AI") }}</h2>
+<p>{{ prose(sections.risk_register) }}</p>
+
+<h2>7. Deployment options {{ by("AI") }}</h2>
+<p>{{ prose(sections.deployment_options) }}</p>
+<table>
+  <tr><th>Option</th><th>Summary</th><th>Strengths</th><th>Weaknesses</th></tr>
+  {% for o in options %}
+  <tr><td><b>{{ o.id }}</b></td><td>{{ prose(o.summary) }}</td>
+    <td><ul>{% for s in o.strengths %}<li>{{ prose(s) }}</li>{% endfor %}</ul></td>
+    <td><ul>{% for s in o.weaknesses %}<li>{{ prose(s) }}</li>{% endfor %}</ul></td></tr>
+  {% endfor %}
+</table>
+
+<h2>8. Decision criteria {{ by("AI") }}</h2>
+<p>{{ prose(sections.decision_criteria) }}</p>
+<table>
+  <tr><th>If you value…</th><th>Option</th><th>Because</th></tr>
+  {% for c in criteria %}
+  <tr><td>{{ prose(c.value) }}</td><td><b>{{ c.option }}</b></td><td>{{ prose(c.because) }}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>9. Limitations {{ by("AI") }}</h2>
+<p>{{ prose(sections.limitations) }}</p>
+<div class="box"><b>Fixed disclosures (code).</b>
+  <ul>
+    <li>The free-play audit was done after open-Blue results were known (D52).</li>
+    <li>Open Blue's verdicts vary run to run; its figures are capped at Moderate (D42, D60).</li>
+    <li>The n ≥ 20 confidence threshold was set knowing the sample sizes; it puts the free-play detection figures at Moderate, against our own headline (D60).</li>
+    {% if meta.provider == "openai" %}<li>The evidence includes an OpenAI attacker (gpt-6-luna, Gate B); an OpenAI analyst model commenting on it is disclosed here (D53).</li>
+    {% elif meta.provider == "anthropic" %}<li>The analyst model is from the same family as Blue (Anthropic); disclosed here (D53).</li>
+    {% else %}<li>Analyst provider: {{ meta.provider }} (D53).</li>{% endif %}
+    <li>The analyst never recommends an option; the decision is human (D54).</li>
+  </ul>
+</div>
+
+<h2>10. Decision record {{ by("human") }}</h2>
+<table class="decision">
+  <tr><th>Decision (option A / B / C, or none)</th><td></td></tr>
+  <tr><th>Decided by</th><td></td></tr>
+  <tr><th>Date</th><td></td></tr>
+  <tr><th>Reasons (criteria from section 8)</th><td></td></tr>
+  <tr><th>Audience vote (demo)</th><td>A: ____ · B: ____ · C: ____</td></tr>
+</table>
+
+<h2>Appendix A. Evidence manifest {{ by("code") }}</h2>
+<table>
+  <tr><th>Source</th><th>Path</th><th>Match</th><th>Purpose</th><th>Artifacts (sha256)</th></tr>
+  {% for s in summary.sources %}
+  <tr><td><code>{{ s.id }}</code></td><td><code>{{ s.path }}</code></td><td><code>{{ s.match_id or "—" }}</code></td><td>{{ s.purpose or "—" }}</td>
+    <td>{% for name, h in s.sha256|dictsort %}<code>{{ name }} {{ h[:12] }}</code>{{ "; " if not loop.last }}{% endfor %}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>Appendix B. AI disclosure {{ by("code") }}</h2>
+<div class="box">
+  <p>Sections marked "written by AI" were drafted by <b>{{ meta.model }}</b> ({{ meta.provider }}) on {{ meta.date }} with prompt v{{ meta.prompt_version }} (sha256 <code>{{ meta.prompt_sha256 }}</code>), in {{ meta.attempts }} attempt(s), at a cost of {{ meta.cost_usd|usd_appendix }} (GO <code>{{ meta.go_token }}</code>).</p>
+  <p>The AI saw a code-built summary of frozen evidence (no attack payloads) and wrote prose with placeholders only. Code checked every placeholder and reference (grounding check: {{ "passed" if ground.ok else "FAILED" }}), filled in every number, and assigned every confidence level. Humans review the text and make the decision.</p>
+  <p class="muted">All figures with stats precision: {% for r in results %}<code>{{ r.key }}</code> = {{ r.text if r.f.kind != "usd" else (r.f.value|usd_appendix) }}{{ "; " if not loop.last }}{% endfor %}</p>
+</div>
+</body>
+</html>

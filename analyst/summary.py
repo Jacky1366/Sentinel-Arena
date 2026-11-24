@@ -24,7 +24,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from analyst.confidence import cp95, figure_confidence
+from analyst.confidence import LEVELS, cp95, figure_confidence
 from stats import autonomy
 from stats import free_play
 from stats import match_stats as ms
@@ -33,7 +33,9 @@ from tools import audit_match, autonomy_table
 from tools import free_play as free_play_tool
 
 REPO = Path(__file__).resolve().parent.parent
-SCHEMA_VERSION = "0.1"
+SCHEMA_VERSION = "0.2"
+# designer, 2026-11-24: no percentage without its baseline in the name
+CHANGE_KEY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+_change_vs_[a-z0-9_]+$")
 TEXT_MAX = 120
 KINDS = ("taxonomy", "freeplay", "fp_check")
 ARTIFACTS = ("match.json", "replay.json", "rounds.jsonl", "benign_results.jsonl",
@@ -256,6 +258,10 @@ def build(manifest: dict, *, prices: dict, registry: test_data.Registry | None =
                        "blue": g.get("blue"), "basis": g.get("basis"),
                        "folders": len(dirs), "notes": notes})
         descriptive["groups"][g["id"]] = {**_models(dirs), **desc}
+    for c in manifest.get("comparisons", []):
+        if c["id"] in figures:
+            raise ValueError(f"duplicate figure key {c['id']!r}")
+        figures[c["id"]] = comparison(c, figures)
     return {
         "schema_version": SCHEMA_VERSION,
         "built_at": built_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -266,6 +272,45 @@ def build(manifest: dict, *, prices: dict, registry: test_data.Registry | None =
         "groups": groups, "sources": sources, "figures": dict(sorted(figures.items())),
         "descriptive": descriptive,
     }
+
+
+def comparison(c: dict, figures: dict) -> dict:
+    """A change figure from two existing figures. mode relative: (of - vs) / vs (costs,
+    calls); points: the difference in percentage points of two rates. The key must name the
+    baseline (`..._change_vs_<baseline>`); confidence is the lower of the two (D60)."""
+    key = c["id"]
+    if not CHANGE_KEY.match(key):
+        raise ValueError(f"comparison {key!r}: the key must name its baseline "
+                         f"(<group>.<metric>_change_vs_<baseline>)")
+    for ref in (c["of"], c["vs"]):
+        if ref not in figures:
+            raise ValueError(f"comparison {key!r}: unknown figure {ref!r}")
+    a, b = figures[c["of"]], figures[c["vs"]]
+    mode = c["mode"]
+    if mode == "points":
+        if a["kind"] != "rate" or b["kind"] != "rate":
+            raise ValueError(f"comparison {key!r}: points need two rates")
+        ov, vv = a["value"], b["value"]
+        value, unit = round(100.0 * (ov - vv), 1), "percentage points"
+    elif mode == "relative":
+        if a["kind"] == "rate" or b["kind"] == "rate":
+            raise ValueError(f"comparison {key!r}: a relative change compares counts or costs")
+        ov, vv = a["value"], b["value"]
+        if not vv:
+            raise ValueError(f"comparison {key!r}: the baseline is zero")
+        value, unit = round((ov - vv) / vv, 4), "relative change"
+    else:
+        raise ValueError(f"comparison {key!r}: unknown mode {mode!r}")
+    conf = min((a["confidence"], b["confidence"]), key=LEVELS.index)
+    basis = "raw" if "raw" in (a["basis"], b["basis"]) else a["basis"]
+    return {"kind": "change", "mode": mode, "value": value, "of": c["of"], "vs": c["vs"],
+            "baseline": c["baseline"], "of_value": ov, "vs_value": vv,
+            "n": min(a["n"], b["n"]), "unit": unit, "basis": basis,
+            "blue": a.get("blue") if a.get("blue") == b.get("blue") else None,
+            "confidence": conf,
+            "source_ids": sorted(set(a["source_ids"]) | set(b["source_ids"])),
+            "definition": c.get("definition") or
+            f"{c['of']} compared with {c['vs']} (baseline: {c['baseline']})."}
 
 
 def model_ids(summary: dict) -> set[str]:
