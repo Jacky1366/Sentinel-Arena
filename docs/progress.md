@@ -1,6 +1,6 @@
 # Sentinel Arena — Build Progress
 
-*Last updated: 2026-11-17*
+*Last updated: 2026-11-24*
 
 A closed-loop evaluation harness for AI defenders. A Red agent attacks OWASP
 Juice Shop through an nginx reverse proxy; a Blue agent reads only the proxy log,
@@ -29,8 +29,9 @@ file artifacts defined in a data contract.
 | 6.1b | Gate 1 (5 train matches) + Gate 2 (M5 library replay) | Stage 6 | Done (Nov 18): Gate 1 PASS ($0.015), library v5 (19 rules); Gate 2 M5 PASS ($0.0078): calls 70→52, cost −39%, detection/FP unchanged, holdout 0 hits; Gate 2b rules-off arm ($0.0039): 79 calls / $0.003945 |
 | 6.2 + 6.4 | Autonomy table (M6) + dashboard MVP (M8) | Stage 6 | Built (Nov 18, zero tokens): `tools/autonomy_table.py` (+ committed 6.1b table), `tools/export_dashboard.py`, offline `dashboard/dist/index.html`; branch `stage6.2-4-autonomy-dashboard` |
 | 6.3 | Flagship gate (M7): Sol Red, Sonnet Blue, library transfer | Stage 6 (target Nov 26) | Tooling built on the fake provider (Nov 18); Gate A (prices + estimate) awaiting GO; branch `stage6.3-flagship` |
+| 7 | Live demo, Compare view, analyst report (epic #20) | Nov 24 – Dec 3 | Planned Nov 24 (`docs/plans/stage7_plan.md`, D45–D59); #11 housekeeping in progress |
 
-Next milestone: Stage 6 flagship gate (M7, target Nov 26; issue #5).
+Next milestone: Stage 7 demo (Dec 3; epic #20).
 
 ## Completed
 
@@ -334,6 +335,28 @@ No API calls, no change to the match pipeline (rule-first verdicts and hot-load 
   stack after the normalization move (matches `20261109T041650Z-e736` /
   `…041811Z-26c1`, commit `089cecc`, clean tree), and both matches are identical
   slot for slot to the 5.2 scripted baseline run (only `judge_version` reads 0.3.0).
+
+### Stage 7 — planning and housekeeping (Nov 24)
+Plan `docs/plans/stage7_plan.md`, decisions `docs/stage7_decisions.md` (D45–D59), merged in
+PR #10. Epic #20 with items #11–#19. Issue #11 Step 0: `docs/plans/stage7_11_step0.md`.
+
+- **Slip: test-data reads during the Stage 7 timing analysis (2026-11-24).** Zero tokens;
+  nothing read was used for any stat or decision except where noted.
+  - A scan over `data/runs/` and `data/golden/` filtered by **folder name**. Golden eval
+    folders are not named by match id, so it opened `api_calls.jsonl` in **9 test-set
+    folders** (`eval-6.3-gateB-deepseek-match{1,2,3}`, `-evasion-match{1,2,3}`,
+    `-freeplay-match{1,2,3}`). It printed only the number of DeepSeek calls per file.
+    Nothing from them was used.
+  - The same analysis read incident `20261119T173532Z-e624` (Gate B-freeplay run 2, failed,
+    `purpose: eval`, removed from `match_ids`): its `match.json` and `api_calls.jsonl` (Red
+    error types and latencies, Blue latencies, tokens and cost). Its Blue figures were used
+    in the timing-run estimate. By D35 an eval-purpose match is test data whether or not it
+    is registered, so this was a test-data read without a GO (designer, Nov 24: D35 is the
+    decision of record; CLAUDE.md's summary was incomplete and is corrected, not loosened).
+  - **Fix (D59):** `stats/test_data.py` classifies a folder by its manifest (`match_id`,
+    `purpose`, a replay's `source.match_id`), never by name; any scan goes through
+    `scannable()`. CLAUDE.md's test-set rule now includes `test_purposes`.
+- **Housekeeping:** PR #9 (Stage 6.3) merged Nov 19; issue #5 (Stage 6 epic) closed with #11.
 
 ### Stage 6.3 — Flagship gate (M7): tooling
 Plan `docs/plans/stage6_3_step0.md`; decisions D33–D37 (pre-approved). Built and tested on
@@ -1346,12 +1369,9 @@ Stage 6 will centralize these; some are already enforced. `anomalies.jsonl` exis
   runs, and the AI demo golden run will also live there.
 
 ## Next
-- **Stage 6** (issue #5; decisions `docs/stage6_decisions.md`):
-  - **6.1a** done: body built on the fake provider (Nov 17); drafts approved, Gate 0
-    capture + seal committed (Nov 18); PR open.
-  - **6.1b** Gate 1 (5 train matches, ≈ $0.015) and Gate 2 (M5, 6 replays, ≈ $0.010),
-    each after a separate GO from a clean committed tree.
-  - Later: M6 autonomy table, M7 flagship gate (target Nov 26), M8 dashboard.
+- **Stage 7** (epic #20; plan `docs/plans/stage7_plan.md`, decisions D45–D59): demo Dec 3.
+  Work order #11 → #12 → #16 → #13 → #14 → #15 → #17 → #18; #19 optional.
+- ~~**Stage 6**~~ (issue #5, closed): merged in PRs #6–#9.
 - ~~**Stage 5 — AI brains**~~ (Nov 13–19; done Nov 14), sub-stages (`docs/stage5_decisions.md`):
   - ~~5.1 Repo safety, decisions, LLM client + cost tracking~~ (done Nov 8).
   - ~~5.2 Benign traffic + fact 4a (verdict-level false positives)~~ (done Nov 9).

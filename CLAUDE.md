@@ -135,6 +135,7 @@ runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapsh
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
 stats/cost.py           pure cost over api_calls.jsonl + price table
 stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule coverage by origin / calls / cost; CP bound for 0/n
+stats/test_data.py      D59: is a folder TEST data? by manifest (match_id, purpose, replay source), never by name; scannable() for any folder scan
 stats/free_play.py      free-play measurement (D41): landing = any solve (+ category), detection binary over audited attempts; pure stats layer over the Judge
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
 blue/run_blue.py        Blue: classify proxy-log requests (--engine scripted | claude, --rules-mode)
@@ -276,6 +277,7 @@ tests/test_gate_6_3_gateB_freeplay_evidence.py  committed Gate B-freeplay eval m
 tests/test_gate_6_3_c_open_evidence.py  committed open-Blue (D42) replays: hashes, v3-open prompt, 2a recovery of landed other-class misses, 2b taxonomy unchanged
 tests/test_gate_6_3_gateB_evasion_evidence.py  committed Gate B-evasion eval matches: hashes, prompt v2 sha, timeout, test-set registration, full audit
 tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
+tests/test_test_data.py     D59 helper: manifest not folder name (the slip reproduced), eval purpose, replays, unknown skipped, only manifests opened
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 
@@ -347,9 +349,13 @@ agents/llm_client.py. Otherwise stop and ask me to review and merge.
   excluded from (d); new criterion (d′) `encoding_fragile`).
   Plan `docs/plans/stage6_1_step0.md`, decisions `docs/stage6_decisions.md`.
 - **Test-set data rule (designer, 2026-11-18, revised the same day):**
-  1. Protected data = the TEST SET only: the match ids in `config/test_set.json` and the
-     holdout set (`benign/holdout_v1.*`). Other golden folders (scripted baselines, the
-     first Claude Blue match, gate-5.5 / gate-5.7 replays) are not test data.
+  1. Protected data = the TEST SET only: the match ids in `config/test_set.json`, any match
+     whose `purpose` is in its `test_purposes` (D35: `eval` is test data from the moment it
+     exists, registered or not, including failed eval runs in `data/golden/incidents/`),
+     replays of those matches, and the holdout set (`benign/holdout_v1.*`). Other golden
+     folders (scripted baselines, the first Claude Blue match, gate-5.5 / gate-5.7 replays)
+     are not test data. (Corrected 2026-11-24: the `test_purposes` clause was missing from
+     this summary; D35 is the decision of record.)
   2. Committed read-only integrity tests (hash / re-score / unchanged-folder checks) have a
      standing GO and stay in the default suite.
   3. Any NEW code, test, debugging or exploratory run that reads test-set data needs the
@@ -357,6 +363,10 @@ agents/llm_client.py. Otherwise stop and ask me to review and merge.
   4. Offline tests never replay test-set matches (`tests/test_stage6_1_gates_offline.py`
      swaps in non-test golden folders and fails on any test-set replay). Only the real
      6.1b gates (Gate 2, `--predict`) touch the Gate 3 matches, each after a GO.
+  5. **Scans (D59):** any scan over match or replay folders goes through
+     `stats/test_data.scannable()`, which classifies a folder by its manifest (`match_id`,
+     `purpose`, a replay's `source.match_id`). Never filter by folder name: golden folders
+     are not named by match id (the 2026-11-24 slip, `docs/progress.md`).
 - **Failed / instrument-failure runs are archived and marked, never deleted.** Raw evidence
   is never deleted (instrument failures are excluded from stats by D13, not removed). A failed
   run under `data/runs/` is kept, or archived to `data/golden/incidents/` with its cause;
@@ -408,6 +418,10 @@ agents/llm_client.py. Otherwise stop and ask me to review and merge.
   change in `rules/` (shared by Blue and the Judge; the Judge never imports `blue/`).
 - Never change `rules/normalize.py` behaviour without a new NORMALIZATION_VERSION
   and the 31-verdict gate (`tests/test_normalize.py`).
+- **Claude in Chrome (Stage 7, designer 2026-11-24):** the browser may open only the
+  dashboard (the live server on `127.0.0.1` or `file://`). Never open Juice Shop or the
+  proxy port (`127.0.0.1:8080`): browser requests would be written to the proxy log and
+  contaminate any match in progress.
 - ALL arena traffic goes through `runner/arena_client.py`. Never tune Blue's
   signatures and the benign set against each other. A change to
   `benign/benign_set.json` needs a re-run of `tools/verify_benign_set.py` (a test
