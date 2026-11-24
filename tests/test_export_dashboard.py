@@ -111,7 +111,7 @@ SSE = 'new EventSource("events")'
 def test_the_built_dashboard_is_offline():
     html = (DASH / "dist" / "index.html").read_text(encoding="utf-8")
     refs = re.findall(r'(?:src|href)="([^"]*)"', html)
-    assert refs == ["./data/bundles.js"]  # everything else is inlined
+    assert refs == ["./data/bundles.js", "./compare/compare.js"]  # everything else is inlined
     assert not NETWORK.search(html)
     assert html.count("EventSource") == 1 and html.count(SSE) == 1
     for p in (DASH / "src").rglob("*"):
@@ -127,6 +127,9 @@ def test_the_built_dashboard_is_offline():
     for name in [*(f"{n}.json" for n in DEMO), "bundles.js"]:
         assert (DASH / "dist" / "data" / name).read_bytes() == \
             (DASH / "public" / "data" / name).read_bytes(), f"rebuild the dashboard: {name}"
+    for p in (DASH / "public" / "compare").iterdir():
+        assert (DASH / "dist" / "compare" / p.name).read_bytes() == p.read_bytes(), \
+            f"rebuild the dashboard: compare/{p.name}"
 
 
 def test_dependencies_are_pinned():

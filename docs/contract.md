@@ -203,6 +203,10 @@ The summary is a pure reader of frozen evidence; the draft is what the AI analys
 (#17); the grounding result is code. No artifact the Judge, Red or Blue writes changes;
 `JUDGE_VERSION` is unchanged.*
 
+*Revised 2026-11-24 (Stage 7 #15): the Compare bundle (§6.18, `compare_bundle.schema.json`),
+a pure reader of frozen matches and their replays. No artifact the Judge, Red or Blue writes
+changes; `JUDGE_VERSION` is unchanged.*
+
 *Revised 2026-11-18 (Stage 6.1a, designer decision on the D24 amendment): `encoding_only`
 variants never count for criterion (d), and a new criterion **(d′)** requires a retained rule
 to block every applicable `encoding_only` variant of its source (reason `encoding_fragile`).
@@ -1706,6 +1710,30 @@ figures). Error codes: `schema`, `placeholder` (unknown figure or stray braces),
 words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"Act 3"),
 `figure_ref`, `evidence_ref`, `recommendation` (D54) and `confidence_claim`. Fail closed.
 
+## 6.18 Compare bundle — `dashboard/public/compare/<name>.json` (Stage 7 #15; D52)
+
+`tools/export_compare.py --name N --arm id:label:blue:folder[:folder…] …` writes one
+`compare_bundle.schema.json` (`"0.1"`) bundle and rewrites `dashboard/public/compare/compare.js`
+(`window.ARENA_COMPARE[name]`, a classic script, so the dashboard works from `file://`).
+(§6.15–6.17 are the analyst artifacts of #16.)
+
+- **Arms:** N Blue arms (`original` / `open`) over the SAME traffic: per arm one folder per
+  match, in the same order (a match, or a replay of it). The source match ids must agree.
+- **Gate (D59 + GO):** every folder is classified by its manifest; test or unknown folders
+  need `ARENA_GO`.
+- **`rows`:** one per Red round sent (the first arm's `rounds.jsonl`), joined by
+  `request_id`: label, technique, method, path, payload (cut to 400 characters), header
+  NAMES only, the free-play binary audit's `attack_attempt`, landing (`newly_solved` +
+  catalog category), each arm's verdict (verdict, detected, source, reason) and `divergent`
+  (the arms disagree on `detected`).
+- **`matches` / `aggregate`:** per arm, detection over audited attempts
+  (`stats/free_play.summary`), in-match benign FP lines (`stats/match_stats.fp_rate`) and
+  landed attempts detected; so they equal the committed free-play stats.
+- **`fp_check`:** the optional D42 2c prompt-FP panel (holdout + fixture), null unless
+  exported with its own GO. **`notes`:** the D52 disclosures (selection, instability, audit
+  timing, roles).
+- **Copy only;** humans and the dashboard read it, Blue never does.
+
 ---
 
 ## 7. Challenge map — `config/challenge_map.json`
@@ -1770,6 +1798,7 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Dashboard bundle | `dashboard/public/data/<name>.json`, `bundles.js` (§6.14) | `tools/export_dashboard.py` | Dashboard, humans | Red, **Blue** (ground truth) |
 | Analyst summary | `data/runs/analyst/summary-<ts>.json`; final under `data/golden/` (§6.15) | `tools/build_summary.py` (`analyst/summary.py`) | Analyst (#17), humans | Red, **Blue** |
 | Analyst draft / grounding result | in memory and the #17 report folder (§6.16, §6.17) | the AI analyst / `analyst/grounding.py` | Report renderer, humans | Red, **Blue** |
+| Compare bundle | `dashboard/public/compare/<name>.json`, `compare.js` (§6.18) | `tools/export_compare.py` | Dashboard (Compare), humans | Red, **Blue** (ground truth) |
 | Holdout benign set | `benign/holdout_v1.jsonl` (+ `.meta.json`, draft) | `tools/build_holdout.py` (outside any match) | `tools/stage6_1_check.py` (offline scoring only) | **Blue**, retention / selection code (S6-1) |
 | Offline fixture v2 | `benign/fixture_v2_offline.jsonl` (+ `.meta.json`, draft) | `tools/build_holdout.py` | Retention criterion (b) only | **Blue** |
 | Test-set registry | `config/test_set.json` | Designer (`build_holdout.py` fills the hashes) | `tools/promote_rules.py`, `library/writer.py`, tests | — |

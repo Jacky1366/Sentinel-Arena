@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Battle from "./battle/Battle.jsx";
 import { liveAvailable } from "./battle/live.js";
+import Compare from "./compare/Compare.jsx";
 import Inspect from "./Inspect.jsx";
 
 // Sentinel Arena dashboard (Stage 7, D49): one index.html, two modes, three views.
@@ -68,10 +69,7 @@ export default function App() {
       {tab === "battle" && (source
         ? <Battle key={src} source={source} onCompare={() => setTab("compare")} />
         : <Placeholder title="Nothing to show" issue="#13" text="Open this page from the live server, or export a bundle." />)}
-      {tab === "compare" && (
-        <Placeholder title="Compare" issue="#15"
-          text="Original vs open Blue on the same free-play traffic, joined by request_id (D52). Not built yet." />
-      )}
+      {tab === "compare" && <Compare />}
       {tab === "report" && (
         <Placeholder title="Report" issue="#17"
           text="The code-grounded evaluation report and the human decision record (D53–D57). Not built yet." />

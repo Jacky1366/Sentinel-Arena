@@ -70,6 +70,7 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   analyst_summary.schema.json     analyst summary.json (contract 6.15, #16): figures + sources + D60 confidence
   analyst_draft.schema.json       the AI analyst's draft (contract 6.16): prose with {{placeholders}}, no confidence / recommendation field
   grounding_result.schema.json    grounding check result (contract 6.17)
+  compare_bundle.schema.json      Compare bundle (contract 6.18, #15): N Blue arms on the same traffic, joined by request_id
   autonomy_table.schema.json      the autonomy table JSON (contract 6.13)
   dashboard_bundle.schema.json    one dashboard bundle (contract 6.14)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
@@ -184,6 +185,7 @@ tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + J
 tools/free_play.py            free-play (D41): binary audit scaffold/sheet + report
 tools/build_summary.py        #16: build / --check the analyst summary.json; refuses test or unknown sources without ARENA_GO (D59)
 config/analyst_sources.json   #16: the summary's source groups (paths and roles only)
+tools/export_compare.py       #15: N Blue arms on the same traffic -> dashboard/public/compare/<name>.json + compare.js (D59 + GO gate)
 tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js (6.4, read-only)
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
 tools/build_holdout.py        capture + seal the offline benign files outside any match (--capture = Gate 0, GO only; --check)
@@ -193,6 +195,8 @@ tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls +
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
 dashboard/src/battle/    Stage 7 #13: Battle view (three acts), pure model.js (LIVE + REPLAY), live.js (the ONE EventSource)
 dashboard/test/         node:test for the Battle model (run by tests/test_dashboard_battle.py)
+dashboard/src/compare/  Stage 7 #15: Compare view (D52) + pure compareModel.js (node:test in dashboard/test/compare.test.mjs)
+dashboard/public/compare/  committed Compare bundles (freeplay: 3 free-play eval matches, original live vs open replay; GO manual-freeplay-export)
 dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
@@ -295,6 +299,7 @@ tests/live_fakes.py         fake live match: real orchestrator + traffic loop, f
 tests/test_live_tailer.py   tailer: every artifact line -> one event, causal order, catch-up, failures
 tests/test_live_server.py   live server: SSE in order, reconnect, static, read-only, loopback, lab ports refused
 tests/test_dashboard_battle.py  Battle model via node --test: a fake live match + every committed bundle through three acts
+tests/test_export_compare.py  Compare exporter: join, divergence, aggregates = free-play stats, same-traffic check, D59 gate (synthetic); committed bundle = 12/19, 14/19
 tests/test_test_data.py     D59 helper: manifest not folder name (the slip reproduced), eval purpose, replays, unknown skipped, only manifests opened
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
