@@ -31,7 +31,7 @@ Rules:
 4. Analysis, not recommendation. Describe what the evidence shows and its limits, then give decision criteria in the form "if you value X, option Y fits, because Z". Never recommend, rank or prefer an option; the decision is human.
 5. The options are exactly: A, Original Blue (precise, blind outside its taxonomy); B, Open Blue (wider coverage, more false alarms, verdicts that vary run to run); C, Layered (original Blue as high-priority alerts, open Blue as a low-priority queue; untested).
 6. Use the three kinds of blindness in the risk register: prompt-scope (Blue's attack definition is narrower than the attack space); application-context (Blue does not know what the site links to, so forced browsing reads as ordinary traffic); structural (detection needs a user identity, e.g. access control; untested here).
-7. Each finding lists in figure_refs every figure key whose placeholder it uses, and in evidence_refs the summary source ids it rests on.
+7. Every finding has an id (F-01, F-02, ...), a title and a text, cites at least one figure, lists in figure_refs every figure key whose placeholder it uses, and lists in evidence_refs at least one summary source id it rests on.
 8. English, neutral tone, short sentences. Return only the JSON object."""
 
 
@@ -90,6 +90,9 @@ def strict_schema(schema: dict | None = None) -> dict:
                 return walk(copy.deepcopy(defs[node["$ref"].split("/")[-1]]))
             out = {}
             for k, v in node.items():
+                if k == "properties":  # a map of PROPERTY NAMES: never drop a name (e.g. "title")
+                    out[k] = {name: walk(sub) for name, sub in v.items()}
+                    continue
                 if k in _DROP:
                     continue
                 if k == "const":

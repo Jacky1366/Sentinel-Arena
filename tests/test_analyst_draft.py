@@ -150,3 +150,33 @@ def test_probe_through_the_real_client_writes_valid_ledger_lines(tmp_path):
     assert [l["model"] for l in lines] == ["gpt-6.1-sol", "gpt-6.1-terra"]
     assert all(l["agent"] == "analyst" and l["match_id"] == r["run_id"] for l in lines)
     assert r["total_usd"] > 0 and r["results"][1]["usd"] > 0
+
+
+def _names(node, out=None):
+    """Every property name in a schema, recursively ($refs resolved by the caller)."""
+    out = set() if out is None else out
+    if isinstance(node, dict):
+        for name, sub in node.get("properties", {}).items():
+            out.add(name)
+            _names(sub, out)
+        for k, v in node.items():
+            if k != "properties":
+                _names(v, out)
+    elif isinstance(node, list):
+        for x in node:
+            _names(x, out)
+    return out
+
+
+def test_strict_schema_keeps_every_property_name():
+    """The 2026-11-24 probe: strict_schema dropped the findings' `title` PROPERTY (it is
+    also an annotation keyword), so no candidate could produce a schema-valid draft."""
+    full = D.strict_schema.__globals__["grounding"].DRAFT_SCHEMA.schema
+    inline = json.loads(json.dumps(full))
+    defs = inline.pop("$defs")
+    as_text = json.dumps(inline)
+    for name, d in defs.items():
+        as_text = as_text.replace(json.dumps({"$ref": f"#/$defs/{name}"}), json.dumps(d))
+    assert _names(D.strict_schema()) == _names(json.loads(as_text))
+    f = D.strict_schema()["properties"]["findings"]["items"]
+    assert set(f["required"]) == {"id", "title", "text", "figure_refs", "evidence_refs"}
