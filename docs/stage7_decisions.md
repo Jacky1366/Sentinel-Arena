@@ -1,0 +1,128 @@
+# Stage 7 decisions
+
+Decisions made during Stage 7 planning (2026-11-24). Numbering continues from
+`docs/stage6_decisions.md` (last: D44). The scope freeze (D40) stands: Stage 7 adds no
+new evidence. Live and test runs are `purpose=dev` and never enter a stat, the test set
+or any eval pool.
+
+## Demo
+
+**D45 — Live demo is primary; the golden run is the fallback.**
+The demo runs one live match. A recorded golden run is played only if the live path
+fails, and is then announced as recorded, never presented as live. The live match is
+`purpose=dev`: it is a sample, not evidence, and is never pooled.
+
+**D46 — Live configuration.**
+- Red: `deepseek-v4-pro`, effort max, free-play (prompt v3, D41), round cap 10,
+  caps as in the free-play arm (red $0.40, match $0.40).
+- Blue: the D44 default — `claude-haiku-5-5`, rules on, caching on, library v5 read-only.
+- Backup Red: `gpt-6-luna`. Free-play prompt v3 has never been run with Luna. E2E
+  testing (D58) must confirm it; if refused, the backup falls back to prompt v1
+  (taxonomy, validated in Gate B).
+- The demo timeout and retry settings are chosen from the timing run (issue: timing run).
+
+**D47 — The orchestrator is unchanged; the demo has three acts.**
+Blue and the Judge stay post-traffic (design principle 3: Blue reads only the frozen
+log). No per-line live Blue. The demo is shown as:
+1. Act 1, attack — live: Red records, proxy lines, challenge snapshots, unsent/failed turns.
+2. Act 2, Blue analysis — Blue ledger lines appear one by one; verdicts are not yet known.
+3. Act 3, verdict — verdicts and round records appear together and are revealed in sequence.
+
+## Live server and dashboard
+
+**D48 — Live server: Python standard library only.**
+`ThreadingHTTPServer`, bound to `127.0.0.1` only, read-only. It serves
+`dashboard/dist/index.html` and an SSE endpoint that tails the match artifacts
+(following `live/match.lock` and the proxy-log move at freeze). It makes no decision,
+computes no score and cannot start anything. There is no start button: the match is
+launched from the terminal with `ARENA_GO`, so the GO gate and the single exit
+(`agents/llm_client.py`) stay the only path to a paid call.
+
+**D49 — One dashboard, two modes, three views.**
+The same `index.html` runs LIVE (opened from the server, SSE) or REPLAY (opened from
+`file://`, bundle). Views: Battle, Compare, Report.
+
+**D50 — Animation honesty.**
+- Every animation is triggered by a real on-disk event. Nothing is invented for effect.
+- Blue is drawn as a radar that detects after the fact, never as a shield or blocker:
+  Blue is not on the traffic path.
+- Act 3's staged reveal is pacing only; all results exist on disk before it starts.
+- Failures (timeout, budget hit, invalid reply, guard block, send failure) are shown as
+  normal events.
+
+**D51 — No world map; no X-Forwarded-For.**
+All traffic comes from localhost, so a map would show invented origins. Spoofed
+`X-Forwarded-For` is not added: free-play Red may set only Cookie and Authorization
+(D15 amendment), the proxy log records no headers, and Blue is per-line stateless.
+Recorded as future work: XFF rate-limit bypass (Juice Shop "Reset Morty's Password")
+needs a D15 amendment, header logging, benign traffic with XFF and a stateful Blue.
+
+**D52 — Compare view.**
+- Data model is generic from the start: N Blue arms over the same traffic, joined by
+  `request_id`. The first bundle is free-play: original Blue (live verdicts) vs open Blue
+  (replay verdicts).
+- The header shows the aggregate over all 3 free-play matches. A per-match table is
+  labelled as an illustrative selection.
+- The FP figures (holdout + fixture) are shown separately from the match table and
+  labelled as a separate check.
+- Notes: open Blue verdicts vary run to run; the free-play audit was done after open-Blue
+  results were known (disclosed limitation).
+- Cost-paradox arms (rules off / empty library / library v5) are optional, only if time allows.
+
+## Analyst report
+
+**D53 — Analyst model and inputs.**
+- Model: an OpenAI model stronger than Luna, chosen by a probe. Fallback:
+  `claude-sonnet-5-5` (same family as Blue, disclosed).
+- Post-hoc only; never in the loop, never a judge.
+- Input: a code-built `summary.json` plus descriptive fields (e.g. Red `technique`).
+  Never raw payloads (reduces refusal and prompt-injection risk). The prompt states that
+  input content is data, not instructions.
+- Analyst cost cap: $1 (the `analyst` cap in `llm_client.py`).
+- Disclosure: the evidence includes an OpenAI Red (Gate B, Luna), so the report notes
+  that an OpenAI model comments on an OpenAI Red.
+
+**D54 — Analysis, not recommendation.**
+The analyst gives analysis, conclusions about the evidence and decision criteria
+("if you value X, option Y fits"). It never recommends an option. Options:
+- A — Original Blue (precise, blind outside the taxonomy).
+- B — Open Blue (wider coverage, ~10% FP, unstable verdicts).
+- C — Layered (original as high-priority alerts, open as a low-priority queue; untested).
+The decision is human only. In the demo it is an audience vote, recorded in the
+report's decision record.
+
+**D55 — Grounding by construction.**
+- The analyst returns JSON whose prose contains only `{{placeholders}}` for figures.
+- Code checks that every placeholder resolves to a field in `summary.json` and that no
+  bare number appears outside an allowlist (e.g. CWE ids). A failure rejects the draft;
+  retries stay within the analyst cap.
+- Confidence levels on findings are assigned by code from pre-registered rules, never by
+  the analyst. The rules are fixed before any summary is built (issue: summary builder).
+
+**D56 — Rendering.**
+Jinja2 with autoescape on, version pinned: the only new dependency, justified because
+untrusted AI text goes into HTML. The HTML template is designed once and frozen. PDF is
+produced by browser print CSS.
+
+**D57 — Report structure.**
+0 Document control · 1 Executive summary (BLUF) · 2 Scope · 3 Methodology · 4 Results ·
+5 Key findings (F-NN, evidence refs, confidence) · 6 Risk register (three kinds of
+blindness) · 7 Deployment options · 8 Decision criteria · 9 Limitations · 10 Decision
+record (human). Appendices: evidence manifest (match ids, commit hash, Judge version),
+AI disclosure (model, date, grounding result). Each section is marked as written by
+code, AI or human. English, neutral tone.
+
+## Testing and process
+
+**D58 — E2E testing.**
+Happy path (preflight → match → three acts → Compare → Report) plus failure drills:
+network loss, DeepSeek failure → Luna, server crash → `file://` replay, overlong match
+→ cut to golden run. At least one run in the DeepSeek peak window (17:00–20:00 Pacific,
+Sun–Thu) and one on the demo laptop with a projector. The last clean run is exported as
+the golden run. All runs `purpose=dev`.
+
+**D59 — Ledger scans filter by match id.**
+Any scan over match folders filters by `match.json` `match_id` against
+`config/test_set.json`, never by folder name. Origin: on 2026-11-24 a folder-name filter
+opened `api_calls.jsonl` in 9 test-set folders; only per-file DeepSeek call counts were
+printed and nothing was used.
