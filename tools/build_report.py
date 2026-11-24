@@ -35,6 +35,7 @@ from analyst import draft as draft_mod  # noqa: E402
 from analyst import grounding, render  # noqa: E402
 from analyst import summary as summary_mod  # noqa: E402
 from judge import JUDGE_VERSION  # noqa: E402
+import run_match  # noqa: E402  (new_match_id: ledger lines need a match-id-shaped id)
 from runner import go_token  # noqa: E402
 from stats import cost as cost_mod  # noqa: E402
 from tools import build_summary  # noqa: E402
@@ -100,7 +101,8 @@ def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
     msg = go_token.check(PROBE_TOKEN, env)
     if msg:
         raise PermissionError(msg)
-    run_dir = out / f"probe-{now_id()}"
+    run_id = run_match.new_match_id()  # api_call.schema.json: a match-id-shaped id
+    run_dir = out / f"probe-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     summary = summary if summary is not None else build_the_summary(manifest, env, run_dir)
     prices = cost_mod.load_prices()
@@ -110,7 +112,7 @@ def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
         cfg = analyst_config(base, cand)
         client = client_factory(cfg) if client_factory else lc.LLMClient(config=cfg, prices=prices)
         o = draft_mod.run(client, cand["model"], summary, run_dir, max_attempts=1,
-                          match_id=run_dir.name)
+                          match_id=run_id)
         codes = sorted({e["code"] for e in (o.grounding or {}).get("errors", [])})
         schema_valid = o.draft is not None and o.grounding is not None and "schema" not in codes
         r = {"model": cand["model"], "provider": cand["provider"], "request": cand["request"],
@@ -128,7 +130,7 @@ def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
             chosen = cand["model"]
             break
     total = cost_mod.summarize(cost_mod.read_calls(run_dir / lc.API_CALLS), prices)["total_usd"]
-    doc = {"probe_id": run_dir.name, "go_token": PROBE_TOKEN, "chosen": chosen,
+    doc = {"probe_id": run_dir.name, "run_id": run_id, "go_token": PROBE_TOKEN, "chosen": chosen,
            "prompt_version": draft_mod.PROMPT_VERSION,
            "prompt_sha256": draft_mod.prompt_sha256(), "results": results,
            "total_usd": total, "summary_figures": len(summary["figures"])}
@@ -148,7 +150,8 @@ def report(env=None, model: str | None = None, manifest: Path = build_summary.MA
     cand = next((c for c in CANDIDATES if c["model"] == model), None)
     if cand is None:
         raise ValueError(f"no analyst model (set agents.analyst.model or --model); got {model!r}")
-    run_dir = out / f"report-{now_id()}"
+    run_id = run_match.new_match_id()
+    run_dir = out / f"report-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     summary = summary if summary is not None else build_the_summary(manifest, env, run_dir)
     if not (run_dir / "summary.json").exists():
@@ -156,8 +159,8 @@ def report(env=None, model: str | None = None, manifest: Path = build_summary.MA
     prices = cost_mod.load_prices()
     cfg = analyst_config(base, cand)
     client = client_factory(cfg) if client_factory else lc.LLMClient(config=cfg, prices=prices)
-    o = draft_mod.run(client, model, summary, run_dir, match_id=run_dir.name)
-    meta = {"report_id": run_dir.name, "model": model, "provider": cand["provider"],
+    o = draft_mod.run(client, model, summary, run_dir, match_id=run_id)
+    meta = {"report_id": run_dir.name, "run_id": run_id, "model": model, "provider": cand["provider"],
             "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "prompt_version": draft_mod.PROMPT_VERSION, "prompt_sha256": draft_mod.prompt_sha256(),
             "attempts": o.attempts, "stop": o.stop, "go_token": RUN_TOKEN, "log": o.log,

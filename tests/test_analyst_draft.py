@@ -116,3 +116,37 @@ def test_report_run_writes_the_folder_and_publishes(tmp_path):
     assert js.startswith("// GENERATED") and "window.ARENA_REPORT" in js
     assert (dash / "report.html").read_text() == (d / "report.html").read_text()
     assert grounding.check(json.loads((d / "draft.json").read_text()), af.summary())["ok"]
+
+
+class _FakeProvider:
+    """A provider adapter for the REAL LLMClient (no network): returns a scripted text."""
+    needs_key = False
+
+    def __init__(self, provider, texts):
+        self.provider, self.texts = provider, list(texts)
+
+    def call(self, **kw):
+        from llm_fakes import lc
+        return lc.Reply(text=self.texts.pop(0), usage=lc.Usage(1000, 0, 0, 500),
+                        stop_reason="end_turn")
+
+
+def test_probe_through_the_real_client_writes_valid_ledger_lines(tmp_path):
+    """The 2026-11-24 incident: a probe call succeeded but its ledger line was refused
+    (match_id was the folder name). Through the real LLMClient, every line must be valid."""
+    from llm_fakes import REPO, lc
+    from stats import cost
+    texts = {"gpt-6.1-sol": ["not json"], "gpt-6.1-terra": [json.dumps(af.draft())]}
+
+    def factory(cfg):
+        m = cfg["agents"]["analyst"]["model"]
+        return lc.LLMClient(config=cfg, prices=cost.load_prices(),
+                            adapters={"openai": _FakeProvider("openai", texts[m])}, env={},
+                            sleep=lambda s: None, dotenv_path=REPO / "nonexistent" / "no.env")
+    r = br.probe(env={"ARENA_GO": br.PROBE_TOKEN}, out=tmp_path, client_factory=factory,
+                 summary=af.summary())
+    assert r["chosen"] == "gpt-6.1-terra"
+    lines = cost.read_calls(tmp_path / r["probe_id"] / "api_calls.jsonl")
+    assert [l["model"] for l in lines] == ["gpt-6.1-sol", "gpt-6.1-terra"]
+    assert all(l["agent"] == "analyst" and l["match_id"] == r["run_id"] for l in lines)
+    assert r["total_usd"] > 0 and r["results"][1]["usd"] > 0
