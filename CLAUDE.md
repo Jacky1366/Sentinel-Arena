@@ -41,6 +41,7 @@ docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
 docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D41 (+ D24 amendment, criterion d′; D34 amendment; D15 amendment, D41)
+docs/stage7_decisions.md  Stage 7 decisions D45–D59 (live demo, compare view, analyst report; plan in docs/plans/stage7_plan.md)
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
@@ -325,6 +326,11 @@ Ask for the designer's GO only when a step:
 Everything else — implementation choices, test moves/refactors, docs, schema bumps,
 pure-code sub-stages — decide yourself, apply it, and list it under "Decided without
 asking" in your report. Escalate only if unsure which category a step falls in.
+
+Merge policy (Stage 7): you may merge your own PR (Create a merge commit) only if all
+tests pass, it carries none of the labels needs-GO / test-set / paid, and it touches none
+of: the Judge, docs/contract.md, data/library/, data/golden/, config/test_set.json,
+agents/llm_client.py. Otherwise stop and ask me to review and merge.
 
 ## Working notes
 
