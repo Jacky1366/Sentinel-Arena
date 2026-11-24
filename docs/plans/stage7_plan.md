@@ -163,6 +163,9 @@ Rule: never debug on stage. Stuck for more than 30 seconds → switch.
 - [ ] Balances: DeepSeek, OpenAI, Anthropic
 - [ ] `docker compose up -d --wait`, then `docker compose ps`
 - [ ] 2-call probe (`--probe`)
+- [ ] Live server up (`.venv/bin/python -m liveserver --transcript <file>`); the match runs
+      with **`python -u`** and its stdout tee'd to that transcript (block-buffered stdout
+      delays the Red-turn and slot events; `liveserver/README.md`)
 - [ ] Golden run bundle opens from `file://`
 - [ ] Screen recording on the desktop
 - [ ] Hotspot tested

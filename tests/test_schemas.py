@@ -70,6 +70,7 @@ SCHEMA_NAMES = [
     "analyst_summary",
     "analyst_draft",
     "grounding_result",
+    "compare_bundle",
 ]
 
 
@@ -1227,6 +1228,35 @@ INVALID["grounding_result"] = [
     ("unknown error code", lambda r: {**r, "ok": False, "errors": [{"code": "style", "path": "$", "detail": ""}]}),
     ("confidence not in D60", lambda r: {**r, "findings": [{"id": "F-01", "confidence": "Certain"}]}),
     ("missing stats", lambda r: {k: v for k, v in r.items() if k != "stats"}),
+]
+
+
+# Stage 7 #15: Compare bundle (contract 6.18).
+_VERDICT = {"verdict": "benign", "detected": False, "source": "ai", "reason": None}
+VALID["compare_bundle"] = {
+    "schema_version": "0.1", "name": "freeplay", "kind": "compare", "title": "t",
+    "arms": [{"id": "original", "label": "o", "blue": "original"},
+             {"id": "open", "label": "p", "blue": "open"}],
+    "matches": [{"match": 1, "match_id": "m", "audit": None, "red_model": "deepseek-v4-pro",
+                 "folders": {"original": "a", "open": "b"},
+                 "per_arm": {"original": {"detection": {"num": 1, "den": 2}, "audited": True}}}],
+    "rows": [{"match": 1, "match_id": "m", "round": 1, "request_id": "r", "label": "other",
+              "technique": "t", "method": "GET", "path": "/x", "payload": "/x",
+              "headers_set": [], "attack_attempt": "yes", "landed": False, "solved": [],
+              "verdicts": {"original": _VERDICT, "open": {**_VERDICT, "detected": True}},
+              "divergent": True}],
+    "aggregate": {"original": {"detected": 1, "attempts": 2,
+                               "landed_detected": 0, "landed_attempts": 0}},
+    "fp_check": None, "notes": {"selection": "s"},
+}
+INVALID["compare_bundle"] = [
+    ("one arm", lambda r: {**r, "arms": r["arms"][:1]}),
+    ("kind not compare", _set("kind", "match")),
+    ("attempt not in enum", lambda r: {**r, "rows": [{**r["rows"][0], "attack_attempt": "maybe"}]}),
+    ("blue not in enum", lambda r: {**r, "arms": [{**r["arms"][0], "blue": "closed"}, r["arms"][1]]}),
+    ("a header value", lambda r: {**r, "rows": [{**r["rows"][0], "headers": {"Cookie": "x"}}]}),
+    ("in-match benign FP (hidden until it is a summary figure)", lambda r: {**r, "aggregate": {
+        "original": {**r["aggregate"]["original"], "benign_fp": 0}}}),
 ]
 
 
