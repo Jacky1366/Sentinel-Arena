@@ -1,0 +1,47 @@
+{
+  "schema_version": "0.1",
+  "ok": false,
+  "errors": [
+    {
+      "code": "schema",
+      "path": "$.findings[0]",
+      "detail": "'title' is a required property"
+    },
+    {
+      "code": "schema",
+      "path": "$.findings[1]",
+      "detail": "'title' is a required property"
+    },
+    {
+      "code": "schema",
+      "path": "$.findings[2]",
+      "detail": "'title' is a required property"
+    },
+    {
+      "code": "schema",
+      "path": "$.findings[3]",
+      "detail": "'title' is a required property"
+    },
+    {
+      "code": "schema",
+      "path": "$.findings[4]",
+      "detail": "'title' is a required property"
+    },
+    {
+      "code": "schema",
+      "path": "$.findings[5]",
+      "detail": "'title' is a required property"
+    },
+    {
+      "code": "schema",
+      "path": "$.findings[6]",
+      "detail": "'title' is a required property"
+    }
+  ],
+  "stats": {
+    "placeholders": 0,
+    "findings": 0,
+    "texts": 0
+  },
+  "findings": []
+}

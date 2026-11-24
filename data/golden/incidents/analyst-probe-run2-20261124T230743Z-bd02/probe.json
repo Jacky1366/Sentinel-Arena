@@ -1,0 +1,173 @@
+{
+  "probe_id": "probe-20261124T230743Z-bd02",
+  "run_id": "20261124T230743Z-bd02",
+  "go_token": "manual-analyst-probe",
+  "chosen": null,
+  "prompt_version": "1",
+  "prompt_sha256": "47eeae206c2e342bb9de45b61c7fb2f1419dff7701c52f80f3adf00f7b456dd0",
+  "results": [
+    {
+      "model": "gpt-6.1-sol",
+      "provider": "openai",
+      "request": {
+        "effort": "medium"
+      },
+      "stop": "grounding_failed",
+      "schema_valid": false,
+      "grounding_ok": false,
+      "grounding_error_codes": [
+        "schema"
+      ],
+      "grounding_errors": 9,
+      "log": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "stop_reason": "completed",
+          "error_type": null,
+          "grounding_ok": false,
+          "errors": [
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema"
+          ]
+        }
+      ],
+      "attempts": 1,
+      "usd": 0.060368,
+      "tokens": {
+        "input": 15264,
+        "cached_input": 0,
+        "cache_write": 0,
+        "output": 2984
+      }
+    },
+    {
+      "model": "gpt-6.1-terra",
+      "provider": "openai",
+      "request": {
+        "effort": "medium"
+      },
+      "stop": "grounding_failed",
+      "schema_valid": false,
+      "grounding_ok": false,
+      "grounding_error_codes": [
+        "schema"
+      ],
+      "grounding_errors": 7,
+      "log": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "stop_reason": "completed",
+          "error_type": null,
+          "grounding_ok": false,
+          "errors": [
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema"
+          ]
+        }
+      ],
+      "attempts": 1,
+      "usd": 0.026374,
+      "tokens": {
+        "input": 15264,
+        "cached_input": 0,
+        "cache_write": 0,
+        "output": 2222
+      }
+    },
+    {
+      "model": "gpt-5.6-sol",
+      "provider": "openai",
+      "request": {
+        "effort": "medium"
+      },
+      "stop": "grounding_failed",
+      "schema_valid": false,
+      "grounding_ok": false,
+      "grounding_error_codes": [
+        "schema"
+      ],
+      "grounding_errors": 7,
+      "log": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "stop_reason": "completed",
+          "error_type": null,
+          "grounding_ok": false,
+          "errors": [
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema"
+          ]
+        }
+      ],
+      "attempts": 1,
+      "usd": 0.127236,
+      "tokens": {
+        "input": 15264,
+        "cached_input": 0,
+        "cache_write": 0,
+        "output": 3309
+      }
+    },
+    {
+      "model": "claude-sonnet-5-5",
+      "provider": "anthropic",
+      "request": {
+        "thinking": "between_tools"
+      },
+      "stop": "grounding_failed",
+      "schema_valid": false,
+      "grounding_ok": false,
+      "grounding_error_codes": [
+        "schema"
+      ],
+      "grounding_errors": 6,
+      "log": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "stop_reason": "end_turn",
+          "error_type": null,
+          "grounding_ok": false,
+          "errors": [
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema",
+            "schema"
+          ]
+        }
+      ],
+      "attempts": 1,
+      "usd": 0.095742,
+      "tokens": {
+        "input": 22271,
+        "cached_input": 0,
+        "cache_write": 0,
+        "output": 5120
+      }
+    }
+  ],
+  "total_usd": 0.30972,
+  "summary_figures": 81
+}
