@@ -194,6 +194,15 @@ No Judge change.*
 Both are pure readers of existing artifacts. No artifact the Judge, Red or Blue writes
 changes; `JUDGE_VERSION` stays 0.7.0.*
 
+*Revised 2026-11-24 (Stage 7 #16): three new analyst artifacts:
+- the analyst summary (§6.15, `analyst_summary.schema.json`);
+- the analyst draft (§6.16, `analyst_draft.schema.json`);
+- the grounding result (§6.17, `grounding_result.schema.json`).
+
+The summary is a pure reader of frozen evidence; the draft is what the AI analyst returns
+(#17); the grounding result is code. No artifact the Judge, Red or Blue writes changes;
+`JUDGE_VERSION` is unchanged.*
+
 *Revised 2026-11-18 (Stage 6.1a, designer decision on the D24 amendment): `encoding_only`
 variants never count for criterion (d), and a new criterion **(d′)** requires a retained rule
 to block every applicable `encoding_only` variant of its source (reason `encoding_fragile`).
@@ -1652,6 +1661,51 @@ works from `file://`).
   bundles only. It computes and judges nothing, and makes no network request.
 - **Reader:** humans only (it holds Red ground truth); Blue never reads it.
 
+## 6.15 Analyst summary — `data/runs/analyst/summary-<ts>.json` (Stage 7 #16; D53, D55, D60)
+
+`tools/build_summary.py --manifest config/analyst_sources.json` builds one
+`analyst_summary.schema.json` (`"0.1"`) document with `analyst/summary.py`. Development
+builds go to `data/runs/analyst/` (git-ignored); the final one is committed with the report
+under `data/golden/` (#17, D60 c).
+
+- **Gate (D59 + GO):** every source folder is classified by its manifest first
+  (`stats/test_data.py`). If any source is test data or unknown, the build refuses unless
+  `ARENA_GO` holds a well-formed token.
+- **`figures`**, keyed `<group>.<name>`. Each has `kind` (rate / count / usd), `value`, `n`,
+  `unit`, `basis` (audited / ground_truth / raw / measured), `blue` (original / open),
+  `confidence` (D60, assigned by `analyst/confidence.py`), `source_ids` and a one-sentence
+  `definition`. A rate also has `k`, `pct` and the exact Clopper–Pearson 95% `ci_low` /
+  `ci_high`. Figures reuse `stats/autonomy.py`, `stats/free_play.py`, `stats/match_stats.py`
+  and `stats/cost.py`, so they equal the committed tables. Benign rates count unique
+  requests.
+- **`sources`:** per folder its id (`<group>#<i>`), path, match / replay id, purpose, D59
+  `test_data` kind and the sha256 of every artifact read (audit files included).
+- **`descriptive`:** model ids and run dates per group; in free-play groups, per Red round the
+  label, the `technique` (control characters removed, ≤ 120 characters), the audit's
+  `attack_attempt`, `detected`, and the challenge name / category it solved. **Never** a
+  payload, path, body, header value or rationale (D53).
+- **Reader:** the analyst (#17) and humans; Red and Blue never read it.
+
+## 6.16 Analyst draft — returned by the analyst (Stage 7 #16 / #17; D54, D55)
+
+`analyst_draft.schema.json` (`"0.1"`): prose sections (executive summary, methodology,
+results, risk register, deployment options, decision criteria, limitations), findings
+(`F-NN`, title, text, `figure_refs`, `evidence_refs`), options A / B / C (summary, strengths,
+weaknesses) and criteria ("if you value X, option Y fits, because …"). Every quantity in the
+prose is a `{{figure}}` or `{{figure.field}}` placeholder (field: value, k, n, pct, ci_low,
+ci_high). There is no confidence field (code assigns it, D60) and no recommendation field
+(D54).
+
+## 6.17 Grounding result — `analyst/grounding.check(draft, summary)` (Stage 7 #16; D55, D60 b)
+
+`grounding_result.schema.json` (`"0.1"`): `ok`, every error (`code`, JSON `path`, `detail`),
+`stats`, and on success each finding's confidence (the lowest D60 confidence among its cited
+figures). Error codes: `schema`, `placeholder` (unknown figure or stray braces),
+`bare_number` (a digit outside the token allowlist: CWE ids, F-NN, D-numbers, § references,
+`v` versions, model ids from the summary), `number_word` (spelled-out numbers and fraction
+words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"Act 3"),
+`figure_ref`, `evidence_ref`, `recommendation` (D54) and `confidence_claim`. Fail closed.
+
 ---
 
 ## 7. Challenge map — `config/challenge_map.json`
@@ -1714,6 +1768,8 @@ outside the map" tripwire (`docs/progress.md`, Stage 6 tripwires).
 | Retention log | `data/library/retention/<match_id>/retention.jsonl`, `retention.json` | `tools/promote_rules.py` (`judge/retention.py`) | Humans, Dashboard | Red, **Blue** (ground truth) |
 | Autonomy table | `data/golden/stats/autonomy_*.{json,md}` (§6.13) | `tools/autonomy_table.py` (`stats/autonomy.py`) | Humans | Red, **Blue** (ground truth) |
 | Dashboard bundle | `dashboard/public/data/<name>.json`, `bundles.js` (§6.14) | `tools/export_dashboard.py` | Dashboard, humans | Red, **Blue** (ground truth) |
+| Analyst summary | `data/runs/analyst/summary-<ts>.json`; final under `data/golden/` (§6.15) | `tools/build_summary.py` (`analyst/summary.py`) | Analyst (#17), humans | Red, **Blue** |
+| Analyst draft / grounding result | in memory and the #17 report folder (§6.16, §6.17) | the AI analyst / `analyst/grounding.py` | Report renderer, humans | Red, **Blue** |
 | Holdout benign set | `benign/holdout_v1.jsonl` (+ `.meta.json`, draft) | `tools/build_holdout.py` (outside any match) | `tools/stage6_1_check.py` (offline scoring only) | **Blue**, retention / selection code (S6-1) |
 | Offline fixture v2 | `benign/fixture_v2_offline.jsonl` (+ `.meta.json`, draft) | `tools/build_holdout.py` | Retention criterion (b) only | **Blue** |
 | Test-set registry | `config/test_set.json` | Designer (`build_holdout.py` fills the hashes) | `tools/promote_rules.py`, `library/writer.py`, tests | — |

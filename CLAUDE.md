@@ -67,6 +67,9 @@ schemas/                JSON Schema (draft 2020-12) per artifact
   benign_offline_draft.schema.json  benign/*.draft.json (offline benign drafts)
   test_set.schema.json            config/test_set.json
   free_play_audit.schema.json     free-play binary audit row (attack attempt yes/no, D41)
+  analyst_summary.schema.json     analyst summary.json (contract 6.15, #16): figures + sources + D60 confidence
+  analyst_draft.schema.json       the AI analyst's draft (contract 6.16): prose with {{placeholders}}, no confidence / recommendation field
+  grounding_result.schema.json    grounding check result (contract 6.17)
   autonomy_table.schema.json      the autonomy table JSON (contract 6.13)
   dashboard_bundle.schema.json    one dashboard bundle (contract 6.14)
   rule_result.schema.json         facts 3 + 4b per rule (Blue never reads)
@@ -135,6 +138,10 @@ runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapsh
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
 stats/cost.py           pure cost over api_calls.jsonl + price table
 stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule coverage by origin / calls / cost; CP bound for 0/n
+analyst/confidence.py   D60 (a) as code: figure / finding confidence; exact Clopper-Pearson 95%
+analyst/summary.py      #16: summary.json from frozen evidence via the existing stats (no payloads, D53)
+analyst/grounding.py    #16: grounding check (placeholders, bare numbers, number words, refs, recommendation; D55, D60 b)
+liveserver/             Stage 7 #12: read-only live server (stdlib, 127.0.0.1, SSE) + tailer; `python -m liveserver` (README)
 stats/test_data.py      D59: is a folder TEST data? by manifest (match_id, purpose, replay source), never by name; scannable() for any folder scan
 stats/free_play.py      free-play measurement (D41): landing = any solve (+ category), detection binary over audited attempts; pure stats layer over the Judge
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
@@ -175,6 +182,8 @@ tools/stage5_5_check.py       Gate (5.5): 12 replays, 4 golden matches x off/sha
 tools/four_facts.py           Stage 5 done-when check: facts 1, 2, 3, 4a, 4b computed -> PASS / N/A (no rules) / FAIL
 tools/autonomy_table.py       autonomy table over frozen folders -> Markdown + JSON (6.2, zero token)
 tools/free_play.py            free-play (D41): binary audit scaffold/sheet + report
+tools/build_summary.py        #16: build / --check the analyst summary.json; refuses test or unknown sources without ARENA_GO (D59)
+config/analyst_sources.json   #16: the summary's source groups (paths and roles only)
 tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js (6.4, read-only)
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
 tools/build_holdout.py        capture + seal the offline benign files outside any match (--capture = Gate 0, GO only; --check)
@@ -182,6 +191,8 @@ tools/stage6_1_check.py       6.1b: Gate 1 (5 train matches) / --promote / --pre
 tools/stage6_3_check.py       6.3 flagship gate: A (--estimate zero token; --probe), B (3 eval matches, Sol Red), C (Sonnet / empty-library replays); GO + token only
 tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls + Red dry run, raw usage (--real-calls; GO only)
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
+dashboard/src/battle/    Stage 7 #13: Battle view (three acts), pure model.js (LIVE + REPLAY), live.js (the ONE EventSource)
+dashboard/test/         node:test for the Battle model (run by tests/test_dashboard_battle.py)
 dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
@@ -277,6 +288,13 @@ tests/test_gate_6_3_gateB_freeplay_evidence.py  committed Gate B-freeplay eval m
 tests/test_gate_6_3_c_open_evidence.py  committed open-Blue (D42) replays: hashes, v3-open prompt, 2a recovery of landed other-class misses, 2b taxonomy unchanged
 tests/test_gate_6_3_gateB_evasion_evidence.py  committed Gate B-evasion eval matches: hashes, prompt v2 sha, timeout, test-set registration, full audit
 tests/test_gate_6_3_gateC_evidence.py  committed Gate C replays: hashes, sources, library snapshots, arm config (Sonnet between_tools), cost
+tests/test_analyst_confidence.py  D60 table, cap, finding minimum, CP interval vs committed figures
+tests/test_analyst_summary.py     summary figures = existing stats, no payloads, sources/hashes, CLI GO gate (synthetic data only)
+tests/test_analyst_grounding.py   planted bad drafts rejected per code, a valid draft accepted, confidence by code
+tests/live_fakes.py         fake live match: real orchestrator + traffic loop, fake provider, stubbed network
+tests/test_live_tailer.py   tailer: every artifact line -> one event, causal order, catch-up, failures
+tests/test_live_server.py   live server: SSE in order, reconnect, static, read-only, loopback, lab ports refused
+tests/test_dashboard_battle.py  Battle model via node --test: a fake live match + every committed bundle through three acts
 tests/test_test_data.py     D59 helper: manifest not folder name (the slip reproduced), eval purpose, replays, unknown skipped, only manifests opened
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```

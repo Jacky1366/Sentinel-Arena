@@ -126,3 +126,45 @@ Any scan over match folders filters by `match.json` `match_id` against
 `config/test_set.json`, never by folder name. Origin: on 2026-11-24 a folder-name filter
 opened `api_calls.jsonl` in 9 test-set folders; only per-file DeepSeek call counts were
 printed and nothing was used.
+
+## Analyst report (continued)
+
+**D60 — Analyst summary: confidence rules, numbers in prose, location (designer, 2026-11-24; #16 Q1–Q3).**
+
+*(a) Confidence rules, pre-registered.* Fixed before any `summary.json` is built (#16). Code
+assigns every confidence; the analyst never does (D55).
+- **Basis of a figure.**
+  - `audited`: a rate over Red rounds whose labels or attack attempts the designer audited
+    (D16; D41 binary).
+  - `ground_truth`: a rate over designer-approved benign data (the benign set, the sealed
+    holdout, the fixture). Audited-equivalent: its ground truth is fixed by construction.
+    **n = unique requests** (a request sent in several matches counts once; see
+    `stats/autonomy.py`, pseudo-replication).
+  - `raw`: a rate over unaudited AI-Red labels (D43: Gate B-deepseek, Gate B-evasion).
+  - `measured`: an exact count, cost or duration from the ledgers.
+- **Confidence.**
+  - `audited`, `ground_truth` or `measured` with n ≥ 20 → **High**.
+  - The same with n < 20 → **Moderate**.
+  - `raw` → **Low**, whatever n.
+  - Counts and costs follow the same n rule: an exact measurement does not remove
+    small-sample uncertainty. Their n is the number of independent units the figure is
+    computed over (matches for a per-match figure, requests for a per-request one); the
+    builder records it with the figure.
+- **Cap.** Any figure from open Blue (v3-open, D42/D44) is capped at **Moderate**: its
+  verdicts vary run to run (2c), and the free-play audit was done after its results were
+  known (D52).
+- **Finding confidence** = the lowest confidence among the figures it cites.
+- **Disclosure.** The n ≥ 20 threshold was set knowing the sample sizes (free-play 19 audited
+  attempts, Gate B 28). It puts the free-play detection figures at **Moderate**, i.e. against
+  our own headline result; it was not chosen to lift them.
+
+*(b) Numbers in prose (grounding check).* The analyst's prose may state a quantity only through a `{{placeholder}}`. Bare digits are
+rejected outside a small token allowlist (CWE ids, F-NN, D-numbers, section references,
+model ids, version tags). **Spelled-out numbers and fraction words are rejected too** (e.g.
+"two", "nineteen", "half", "third", "twice", "dozen", "percent"), except a short allowlist
+of fixed phrases (e.g. "three kinds of blindness", "Act 1" … "Act 3"). The check fails
+closed: a false reject only costs a retry within the analyst cap (D53).
+
+*(c) Where the summary lives.* Development builds go to
+`data/runs/analyst/` (git-ignored). The final `summary.json` used for the report is committed
+with the report under `data/golden/` in #17.
