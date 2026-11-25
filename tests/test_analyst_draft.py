@@ -219,3 +219,18 @@ def test_report_falls_back_in_the_designers_order(tmp_path):
     d = tmp_path / r["report_id"]
     assert (d / "report.html").exists() and (d / "draft-gpt-6.1-sol.json").exists()
     assert not (tmp_path / "dash").exists()  # nothing published until the designer has read it
+
+
+def test_rerender_makes_no_call_and_records_a_template_change(tmp_path):
+    r = br.report(env={"ARENA_GO": br.RUN_TOKEN}, out=tmp_path, models=["gpt-6.1-sol"],
+                  client_factory=lambda cfg: af.StubClient([af.draft()]), summary=af.summary())
+    d = tmp_path / r["report_id"]
+    meta = json.loads((d / "meta.json").read_text())
+    meta["template_sha256"] = "0" * 64  # as if rendered with an older template
+    (d / "meta.json").write_text(json.dumps(meta))
+    br.rerender(d, reason="test")
+    m2 = json.loads((d / "meta.json").read_text())
+    assert m2["template_sha256"] == br.render.template_sha256()
+    assert m2["rerenders"][-1]["previous_template_sha256"] == "0" * 64
+    assert m2["rerenders"][-1]["ai_calls"] == 0 and m2["rerenders"][-1]["reason"] == "test"
+    assert (d / "brief.html").exists()

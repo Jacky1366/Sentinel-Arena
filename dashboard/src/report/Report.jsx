@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { reportView, SANDBOX, VIEWS } from "./reportModel.js";
+import { PDFS, reportView, SANDBOX, VIEWS } from "./reportModel.js";
 
 // Report view (Stage 7 #17; D53-D57). Opens on the decision brief; "Full report" switches to
 // the whole report. Both are code-rendered and shown in a fully sandboxed iframe (scripts
@@ -34,10 +34,18 @@ export default function Report() {
           ))}
           <span className="ml-3 text-base text-slate-400">{v.line}</span>
         </div>
-        <a href={v.printFile} target="_blank" rel="noopener"
-          className="rounded-lg bg-white px-4 py-2 text-lg font-bold text-slate-950 hover:bg-slate-200">
-          Print / save PDF ↗
-        </a>
+        <div className="flex flex-wrap items-center gap-2">
+          {PDFS.map((p) => (
+            <a key={p.file} href={p.file} download target="_blank" rel="noopener"
+              className="rounded-lg bg-emerald-400 px-4 py-2 text-lg font-bold text-slate-950 hover:bg-emerald-300">
+              {p.label}
+            </a>
+          ))}
+          <a href={v.printFile} target="_blank" rel="noopener"
+            className="rounded-lg bg-slate-800 px-4 py-2 text-lg font-bold text-slate-200 hover:bg-slate-700">
+            Print / save PDF ↗
+          </a>
+        </div>
       </div>
       <iframe title={VIEWS[v.view].label} sandbox={SANDBOX} srcDoc={v.html}
         className="h-[calc(100vh-9rem)] w-full rounded-xl border border-slate-700 bg-white" />

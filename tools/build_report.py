@@ -252,9 +252,22 @@ def publish_dashboard(html: str, meta: dict, dash: Path = DASH_REPORT, brief: st
     (dash / "report.js").write_text(js, encoding="utf-8")
 
 
-def rerender(folder: Path, publish: bool = False, dash: Path = DASH_REPORT) -> Path:
+def rerender(folder: Path, publish: bool = False, dash: Path = DASH_REPORT,
+             reason: str | None = None) -> Path:
+    """Re-render report.html + brief.html from a report folder: NO AI call. When the template
+    changed since the run, meta.json records it (the previous sha and why) instead of
+    silently keeping a stale template hash."""
     j = lambda n: json.loads((folder / n).read_text(encoding="utf-8"))  # noqa: E731
-    args = (j("summary.json"), j("draft.json"), j("grounding_result.json"), j("meta.json"))
+    meta = j("meta.json")
+    now_sha = render.template_sha256()
+    if meta.get("template_sha256") != now_sha:
+        meta.setdefault("rerenders", []).append({
+            "at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+            "previous_template_sha256": meta.get("template_sha256"),
+            "template_sha256": now_sha, "ai_calls": 0, "reason": reason or "template change"})
+        meta["template_sha256"] = now_sha
+        _write(folder / "meta.json", meta)
+    args = (j("summary.json"), j("draft.json"), j("grounding_result.json"), meta)
     html, brief = render.render(*args), render.render(*args, brief=True)
     (folder / "report.html").write_text(html, encoding="utf-8")
     (folder / "brief.html").write_text(brief, encoding="utf-8")
@@ -272,10 +285,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--models", default=None,
                     help="comma-separated fallback order (default: gpt-6.1-sol,gpt-6.1-terra,claude-sonnet-5-5)")
     ap.add_argument("--publish", action="store_true", help="--render: also update the dashboard")
+    ap.add_argument("--reason", default=None, help="--render: why (recorded in meta.json)")
     args = ap.parse_args(argv)
     try:
         if args.render:
-            print(f"rendered {rerender(args.render, args.publish)}")
+            print(f"rendered {rerender(args.render, args.publish, reason=args.reason)}")
             return 0
         if args.probe:
             r = probe()

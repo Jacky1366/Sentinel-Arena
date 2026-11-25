@@ -1,7 +1,8 @@
 // Report tab (Stage 7 #17).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { reportView, SANDBOX, VIEWS } from "../src/report/reportModel.js";
+import fs from "node:fs";
+import { PDFS, reportView, SANDBOX, VIEWS } from "../src/report/reportModel.js";
 
 const R = { html: "<p>full</p>", brief: "<p>brief</p>", meta: { report_id: "r", model: "m", provider: "p", date: "d", attempts: 1 } };
 
@@ -20,4 +21,14 @@ test("no report -> not available; no brief -> the full report", () => {
   assert.equal(reportView(null).available, false);
   assert.equal(reportView({ html: 1, meta: {} }).available, false);
   assert.equal(reportView({ ...R, brief: "" }).view, "full");
+});
+
+test("the two frozen PDFs are linked relatively and exist next to the page", () => {
+  assert.deepEqual(PDFS.map((p) => p.label), ["Download brief (PDF)", "Download full report (PDF)"]);
+  for (const p of PDFS) {
+    assert.ok(p.file.startsWith("./report/") && p.file.endsWith(".pdf"));
+    const onDisk = new URL("../public/" + p.file.slice(2), import.meta.url);
+    assert.ok(fs.existsSync(onDisk), p.file);
+    assert.equal(fs.readFileSync(onDisk).subarray(0, 5).toString(), "%PDF-");
+  }
 });

@@ -4,6 +4,13 @@
 
 export const SANDBOX = ""; // no allow-scripts, no allow-same-origin: nothing in it can run
 
+// Frozen PDFs (rendered once from the committed report; data/golden/analyst-report-7/):
+// plain relative links, so they work from file:// and need no print dialog in the demo.
+export const PDFS = [
+  { label: "Download brief (PDF)", file: "./report/brief.pdf" },
+  { label: "Download full report (PDF)", file: "./report/report.pdf" },
+];
+
 export const VIEWS = {
   brief: { label: "Decision brief", file: "./report/brief.html" },
   full: { label: "Full report", file: "./report/report.html" },

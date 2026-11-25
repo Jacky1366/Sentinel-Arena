@@ -99,7 +99,8 @@ def test_decision_record_has_no_audience_vote(html, brief):
 def test_the_brief(brief):
     assert "decision brief" in brief and "Decision required: choose option A, B or C." in brief
     for part in ("Executive summary", "Options", "Decision criteria", "Decision record"):
-        assert f"<h2>{part} " in brief, part
+        assert f"<h2>{part}" in brief, part
+    assert brief.count("written by AI") == 1        # one authorship line, not a badge per heading
     for absent in ("Key findings", "Risk register", "Appendix A", "Glossary"):
         assert absent not in brief, absent
     assert "12/19 (63.2%)" in brief                                # figures carried into the brief

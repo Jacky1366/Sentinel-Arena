@@ -230,6 +230,7 @@ data/golden/replays/gate-6.1b-2b/  Stage 6.1b Gate 2b evidence: the same 3 sourc
 data/golden/replays/gate-6.3-C/  Stage 6.3 Gate C evidence: 3 Gate B eval sources x {Sonnet + v5 (between_tools), Haiku + v0000} + README (never rewritten)
 data/golden/replays/gate-6.3-C-open/  Stage 6.3 D42 open-Blue evidence: 6 v3-open replays (free-play + deepseek) + FP check + README (never rewritten)
 data/golden/incidents/     archived failed / instrument-failure runs (never deleted, never in test_set.json)
+data/golden/analyst-report-7/  Stage 7 #17 frozen evaluation report + decision brief (HTML + PDF), summary, draft, grounding, meta (README; designer-approved 2026-11-25)
 docs/audits/            generated, read-only label-audit sheets (never edit; regenerate)
 tests/conftest.py           autouse guard: no ARENA_* key and no .env in any test (docs/ops.md)
 tests/test_schemas.py       schema + taxonomy-drift tests
@@ -303,6 +304,7 @@ tests/analyst_fakes.py      #17 synthetic summary / draft / stub analyst client 
 tests/test_analyst_comparisons.py  baseline-named comparisons (M5 trio), refusals, Q4 formats
 tests/test_analyst_draft.py       analyst prompt/input/strict schema, retry loop, refusals, probe order + $1 cap, report run (stub client)
 tests/test_analyst_render.py      XSS as text, code-formatted numbers, confidence by code, D57 sections + authorship, frozen template
+tests/test_analyst_report_7_evidence.py  committed report: grounding re-check, byte-for-byte re-render of brief + full report, PDFs = dashboard copies, key figures
 tests/test_analyst_confidence.py  D60 table, cap, finding minimum, CP interval vs committed figures
 tests/test_analyst_summary.py     summary figures = existing stats, no payloads, sources/hashes, CLI GO gate (synthetic data only)
 tests/test_analyst_grounding.py   planted bad drafts rejected per code, a valid draft accepted, confidence by code

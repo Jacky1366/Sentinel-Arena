@@ -1783,7 +1783,10 @@ candidate's draft / grounding result.
   only between the body and the appendices. The decision record has no audience vote (D54
   amendment).
 - **Final:** committed under `data/golden/analyst-report-7/` only after the designer has read
-  the text (D60 c). A failed run is archived under `data/golden/incidents/`, never deleted.
+  the text (D60 c), with `brief.pdf` / `report.pdf` rendered once (the Report tab links to the
+  same frozen PDFs in `dashboard/public/report/`, so the demo needs no print dialog). A
+  template-only re-render (`--render`, no AI call) is recorded in `meta.json` `rerenders`. A
+  failed run is archived under `data/golden/incidents/`, never deleted.
 
 ---
 

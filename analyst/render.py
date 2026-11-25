@@ -18,7 +18,7 @@ from analyst.grounding import PLACEHOLDER, resolve
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 TEMPLATE = "report.html.j2"
-TEMPLATE_SHA256 = "befd7d1cd1dddaba7474f48d732fcdace3c93dcb1dac91e377c45868d9986b03"  # frozen (D56): change only with a new REPORT_VERSION
+TEMPLATE_SHA256 = "efc49bed0b24e6afb092605f97c8b535f1ecd1a658621278bff347828aed77ca"  # frozen (D56): change only with a new REPORT_VERSION
 REPORT_VERSION = "2"  # #17 review: brief + full, labels, glossary
 
 

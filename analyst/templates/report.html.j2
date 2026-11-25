@@ -62,6 +62,7 @@
   .decide { border: 3px solid var(--ink); background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 17px; font-weight: 600; }
   .decision td { height: 30px; } .decision th { width: 45%; }
   .legend { font-size: 12px; color: var(--muted); }
+  .legend .by { float: none; }
   @media print {
     body { max-width: none; padding: 0; font-size: 10.5pt; }
     .appendix { break-before: page; }
@@ -75,15 +76,15 @@
 <h1>Sentinel Arena — decision brief</h1>
 <p class="muted">AI defender evaluation · {{ meta.date }} · prose drafted by an AI analyst ({{ meta.model }}); every number filled in by code; the decision is made by a person. Full report: {{ meta.report_id }}.</p>
 <div class="decide">Decision required: choose option A, B or C.</div>
-<p class="legend">Each underlined figure carries a confidence level set by pre-registered rules (green High, amber Moderate, red Low); the full report gives every rate's 95% interval.</p>
+<p class="legend">Each underlined figure carries a confidence level set by pre-registered rules (green High, amber Moderate, red Low); the full report gives every rate's 95% interval. The executive summary, options and decision criteria are {{ by("AI") }}; the decision record is completed by a person.</p>
 
-<h2>Executive summary {{ by("AI") }}</h2>
+<h2>Executive summary</h2>
 <p>{{ prose(sections.executive_summary) }}</p>
 
-<h2>Options {{ by("AI") }}</h2>
+<h2>Options</h2>
 {{ options_table() }}
 
-<h2>Decision criteria {{ by("AI") }}</h2>
+<h2>Decision criteria</h2>
 {{ criteria_table() }}
 
 <h2>Decision record {{ by("human") }}</h2>
