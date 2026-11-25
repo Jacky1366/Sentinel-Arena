@@ -104,9 +104,14 @@ the cap or the error type.
 
 ## Luna backup
 
-Free-play prompt v3 with Luna: **not yet checked** (#18 Part 3,
-`tools/demo_match.py --red luna --one-turn`). If refused, `--luna` uses prompt v1
-(taxonomy, validated in Gate B) and this section says so.
+Free-play prompt v3 with Luna: **accepted** (#18 Part 3, 2026-11-25 22:34 UTC, GO
+`manual-luna-freeplay-check`, `tools/demo_match.py --red luna --one-turn`, ledger
+`data/runs/demo-check-20261125T223418Z-07cb/`). One call, effort high: `stop=completed`,
+4.3 s, 227 output tokens, $0.000168. It proposed a boolean-based SQL injection probe that the
+guard allows; nothing was sent. So `--luna` keeps prompt v3. This covers one turn only: a
+refusal later in a match would show as a `brain_failure refusal` turn (D50, a normal event).
+If it ever refuses at the first turn, the fallback is prompt v1 (taxonomy, validated in
+Gate B): set `"red_prompt_version": "1"` for `luna` in `tools/demo_match.py`.
 
 ## Before Dec 3 (Nov 28 – Dec 2, with people)
 

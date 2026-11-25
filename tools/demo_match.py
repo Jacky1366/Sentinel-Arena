@@ -43,7 +43,7 @@ REDS = {
                  "red_effort": "max", "red_prompt_version": "3",
                  "red_max_output_tokens": 16384},
     # D46 backup: the Gate B Red strength (D38: Luna, effort high, 8192 tokens), free-play
-    # prompt v3 pending the #18 check (if refused: prompt "1", taxonomy, Gate B).
+    # prompt v3: accepted by Luna in the #18 one-turn check, 2026-11-25 (else prompt "1").
     "luna": {"red_model": "gpt-6-luna", "red_provider": "openai", "red_effort": "high",
              "red_prompt_version": "3", "red_max_output_tokens": 8192},
 }
