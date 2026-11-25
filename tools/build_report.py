@@ -210,8 +210,9 @@ def report(env=None, models=None, manifest: Path = build_summary.MANIFEST,
         cfg = analyst_config(base, cand)
         client = client_factory(cfg) if client_factory else lc.LLMClient(config=cfg, prices=prices)
         o = draft_mod.run(client, cand["model"], summary, run_dir, match_id=run_id)
+        calls = _calls_for(run_dir, cand["model"], prices)  # ledger lines incl. client retries
         tried.append({"model": cand["model"], "stop": o.stop, "attempts": o.attempts, "log": o.log,
-                      **_calls_for(run_dir, cand["model"], prices)})
+                      "usd": calls["usd"], "tokens": calls["tokens"], "calls": calls["attempts"]})
         if o.draft is not None:
             _write(run_dir / f"draft-{cand['model']}.json", o.draft)
         if o.ok or o.stop == "refused" and o.log and o.log[-1].get("refusal"):
@@ -286,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if r["chosen"] else 1
         r = report(models=args.models.split(",") if args.models else None)
         for t in r["tried"]:
-            print(f"  {t['model']:<18} stop={t['stop']:<17} attempts={t['attempts']} ${t['usd']:.6f}")
+            print(f"  {t['model']:<18} stop={t['stop']:<17} drafts={t['attempts']} calls={t['calls']} ${t['usd']:.6f}")
         print(f"report {r['report_id']}: ok={r['ok']} model={r['model']} ${r['cost_usd']:.6f} -> {r['run_dir']}")
         return 0 if r["ok"] else 1
     except PermissionError as exc:
