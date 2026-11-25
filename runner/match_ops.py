@@ -320,10 +320,12 @@ class RedDriver:
 class RedAction:
     SEND, NO_SEND, EXHAUSTED = "send", "no_send", "exhausted"
 
-    def __init__(self, kind: str, send=None, guard_line: dict | None = None):
+    def __init__(self, kind: str, send=None, guard_line: dict | None = None,
+                 diagnosis: str | None = None):
         self.kind = kind
         self.send = send              # SEND: () -> result dict (writes record, sends)
         self.guard_line = guard_line  # NO_SEND: red_guard fields (kind/reason/detail/proposed)
+        self.diagnosis = diagnosis    # brain failure: redacted reply line, stdout ONLY (#18)
 
 
 class ScriptedDriver(RedDriver):
@@ -370,7 +372,7 @@ class AIDriver(RedDriver):
             self._feedback = ai_red.feedback_brain(prop.reason)
             return RedAction(RedAction.NO_SEND, guard_line={
                 "kind": "brain_failure", "reason": prop.reason, "detail": None,
-                "proposed": None})
+                "proposed": None}, diagnosis=prop.diagnosis)
         a = prop.attack
         g = red_guard.check(a["method"], a["path"], a["body"], a["label"],
                             free_play=free_play, headers=a.get("headers"))
@@ -425,6 +427,9 @@ def run_traffic(match_id: str, match_dir: Path, attacks: list[dict],
                             "round": slot.round, "timestamp": utc_now(), **action.guard_line}
                     guard_fh.write(json.dumps(line) + "\n")
                     guard_fh.flush()
+                    if action.diagnosis:  # #18: diagnosis only; never in an artifact
+                        log(f"red diagnosis: round {slot.round} {line['reason']}: "
+                            f"{action.diagnosis}")
                     log(f"slot {slot.slot:>2} round {slot.round} RED {line['kind']} "
                         f"({line['reason']}); nothing sent")
                     results.append({**line, "slot": slot.slot, "kind": "red_no_send"})

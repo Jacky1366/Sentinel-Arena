@@ -202,17 +202,58 @@ def validate_reply(text: str | None, stop_reason: str | None, free_play: bool = 
     return attack, None
 
 
+# -- failure diagnosis (#18, diagnosis only) ---------------------------------
+# On a brain failure the body prints ONE short, redacted line about the reply to stdout
+# (the tee'd transcript). It is never written to an artifact, never sent back to Red, and
+# never shown by the dashboard. It does not touch the prompt or validate_reply (scope
+# freeze, D40): it only describes a reply that validate_reply already rejected.
+
+EXCERPT_MAX = 240
+_SECRETISH = re.compile(
+    r"(?i:bearer)\s+\S+"                                        # Authorization values
+    r"|eyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*"    # JWTs (Juice Shop tokens)
+    r"|(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}"                            # API-key shapes (even glued)
+    r"|\bAKIA[0-9A-Z]{16}\b"
+    r"|\b[A-Fa-f0-9]{32,}\b")                                     # long hex (tokens, hashes)
+
+
+def redact(text: str) -> str:
+    return _SECRETISH.sub("[redacted]", text)
+
+
+def reply_shape(text: str | None) -> str:
+    """The parsed reply's top-level shape, e.g. '{label:str, method:str, x:dict}'."""
+    parsed = parse_json(text, expect_object=False) if text else None
+    if parsed is None or not parsed.ok:
+        return "not JSON"
+    v = parsed.value
+    if isinstance(v, dict):
+        return "{" + ", ".join(f"{redact(str(k))[:40]}:{type(x).__name__}"
+                               for k, x in sorted(v.items(), key=lambda kv: str(kv[0]))) + "}"
+    return type(v).__name__
+
+
+def reply_diagnosis(text: str | None, stop_reason: str | None) -> str:
+    """One line: stop reason, reply length, shape, and a redacted, whitespace-collapsed
+    excerpt of at most EXCERPT_MAX characters (redacted BEFORE it is cut)."""
+    body = " ".join(redact(text or "").split())
+    cut = body[:EXCERPT_MAX] + ("…" if len(body) > EXCERPT_MAX else "")
+    return (f"stop={stop_reason} chars={len(text or '')} shape={reply_shape(text)} "
+            f"excerpt={json.dumps(cut, ensure_ascii=False)}")
+
+
 # -- the engine --------------------------------------------------------------
 
 class Proposal:
     """One turn's outcome, returned to the body."""
 
     def __init__(self, kind: str, attack: dict | None = None, reason: str | None = None,
-                 detail: str | None = None):
+                 detail: str | None = None, diagnosis: str | None = None):
         self.kind = kind          # "attack" | "brain_failure" | "instrument_failure"
         self.attack = attack
         self.reason = reason       # failure detail (brain) or refused_by_body/api_error
         self.detail = detail
+        self.diagnosis = diagnosis  # brain failure only: reply_diagnosis(), stdout only
 
 
 class AIRed:
@@ -259,7 +300,8 @@ class AIRed:
             return Proposal("instrument_failure", reason="api_error", detail=result.error_type)
         attack, detail = validate_reply(result.text, result.stop_reason, self.free_play)
         if attack is None:
-            return Proposal("brain_failure", reason=detail)
+            return Proposal("brain_failure", reason=detail,
+                            diagnosis=reply_diagnosis(result.text, result.stop_reason))
         # Commit this turn: assistant proposal, then the user turn it answered, so the
         # next turn's prefix is byte-stable.
         self._builder.add("user", user_turn)

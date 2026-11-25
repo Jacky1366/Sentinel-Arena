@@ -160,6 +160,10 @@ Rule: never debug on stage. Stuck for more than 30 seconds → switch.
 
 ## Demo-day preflight
 
+The operational checklist is `docs/demo.md` (#18): the three `scripts/demo.sh` commands,
+the automatic and manual preflight, the fallback table with the command to switch to,
+and the golden-run export.
+
 - [ ] Balances: DeepSeek, OpenAI, Anthropic
 - [ ] `docker compose up -d --wait`, then `docker compose ps`
 - [ ] 2-call probe (`--probe`)
