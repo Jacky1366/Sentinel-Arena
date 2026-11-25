@@ -69,6 +69,7 @@ SCHEMA_NAMES = [
     "free_play_audit",
     "analyst_summary",
     "analyst_summary_v0_1",
+    "analyst_summary_v0_2",
     "analyst_draft",
     "grounding_result",
     "compare_bundle",
@@ -1186,8 +1187,18 @@ VALID["analyst_summary"] = {
                                           "dates": ["2026-11-19"]}}},
 }
 VALID["analyst_summary_v0_1"] = VALID["analyst_summary"]
-VALID["analyst_summary"] = {
+VALID["analyst_summary_v0_2"] = {
     **VALID["analyst_summary_v0_1"], "schema_version": "0.2",
+    "figures": {**VALID["analyst_summary_v0_1"]["figures"],
+                "m5.cost_change_vs_rules_off": {
+                    "kind": "change", "mode": "relative", "value": -0.2565,
+                    "of": "m5_library.cost_usd", "vs": "m5_rules_off.cost_usd",
+                    "baseline": "rules off", "of_value": 0.002933, "vs_value": 0.003945,
+                    "n": 3, "unit": "relative change", "basis": "measured", "blue": "original",
+                    "confidence": "Moderate", "source_ids": ["gate_b#1"], "definition": "d"}},
+}
+VALID["analyst_summary"] = {
+    **VALID["analyst_summary_v0_1"], "schema_version": "0.3",
     "sources": [{**{k: v for k, v in VALID["analyst_summary_v0_1"]["sources"][0].items() if k != "sha256"},
                  "artifacts": [{"file": "rounds.jsonl", "sha256": "b" * 64}]}],
     "figures": {**VALID["analyst_summary_v0_1"]["figures"],
@@ -1198,6 +1209,8 @@ VALID["analyst_summary"] = {
                     "n": 3, "unit": "relative change", "basis": "measured", "blue": "original",
                     "confidence": "Moderate", "source_ids": ["gate_b#1"], "definition": "d"}},
 }
+VALID["analyst_summary"]["figures"] = {k: {**v, "label": "An experiment: a metric"}
+                                       for k, v in VALID["analyst_summary"]["figures"].items()}
 VALID["analyst_draft"] = {
     "schema_version": "0.1",
     "sections": {k: "text" for k in ("executive_summary", "methodology", "results",
@@ -1236,7 +1249,12 @@ INVALID["analyst_summary_v0_1"] = [
     ("a change figure (0.2 only)", lambda r: {**r, "figures": {_CH: VALID["analyst_summary"]["figures"][_CH]}}),
     ("rate without a CI", lambda r: {**r, "figures": {"g.x": {k: v for k, v in _RATE.items() if k != "ci_low"}}}),
 ]
+INVALID["analyst_summary_v0_2"] = [
+    ("a label (0.3 only)", lambda r: {**r, "figures": {"g.x": {**_RATE, "label": "x"}}}),
+    ("version 0.3", _set("schema_version", "0.3")),
+]
 INVALID["analyst_summary"] += [
+    ("a figure without its label", lambda r: {**r, "figures": {"g.x": _RATE}}),
     ("change without its baseline", lambda r: {**r, "figures": {_CH: {
         k: v for k, v in r["figures"][_CH].items() if k != "baseline"}}}),
     ("change mode not in enum", lambda r: {**r, "figures": {_CH: {**r["figures"][_CH], "mode": "ratio"}}}),

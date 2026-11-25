@@ -174,3 +174,23 @@ The grounding check's token allowlist no longer includes D-numbers.
 *(c) Where the summary lives.* Development builds go to
 `data/runs/analyst/` (git-ignored). The final `summary.json` used for the report is committed
 with the report under `data/golden/` in #17.
+
+**D54 amendment (designer, 2026-11-24, #17 review) — no audience vote.** In the demo the
+decision is made by the presenter acting as decision-maker, who states the chosen option and
+the decision criterion (report section 8) behind it, and fills in the decision record. The
+"Audience vote" line is removed from the decision record. The analyst still never recommends.
+
+**D60 amendments (designer, 2026-11-24, #17 review of the first report).**
+- *Hedging:* uncertainty is carried by each figure's confidence label and interval; the prose
+  says "tentative" only for Low figures (grounding code `hedging`). Over-hedging understates
+  Moderate results and is also a distortion.
+- *Composition (POST HOC):* a finding never mixes unchecked (raw) figures with checked
+  (audited / ground-truth) ones (grounding code `composition`), so a checked result is not
+  rated by its unchecked contrast. Added after the first report rated an audited 28/28 finding
+  Low because it also cited the raw 28/30; disclosed as post hoc in every report.
+- *Structure:* the executive summary cites at least three key figures and ends with the
+  decision required (A, B or C); options A and B cite their key figures (code `structure`).
+- *Plain language:* internal terms are rejected in prose (code `jargon`); the report has a
+  glossary; every figure has a reader-facing label and ids appear only in the appendix.
+- *Formats:* every percentage prints with one decimal (so a rate and its change agree), and
+  "percentage points" is written in full.

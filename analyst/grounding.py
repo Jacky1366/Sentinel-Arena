@@ -20,6 +20,16 @@ exactly what to fix. Fail closed: a false reject only costs a retry within the a
   evidence_ref     every finding's evidence_refs entry is a summary source id
   recommendation   no recommending phrasing (D54: analysis, criteria, never a recommendation)
   confidence_claim no "high / moderate / low confidence" in prose (code assigns it, D60)
+  structure        (#17 review) the executive summary cites at least 3 distinct figures and ends
+                   with the decision required (choose A, B or C); options A and B each cite at
+                   least one figure (option C is untested)
+  hedging          (#17 review) "tentative(ly)" only in a text that cites a Low figure:
+                   uncertainty is carried by the confidence labels and intervals
+  composition      (#17 review, POST HOC, disclosed in the report) a finding never mixes
+                   unaudited (raw) figures with audited / ground-truth ones, so an audited
+                   result is not rated by its unaudited contrast
+  jargon           (#17 review) internal terms readers do not know: "pp", "orphan(ed)",
+                   "instrumentation failure", "sealed", "landing"
 
 On success the result lists each finding's confidence: the lowest D60 confidence among the
 figures it cites (analyst/confidence.finding_confidence).
@@ -67,6 +77,11 @@ RECOMMEND = re.compile(
     r"\b(the\s+)?best\s+(option|choice)\b|\bis\s+(clearly\s+)?preferable\b",
     re.IGNORECASE)
 CONFIDENCE = re.compile(r"\b(high|moderate|medium|low)\s+confidence\b", re.IGNORECASE)
+TENTATIVE = re.compile(r"\btentative(ly)?\b", re.IGNORECASE)
+JARGON = re.compile(r"\bpp\b|\borphan(ed|s)?\b|\binstrument(ation)?\s+failures?\b|\bsealed\b|"
+                    r"\blanding\b", re.IGNORECASE)
+DECISION_END = re.compile(r"\b(choose|decide|decision)\b.*\bA\b.*\bB\b.*\bC\b", re.IGNORECASE)
+MIN_SUMMARY_FIGURES = 3
 
 
 def _texts(draft: dict):
@@ -154,6 +169,28 @@ def check(draft, summary: dict) -> dict:
             err("recommendation", path, f"recommending phrase {m.group(0)!r} (D54)")
         for m in CONFIDENCE.finditer(text):
             err("confidence_claim", path, f"{m.group(0)!r}: confidence is assigned by code (D60)")
+        if TENTATIVE.search(text) and not any(figures[k]["confidence"] == "Low" for k in refs):
+            err("hedging", path, "'tentative' without a Low figure in the same text: the "
+                "confidence labels and intervals already carry the uncertainty")
+        for m in JARGON.finditer(rest):
+            err("jargon", path, f"internal term {m.group(0)!r}: use plain language (see the glossary)")
+
+    # structure (#17 review)
+    es = used.get("$.sections.executive_summary", set())
+    if len(es) < MIN_SUMMARY_FIGURES:
+        err("structure", "$.sections.executive_summary",
+            f"cites {len(es)} figure(s); cite at least {MIN_SUMMARY_FIGURES} key figures")
+    last = re.split(r"(?<=[.!?])\s+", draft["sections"]["executive_summary"].strip())[-1]
+    if not DECISION_END.search(last):
+        err("structure", "$.sections.executive_summary",
+            "must end with the decision required: choose option A, B or C")
+    for i, o in enumerate(draft["options"]):
+        if o["id"] in ("A", "B"):
+            paths = [f"$.options[{i}].summary"] + \
+                [f"$.options[{i}].strengths[{j}]" for j in range(len(o["strengths"]))] + \
+                [f"$.options[{i}].weaknesses[{j}]" for j in range(len(o["weaknesses"]))]
+            if not any(used.get(p_) for p_ in paths):
+                err("structure", f"$.options[{i}]", f"option {o['id']} cites no figure")
 
     out_findings = []
     for i, f in enumerate(draft["findings"]):
@@ -166,6 +203,11 @@ def check(draft, summary: dict) -> dict:
                 f"placeholder {r!r} is used in the finding but not listed")
         for r in sorted(set(f["evidence_refs"]) - sources):
             err("evidence_ref", f"$.findings[{i}].evidence_refs", f"unknown source {r!r}")
+        bases = {figures[r]["basis"] for r in f["figure_refs"] if r in figures}
+        if "raw" in bases and bases & {"audited", "ground_truth"}:
+            err("composition", f"$.findings[{i}].figure_refs",
+                "mixes unaudited (raw) figures with audited ones: give unaudited results their "
+                "own finding")
         known = [figures[r]["confidence"] for r in f["figure_refs"] if r in figures]
         out_findings.append({"id": f["id"],
                              "confidence": finding_confidence(known) if known else None})

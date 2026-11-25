@@ -14,17 +14,19 @@ XSS = '<script>alert(document.cookie)</script>" onerror="x'
 def rate(k, n, conf, basis="audited", blue="original", lo=0.3, hi=0.9, sid="gate_b#1"):
     return {"kind": "rate", "value": round(k / n, 4), "k": k, "n": n, "pct": round(100 * k / n, 1),
             "ci_low": lo, "ci_high": hi, "unit": "rounds", "basis": basis, "blue": blue,
-            "confidence": conf, "source_ids": [sid], "definition": "Detection over audited attempts."}
+            "confidence": conf, "source_ids": [sid], "definition": "Detection over audited attempts.",
+            "label": "An experiment: detection of attacks"}
 
 
 def usd(v, n=3):
     return {"kind": "usd", "value": v, "n": n, "unit": "USD", "basis": "measured", "blue": "original",
-            "confidence": "Moderate", "source_ids": ["m5_library#1"], "definition": "Total AI cost."}
+            "confidence": "Moderate", "source_ids": ["m5_library#1"], "definition": "Total AI cost.",
+            "label": "An experiment: AI cost"}
 
 
 def summary() -> dict:
     return {
-        "schema_version": "0.2", "built_at": "2026-11-24T23:00:00Z",
+        "schema_version": "0.3", "built_at": "2026-11-24T23:00:00Z",
         "git": {"commit": "f" * 40, "dirty": False}, "judge_version": "0.7.0",
         "confidence_rules": "D60", "manifest": None,
         "groups": [{"id": "freeplay_original", "label": "Free-play, original Blue", "kind": "freeplay",
@@ -46,7 +48,8 @@ def summary() -> dict:
                 "of": "m5_library.cost_usd", "vs": "m5_rules_off.cost_usd",
                 "baseline": "rules off", "of_value": 0.002933, "vs_value": 0.003945, "n": 3,
                 "unit": "relative change", "basis": "measured", "blue": "original",
-                "confidence": "Moderate", "source_ids": ["m5_library#1"], "definition": "d"},
+                "confidence": "Moderate", "source_ids": ["m5_library#1"], "definition": "d",
+                "label": "Rule library: change in AI cost compared with rules off"},
         },
         "descriptive": {"groups": {"freeplay_original": {
             "red_models": ["deepseek-v4-pro"], "blue_models": ["claude-haiku-5-5"],
@@ -61,9 +64,11 @@ def draft() -> dict:
     return {
         "schema_version": "0.1",
         "sections": {
-            "executive_summary": "Original Blue detected {{gate_b.detection}} of taxonomy attacks; "
+            "executive_summary": "Original Blue detected {{gate_b.detection}} of known-type attacks; "
                                  "on free-play traffic it detected {{freeplay_original.detection}} "
-                                 "({{freeplay_original.detection.ci}}), a tentative result.",
+                                 "({{freeplay_original.detection.ci}}). The library changed cost by "
+                                 "{{m5.cost_change_vs_rules_off}}. The decision required: choose "
+                                 "option A, B or C.",
             "methodology": "Blue (claude-haiku-5-5) read only the proxy log.",
             "results": "The library changed cost by {{m5.cost_change_vs_rules_off}}.",
             "risk_register": "We describe three kinds of blindness.",
@@ -80,8 +85,11 @@ def draft() -> dict:
                               "{{m5.cost_change_vs_rules_off}}.",
                       "figure_refs": ["gate_b.detection", "m5.cost_change_vs_rules_off"],
                       "evidence_refs": ["gate_b#1"]}],
-        "options": [{"id": i, "summary": s, "strengths": ["x"], "weaknesses": ["y"]}
-                    for i, s in (("A", "Original Blue"), ("B", "Open Blue"), ("C", "Layered"))],
+        "options": [{"id": "A", "summary": "Original Blue", "strengths": ["detected {{gate_b.detection}}"],
+                     "weaknesses": ["free-play {{freeplay_original.detection}}"]},
+                    {"id": "B", "summary": "Open Blue", "strengths": ["wider"],
+                     "weaknesses": ["costs {{m5.cost_change_vs_rules_off}}"]},
+                    {"id": "C", "summary": "Layered", "strengths": ["x"], "weaknesses": ["untested"]}],
         "criteria": [{"if_you_value": "few false alarms", "option": "A", "because": "it is precise"}],
     }
 

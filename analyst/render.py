@@ -18,8 +18,8 @@ from analyst.grounding import PLACEHOLDER, resolve
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 TEMPLATE = "report.html.j2"
-TEMPLATE_SHA256 = "fe9399fa0eced531361662d96d7bd5c251b9e967cf3e6047d1e5280e9301fa92"  # frozen (D56): change only with a new REPORT_VERSION
-REPORT_VERSION = "1"
+TEMPLATE_SHA256 = "befd7d1cd1dddaba7474f48d732fcdace3c93dcb1dac91e377c45868d9986b03"  # frozen (D56): change only with a new REPORT_VERSION
+REPORT_VERSION = "2"  # #17 review: brief + full, labels, glossary
 
 
 def template_sha256() -> str:
@@ -40,7 +40,7 @@ def segments(text: str, figures: dict) -> list[dict]:
             field = ref[len(key) + 1:] or None
             f = figures[key]
             out.append({"t": "fig", "s": fmt.figure(f, field), "key": key,
-                        "confidence": f["confidence"]})
+                        "label": f.get("label", key), "confidence": f["confidence"]})
         pos = m.end()
     if pos < len(text):
         out.append({"t": "text", "s": text[pos:]})
@@ -54,17 +54,28 @@ def _env() -> Environment:
     return env
 
 
-def render(summary: dict, draft: dict, ground: dict, meta: dict) -> str:
+def render(summary: dict, draft: dict, ground: dict, meta: dict, brief: bool = False) -> str:
     """meta: model, provider, date, prompt_sha256, prompt_version, attempts, cost_usd,
-    go_token, report_id. Requires a passed grounding result."""
+    go_token, report_id. Requires a passed grounding result. brief=True renders the decision
+    brief (decision required, executive summary, options, criteria, decision record)."""
     if not ground.get("ok"):
         raise ValueError("refusing to render a draft that failed the grounding check")
     figs = summary["figures"]
     conf = {f["id"]: f["confidence"] for f in ground["findings"]}
     sec = {k: segments(v, figs) for k, v in draft["sections"].items()}
+    group_label = {g["id"]: g["label"] for g in summary["groups"]}
+
+    def evidence(refs):  # reader-facing: experiment labels; the source ids are in Appendix A
+        out = []
+        for r in refs:
+            lab = group_label.get(r.split("#")[0], r)
+            if lab not in out:
+                out.append(lab)
+        return out
     findings = [{"id": f["id"], "title": segments(f["title"], figs),
                  "text": segments(f["text"], figs), "confidence": conf.get(f["id"]),
-                 "figure_refs": f["figure_refs"], "evidence_refs": f["evidence_refs"]}
+                 "figure_labels": [figs[r].get("label", r) for r in f["figure_refs"] if r in figs],
+                 "evidence_labels": evidence(f["evidence_refs"])}
                 for f in draft["findings"]]
     options = [{"id": o["id"], "summary": segments(o["summary"], figs),
                 "strengths": [segments(s, figs) for s in o["strengths"]],
@@ -79,4 +90,5 @@ def render(summary: dict, draft: dict, ground: dict, meta: dict) -> str:
     return _env().get_template(TEMPLATE).render(
         summary=summary, sections=sec, findings=findings, options=options,
         criteria=criteria, results=results, cited=cited, meta=meta, ground=ground,
+        group_label=group_label, brief=brief,
         template_sha256=template_sha256(), report_version=REPORT_VERSION)

@@ -5,40 +5,102 @@
   "description": "analyst/grounding.check(draft, summary). ok = no errors. Every error has a code and a JSON path into the draft. On success, each finding's confidence (D60: the lowest among its cited figures).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "ok", "errors", "stats", "findings"],
+  "required": [
+    "schema_version",
+    "ok",
+    "errors",
+    "stats",
+    "findings"
+  ],
   "properties": {
-    "schema_version": {"const": "0.1"},
-    "ok": {"type": "boolean"},
+    "schema_version": {
+      "const": "0.1"
+    },
+    "ok": {
+      "type": "boolean"
+    },
     "errors": {
       "type": "array",
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["code", "path", "detail"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "path",
+          "detail"
+        ],
         "properties": {
-          "code": {"enum": ["schema", "placeholder", "bare_number", "number_word", "figure_ref",
-                            "evidence_ref", "recommendation", "confidence_claim"]},
-          "path": {"type": "string", "minLength": 1},
-          "detail": {"type": "string"}
+          "code": {
+            "enum": [
+              "schema",
+              "placeholder",
+              "bare_number",
+              "number_word",
+              "figure_ref",
+              "evidence_ref",
+              "recommendation",
+              "confidence_claim",
+              "structure",
+              "hedging",
+              "composition",
+              "jargon"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "detail": {
+            "type": "string"
+          }
         }
       }
     },
     "stats": {
-      "type": "object", "additionalProperties": false,
-      "required": ["placeholders", "findings", "texts"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "placeholders",
+        "findings",
+        "texts"
+      ],
       "properties": {
-        "placeholders": {"type": "integer", "minimum": 0},
-        "findings": {"type": "integer", "minimum": 0},
-        "texts": {"type": "integer", "minimum": 0}
+        "placeholders": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "findings": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "texts": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "findings": {
       "type": "array",
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["id", "confidence"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "confidence"
+        ],
         "properties": {
-          "id": {"type": "string", "pattern": "^F-[0-9]{2}$"},
-          "confidence": {"enum": ["Low", "Moderate", "High", null]}
+          "id": {
+            "type": "string",
+            "pattern": "^F-[0-9]{2}$"
+          },
+          "confidence": {
+            "enum": [
+              "Low",
+              "Moderate",
+              "High",
+              null
+            ]
+          }
         }
       }
     }

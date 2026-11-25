@@ -25,9 +25,9 @@ def test_the_m5_trio_side_by_side():
     off = cmp("m5.cost_change_vs_rules_off", "m5_library.cost_usd", "m5_rules_off.cost_usd", "relative", "rules off")
     emp = cmp("m5.cost_change_vs_empty_library", "m5_library.cost_usd", "m5_empty.cost_usd", "relative", "empty library")
     e_off = cmp("m5.empty_library_cost_change_vs_rules_off", "m5_empty.cost_usd", "m5_rules_off.cost_usd", "relative", "rules off")
-    assert fmt.change(off) == "−26% vs rules off"          # the headline
-    assert fmt.change(emp) == "−39% vs empty library"
-    assert fmt.change(e_off) == "+22% vs rules off"
+    assert fmt.change(off) == "−25.7% vs rules off"        # the headline
+    assert fmt.change(emp) == "−39.3% vs empty library"
+    assert fmt.change(e_off) == "+22.5% vs rules off"
     assert off["of_value"] == 0.002933 and off["vs_value"] == 0.003945
     assert off["confidence"] == "Moderate" and off["n"] == 3
 
@@ -35,7 +35,7 @@ def test_the_m5_trio_side_by_side():
 def test_points_for_rates_and_the_lower_confidence():
     c = cmp("freeplay.open_detection_change_vs_original", "a.detection", "b.detection", "points", "original Blue")
     assert c["value"] == 10.5 and c["unit"] == "percentage points"
-    assert fmt.change(c) == "+10.5 pp vs original Blue"
+    assert fmt.change(c) == "+10.5 percentage points vs original Blue"
     assert cmp("x.det_change_vs_raw", "g.detection", "r.detection", "points")["confidence"] == "Low"
     assert cmp("x.det_change_vs_raw", "g.detection", "r.detection", "points")["basis"] == "raw"
 
@@ -62,7 +62,7 @@ def test_zero_baseline_is_refused():
 
 def test_q4_formats():
     f = rate(12, 19, "Moderate", lo=0.3836, hi=0.8371)
-    assert fmt.figure(f) == "12/19 (63%)" and fmt.figure(f, "pct") == "12/19 (63%)"  # never bare
+    assert fmt.figure(f) == "12/19 (63.2%)" and fmt.figure(f, "pct") == "12/19 (63.2%)"  # never bare
     assert fmt.figure(f, "ci") == "95% CI 38.4–83.7%"
     assert fmt.figure(rate(6, 57, "Moderate", lo=0.0396, hi=0.2152), "ci") == "95% CI 4.0–21.5%"
     assert fmt.figure(f, "k") == "12" and fmt.figure(f, "n") == "19"

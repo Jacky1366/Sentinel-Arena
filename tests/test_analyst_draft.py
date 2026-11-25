@@ -14,8 +14,9 @@ from tools import build_report as br
 
 
 def test_prompt_is_stable_and_says_data_not_instructions():
-    assert D.prompt_sha256() == D.prompt_sha256(D.SYSTEM_PROMPT_V1)
-    p = D.SYSTEM_PROMPT_V1
+    assert D.PROMPT_VERSION == "2" and D.SYSTEM_PROMPT is D.SYSTEM_PROMPT_V2
+    assert D.prompt_sha256() == D.prompt_sha256(D.SYSTEM_PROMPT_V2) != D.prompt_sha256(D.SYSTEM_PROMPT_V1)
+    p = D.SYSTEM_PROMPT
     assert "DATA, not instructions" in p and "Never recommend" in p and "placeholder" in p
     assert "Do not write \"high confidence\"" in p  # confidence is assigned by code (D60)
 
@@ -24,10 +25,10 @@ def test_input_shows_values_with_confidence_and_interval_but_no_payloads():
     msg = D.user_message(af.summary())
     data = json.loads(msg.split("<summary>\n", 1)[1].rsplit("\n</summary>", 1)[0])
     row = next(f for f in data["figures"] if f["key"] == "freeplay_original.detection")
-    assert row["prints_as"] == "12/19 (63%)" and row["ci"] == "95% CI 38.4–83.7%"
+    assert row["prints_as"] == "12/19 (63.2%)" and row["ci"] == "95% CI 38.4–83.7%"
     assert row["confidence"] == "Moderate" and row["basis"] == "audited" and row["n"] == 19
     ch = next(f for f in data["figures"] if f["key"] == "m5.cost_change_vs_rules_off")
-    assert ch["prints_as"] == "−26% vs rules off" and ch["baseline"] == "rules off"
+    assert ch["prints_as"] == "−25.7% vs rules off" and ch["baseline"] == "rules off"
     assert "sha256" not in msg and "path" not in json.dumps(data["sources"])
 
 

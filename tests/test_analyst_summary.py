@@ -193,3 +193,17 @@ def test_committed_manifest_is_well_formed():
     for g in m["groups"]:
         for p in g["folders"]:
             assert (build_summary.REPO / p).is_dir(), p  # existence only; nothing is opened
+
+
+def test_landed_attack_detection_and_labels(lab, tmp_path, registry):
+    """#17 review: successful attacks (attempts that solved a challenge) flagged / missed."""
+    fpd, aud = freeplay_folder(tmp_path / "fp")
+    doc = S.build(manifest(two_fake_matches(lab), fpd, aud, fp_folder(tmp_path / "fpc")),
+                  prices=PRICES, registry=registry)
+    f = doc["figures"]
+    # the fixture: rounds 1 (yes, solved, detected) and 4 (yes, solved, missed); 3 is not an attempt
+    assert (f["dev_fp.landed_detection"]["k"], f["dev_fp.landed_detection"]["n"]) == (1, 2)
+    assert f["dev_fp.landed_missed"]["value"] == 1 and f["dev_fp.landed_missed"]["n"] == 2
+    assert f["dev_fp.landed_detection"]["label"] == "free-play: successful attacks flagged"
+    assert all(v["label"] for v in f.values())
+    assert doc["schema_version"] == "0.3"

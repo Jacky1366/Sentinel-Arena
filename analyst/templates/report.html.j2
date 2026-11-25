@@ -1,96 +1,16 @@
-{#- Sentinel Arena evaluation report (Stage 7 #17; D56 Jinja2 autoescape, D57 structure).
+{#- Sentinel Arena evaluation report (Stage 7 #17; Jinja2 autoescape, D57 structure).
     FROZEN: analyst/render.py records this file's sha256 in every report; a test checks it.
+    One template, two views: the brief (brief=True: decision required, executive summary,
+    options, decision criteria, decision record) and the full report.
     AI text arrives only as segments: "text" is autoescaped, "fig" is code-formatted. -#}
 {%- macro prose(segs) -%}
 {%- for s in segs -%}
-{%- if s.t == "fig" -%}<span class="fig c-{{ s.confidence|lower }}" title="{{ s.key }} · {{ s.confidence }}">{{ s.s }}</span>
+{%- if s.t == "fig" -%}<span class="fig c-{{ s.confidence|lower }}" title="{{ s.label }} · confidence {{ s.confidence }}">{{ s.s }}</span>
 {%- else -%}{{ s.s }}{%- endif -%}
 {%- endfor -%}
 {%- endmacro -%}
 {%- macro by(who) -%}<span class="by by-{{ who|lower }}">written by {{ who }}</span>{%- endmacro -%}
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
-<title>Sentinel Arena — evaluation report</title>
-<style>
-  :root { --ink:#111827; --muted:#4b5563; --line:#d1d5db; --high:#065f46; --moderate:#92400e; --low:#991b1b; }
-  body { font: 15px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background:#fff; max-width: 920px; margin: 0 auto; padding: 32px 24px; }
-  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 32px 0 8px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
-  h3 { font-size: 16px; margin: 18px 0 6px; } p { margin: 6px 0; } .muted { color: var(--muted); }
-  .by { float: right; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
-  .by-ai { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; } .by-code { background:#f3f4f6; } .by-human { background:#fef3c7; color:#92400e; border-color:#fde68a; }
-  .fig { font-weight: 600; white-space: nowrap; border-bottom: 2px solid; }
-  .c-high { border-color: var(--high); } .c-moderate { border-color: var(--moderate); } .c-low { border-color: var(--low); }
-  .conf { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; }
-  .conf-high { background: var(--high); } .conf-moderate { background: var(--moderate); } .conf-low { background: var(--low); }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; } th, td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
-  th { background: #f3f4f6; } code { font-size: 12px; }
-  .finding { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
-  .box { border: 2px solid var(--ink); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
-  .decision td { height: 28px; }
-  @media print {
-    body { max-width: none; padding: 0; font-size: 11pt; }
-    h2 { break-before: page; } h2.first { break-before: avoid; }
-    .finding, .box, tr { break-inside: avoid; }
-    @page { size: A4; margin: 18mm 16mm; }
-  }
-</style>
-</head>
-<body>
-<h1>Sentinel Arena — evaluation report</h1>
-<p class="muted">AI defender evaluation · report {{ meta.report_id }} · {{ meta.date }} · draft written by an AI analyst ({{ meta.model }}), every number filled in by code, decision by a human.</p>
-
-<h2 class="first">0. Document control {{ by("code") }}</h2>
-<table>
-  <tr><th>Report</th><td>{{ meta.report_id }} (report format {{ report_version }}, template sha256 <code>{{ template_sha256[:16] }}…</code>)</td></tr>
-  <tr><th>Evidence summary</th><td>schema {{ summary.schema_version }}, built {{ summary.built_at }}, commit <code>{{ (summary.git or {}).get("commit") or "—" }}</code>, Judge {{ summary.judge_version }}, confidence rules {{ summary.confidence_rules }}</td></tr>
-  <tr><th>Analyst</th><td>{{ meta.provider }} / {{ meta.model }}, prompt v{{ meta.prompt_version }} (sha256 <code>{{ meta.prompt_sha256[:16] }}…</code>), {{ meta.attempts }} attempt(s), cost {{ meta.cost_usd|usd_appendix }}</td></tr>
-  <tr><th>Grounding check</th><td>{{ "passed" if ground.ok else "FAILED" }}: {{ ground.stats.placeholders }} placeholders, {{ ground.stats.findings }} findings</td></tr>
-  <tr><th>Status</th><td>Draft for human review. The decision record (section 10) is completed by people, not by the AI.</td></tr>
-</table>
-
-<h2>1. Executive summary {{ by("AI") }}</h2>
-<p>{{ prose(sections.executive_summary) }}</p>
-
-<h2>2. Scope {{ by("code") }}</h2>
-<table>
-  <tr><th>Group</th><th>Kind</th><th>Blue</th><th>Folders</th><th>Notes</th></tr>
-  {% for g in summary.groups %}
-  <tr><td>{{ g.label }}</td><td>{{ g.kind }}</td><td>{{ g.blue or "—" }}</td><td>{{ g.folders }}</td><td>{{ g.notes|join("; ") or "—" }}</td></tr>
-  {% endfor %}
-</table>
-
-<h2>3. Methodology {{ by("AI") }}</h2>
-<p>{{ prose(sections.methodology) }}</p>
-<p class="muted">Fixed facts (code): Red attacks a test web application through a logging proxy; Blue reads only the proxy log after the traffic; a deterministic Judge scores each round. Confidence levels follow pre-registered rules: audited or ground-truth figures with n ≥ 20 are High, below 20 Moderate, unaudited labels Low, open Blue capped at Moderate.</p>
-
-<h2>4. Results {{ by("code") }}</h2>
-<p>{{ prose(sections.results) }} <span class="by by-ai">narrative by AI</span></p>
-<table>
-  <tr><th>Figure</th><th>Value</th><th>Interval</th><th>Basis</th><th>n</th><th>Confidence</th><th>Definition</th></tr>
-  {% for r in results %}{% if r.key in cited %}
-  <tr><td><code>{{ r.key }}</code></td><td>{{ r.text }}</td><td>{{ r.ci or "—" }}</td><td>{{ r.f.basis }}</td><td>{{ r.f.n }}</td><td><span class="conf conf-{{ r.f.confidence|lower }}">{{ r.f.confidence }}</span></td><td>{{ r.f.definition }}</td></tr>
-  {% endif %}{% endfor %}
-</table>
-
-<h2>5. Key findings {{ by("AI") }}</h2>
-<p class="muted">Finding text by the AI; each finding's confidence is assigned by code (the lowest among the figures it cites).</p>
-{% for f in findings %}
-<div class="finding">
-  <h3>{{ f.id }} · {{ prose(f.title) }} <span class="conf conf-{{ (f.confidence or "low")|lower }}">{{ f.confidence or "—" }}</span></h3>
-  <p>{{ prose(f.text) }}</p>
-  <p class="muted">Figures: {% for r in f.figure_refs %}<code>{{ r }}</code>{{ ", " if not loop.last }}{% endfor %} · Evidence: {% for r in f.evidence_refs %}<code>{{ r }}</code>{{ ", " if not loop.last }}{% endfor %}</p>
-</div>
-{% endfor %}
-
-<h2>6. Risk register {{ by("AI") }}</h2>
-<p>{{ prose(sections.risk_register) }}</p>
-
-<h2>7. Deployment options {{ by("AI") }}</h2>
-<p>{{ prose(sections.deployment_options) }}</p>
+{%- macro options_table() -%}
 <table>
   <tr><th>Option</th><th>Summary</th><th>Strengths</th><th>Weaknesses</th></tr>
   {% for o in options %}
@@ -99,54 +19,189 @@
     <td><ul>{% for s in o.weaknesses %}<li>{{ prose(s) }}</li>{% endfor %}</ul></td></tr>
   {% endfor %}
 </table>
-
-<h2>8. Decision criteria {{ by("AI") }}</h2>
-<p>{{ prose(sections.decision_criteria) }}</p>
+{%- endmacro -%}
+{%- macro criteria_table() -%}
 <table>
   <tr><th>If you value…</th><th>Option</th><th>Because</th></tr>
   {% for c in criteria %}
   <tr><td>{{ prose(c.value) }}</td><td><b>{{ c.option }}</b></td><td>{{ prose(c.because) }}</td></tr>
   {% endfor %}
 </table>
+{%- endmacro -%}
+{%- macro decision_record() -%}
+<table class="decision">
+  <tr><th>Decision: option A, B or C (or none)</th><td></td></tr>
+  <tr><th>The decision-maker's criterion (from the decision criteria)</th><td></td></tr>
+  <tr><th>Decided by</th><td></td></tr>
+  <tr><th>Date</th><td></td></tr>
+</table>
+<p class="muted">Completed by the decision-maker, not by the AI. In the demo the presenter acts as decision-maker, states the option and the criterion behind it, and fills in this record.</p>
+{%- endmacro -%}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<title>Sentinel Arena — {{ "decision brief" if brief else "evaluation report" }}</title>
+<style>
+  :root { --ink:#111827; --muted:#4b5563; --line:#d1d5db; --high:#065f46; --moderate:#92400e; --low:#991b1b; }
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background:#fff; max-width: 920px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 28px 0 8px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; } p { margin: 6px 0; } .muted { color: var(--muted); }
+  .by { float: right; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+  .by-ai { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; } .by-code { background:#f3f4f6; } .by-human { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+  .fig { font-weight: 600; border-bottom: 2px solid; }
+  .c-high { border-color: var(--high); } .c-moderate { border-color: var(--moderate); } .c-low { border-color: var(--low); }
+  .conf { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; white-space: nowrap; }
+  .conf-high { background: var(--high); } .conf-moderate { background: var(--moderate); } .conf-low { background: var(--low); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; } th, td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; } code { font-size: 12px; } ul { margin: 0; padding-left: 18px; }
+  .finding { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+  .box { border: 2px solid var(--ink); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+  .decide { border: 3px solid var(--ink); background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 17px; font-weight: 600; }
+  .decision td { height: 30px; } .decision th { width: 45%; }
+  .legend { font-size: 12px; color: var(--muted); }
+  @media print {
+    body { max-width: none; padding: 0; font-size: 10.5pt; }
+    .appendix { break-before: page; }
+    .finding, .box, .decide, tr { break-inside: avoid; }
+    @page { size: A4; margin: 16mm 15mm; }
+  }
+</style>
+</head>
+<body>
+{% if brief %}
+<h1>Sentinel Arena — decision brief</h1>
+<p class="muted">AI defender evaluation · {{ meta.date }} · prose drafted by an AI analyst ({{ meta.model }}); every number filled in by code; the decision is made by a person. Full report: {{ meta.report_id }}.</p>
+<div class="decide">Decision required: choose option A, B or C.</div>
+<p class="legend">Each underlined figure carries a confidence level set by pre-registered rules (green High, amber Moderate, red Low); the full report gives every rate's 95% interval.</p>
+
+<h2>Executive summary {{ by("AI") }}</h2>
+<p>{{ prose(sections.executive_summary) }}</p>
+
+<h2>Options {{ by("AI") }}</h2>
+{{ options_table() }}
+
+<h2>Decision criteria {{ by("AI") }}</h2>
+{{ criteria_table() }}
+
+<h2>Decision record {{ by("human") }}</h2>
+{{ decision_record() }}
+<p class="muted">The analyst never recommends an option. Sources, methods, all findings with their confidence, limitations and the evidence manifest are in the full report.</p>
+{% else %}
+<h1>Sentinel Arena — evaluation report</h1>
+<p class="muted">AI defender evaluation · {{ meta.report_id }} · {{ meta.date }} · prose drafted by an AI analyst ({{ meta.model }}); every number filled in by code; the decision is made by a person.</p>
+
+<h2>0. Document control {{ by("code") }}</h2>
+<table>
+  <tr><th>Report</th><td>{{ meta.report_id }} (report format {{ report_version }})</td></tr>
+  <tr><th>Evidence summary</th><td>built {{ summary.built_at }} from frozen evidence (summary format {{ summary.schema_version }}, code version <code>{{ ((summary.git or {}).get("commit") or "—")[:12] }}</code>)</td></tr>
+  <tr><th>Analyst</th><td>{{ meta.model }} ({{ meta.provider }}), prompt v{{ meta.prompt_version }}, {{ meta.attempts }} attempt(s), cost {{ meta.cost_usd|usd_appendix }}</td></tr>
+  <tr><th>Grounding check</th><td>{{ "passed" if ground.ok else "FAILED" }}: every figure placeholder and reference checked by code</td></tr>
+  <tr><th>Status</th><td>Draft for human review. The decision record (section 10) is completed by the decision-maker, not by the AI.</td></tr>
+</table>
+
+<h2>1. Executive summary {{ by("AI") }}</h2>
+<div class="decide">Decision required: choose option A, B or C.</div>
+<p>{{ prose(sections.executive_summary) }}</p>
+
+<h2>2. Scope {{ by("code") }}</h2>
+<table>
+  <tr><th>Experiment</th><th>Defender</th><th>Matches</th><th>Notes</th></tr>
+  {% for g in summary.groups %}
+  <tr><td>{{ g.label }}</td><td>{{ {"original": "default defender", "open": "open-definition defender"}.get(g.blue, "—") }}</td><td>{{ g.folders }}</td><td>{{ g.notes|join("; ") or "—" }}</td></tr>
+  {% endfor %}
+</table>
+
+<h2>3. Methodology {{ by("AI") }}</h2>
+<p>{{ prose(sections.methodology) }}</p>
+<p class="muted">Fixed facts (code): Red attacks a test web application through a logging proxy; Blue reads only the proxy log after the traffic, so it detects, it does not block; a deterministic Judge scores each round. Confidence levels follow rules fixed before any result was summarised: checked figures (attack labels checked by the designer, or normal requests known by construction) with at least twenty units are High, fewer are Moderate; unchecked attack labels are Low; the open-definition defender is capped at Moderate. See the glossary.</p>
+
+<h2>4. Results {{ by("code") }}</h2>
+<p>{{ prose(sections.results) }} <span class="by by-ai">narrative by AI</span></p>
+<table>
+  <tr><th>Figure</th><th>Value</th><th>95% interval</th><th>Units</th><th>Confidence</th><th>What it counts</th></tr>
+  {% for r in results %}{% if r.key in cited %}
+  <tr><td>{{ r.f.label }}</td><td>{{ r.text }}</td><td>{{ r.ci or "—" }}</td><td>{{ r.f.n }} {{ r.f.unit }}</td><td><span class="conf conf-{{ r.f.confidence|lower }}">{{ r.f.confidence }}</span></td><td>{{ r.f.definition }}</td></tr>
+  {% endif %}{% endfor %}
+</table>
+
+<h2>5. Key findings {{ by("AI") }}</h2>
+<p class="muted">Finding text by the AI; each finding's confidence is set by code: the lowest among the figures it cites.</p>
+{% for f in findings %}
+<div class="finding">
+  <h3>{{ f.id }} · {{ prose(f.title) }} <span class="conf conf-{{ (f.confidence or "low")|lower }}">{{ f.confidence or "—" }}</span></h3>
+  <p>{{ prose(f.text) }}</p>
+  <p class="muted">Figures: {{ f.figure_labels|join("; ") }}. Evidence: {{ f.evidence_labels|join("; ") }} (Appendix A).</p>
+</div>
+{% endfor %}
+
+<h2>6. Risk register {{ by("AI") }}</h2>
+<p>{{ prose(sections.risk_register) }}</p>
+
+<h2>7. Deployment options {{ by("AI") }}</h2>
+<p>{{ prose(sections.deployment_options) }}</p>
+{{ options_table() }}
+
+<h2>8. Decision criteria {{ by("AI") }}</h2>
+<p>{{ prose(sections.decision_criteria) }}</p>
+{{ criteria_table() }}
 
 <h2>9. Limitations {{ by("AI") }}</h2>
 <p>{{ prose(sections.limitations) }}</p>
 <div class="box"><b>Fixed disclosures (code).</b>
   <ul>
-    <li>The free-play audit was done after open-Blue results were known.</li>
-    <li>Open Blue's verdicts vary run to run; its figures are capped at Moderate.</li>
-    <li>The n ≥ 20 confidence threshold was set knowing the sample sizes; it puts the free-play detection figures at Moderate, against our own headline.</li>
+    <li>The free-play attack attempts were judged by the designer after the open-definition defender's results were known.</li>
+    <li>The open-definition defender's verdicts vary run to run; its figures are capped at Moderate.</li>
+    <li>The twenty-unit confidence threshold was set knowing the sample sizes; it puts the free-play detection figures at Moderate, against our own headline result.</li>
+    <li>Added after the first draft (post hoc): a finding may not mix figures from unchecked attack labels with checked figures, so a checked result is not rated by its unchecked contrast.</li>
     {% if meta.provider == "openai" %}<li>The evidence includes an OpenAI attacker (gpt-6-luna); an OpenAI analyst model commenting on it is disclosed here.</li>
-    {% elif meta.provider == "anthropic" %}<li>The analyst model is from the same family as Blue (Anthropic); disclosed here.</li>
+    {% elif meta.provider == "anthropic" %}<li>The analyst model is from the same family as the defender (Anthropic); disclosed here.</li>
     {% else %}<li>Analyst provider: {{ meta.provider }}.</li>{% endif %}
-    <li>The analyst never recommends an option; the decision is human.</li>
+    <li>The analyst never recommends an option; the decision is made by a person.</li>
   </ul>
 </div>
 
 <h2>10. Decision record {{ by("human") }}</h2>
-<table class="decision">
-  <tr><th>Decision (option A / B / C, or none)</th><td></td></tr>
-  <tr><th>Decided by</th><td></td></tr>
-  <tr><th>Date</th><td></td></tr>
-  <tr><th>Reasons (criteria from section 8)</th><td></td></tr>
-  <tr><th>Audience vote (demo)</th><td>A: ____ · B: ____ · C: ____</td></tr>
-</table>
+{{ decision_record() }}
 
-<h2>Appendix A. Evidence manifest {{ by("code") }}</h2>
+<h2 class="appendix">Appendix A. Evidence manifest {{ by("code") }}</h2>
 <table>
-  <tr><th>Source</th><th>Path</th><th>Match</th><th>Purpose</th><th>Artifacts (sha256)</th></tr>
+  <tr><th>Source</th><th>Experiment</th><th>Path</th><th>Match</th><th>Artifacts (sha256)</th></tr>
   {% for s in summary.sources %}
-  <tr><td><code>{{ s.id }}</code></td><td><code>{{ s.path }}</code></td><td><code>{{ s.match_id or "—" }}</code></td><td>{{ s.purpose or "—" }}</td>
+  <tr><td><code>{{ s.id }}</code></td><td>{{ group_label.get(s.id.split("#")[0], "") }}</td><td><code>{{ s.path }}</code></td><td><code>{{ s.match_id or "—" }}</code></td>
     <td>{% for a in s.artifacts %}<code>{{ a.file }} {{ a.sha256[:12] }}</code>{{ "; " if not loop.last }}{% endfor %}</td></tr>
   {% endfor %}
 </table>
 
-<h2>Appendix B. AI disclosure {{ by("code") }}</h2>
+<h2>Appendix B. AI disclosure and identifiers {{ by("code") }}</h2>
 <div class="box">
-  <p>Sections marked "written by AI" were drafted by <b>{{ meta.model }}</b> ({{ meta.provider }}) on {{ meta.date }} with prompt v{{ meta.prompt_version }} (sha256 <code>{{ meta.prompt_sha256 }}</code>), in {{ meta.attempts }} attempt(s), at a cost of {{ meta.cost_usd|usd_appendix }} (GO <code>{{ meta.go_token }}</code>).</p>
-  <p>The AI saw a code-built summary of frozen evidence (no attack payloads) and wrote prose with placeholders only. Code checked every placeholder and reference (grounding check: {{ "passed" if ground.ok else "FAILED" }}), filled in every number, and assigned every confidence level. Humans review the text and make the decision.</p>
-  <p class="muted">Decision references (project records, for auditors): confidence rules D60; analyst model and inputs D53; analysis, not recommendation D54; rendering D56; report structure D57; free-play audit timing D52; open-Blue instability D42.</p>
-  <p class="muted">All figures with stats precision: {% for r in results %}<code>{{ r.key }}</code> = {{ r.text if r.f.kind != "usd" else (r.f.value|usd_appendix) }}{{ "; " if not loop.last }}{% endfor %}</p>
+  <p>Sections marked "written by AI" were drafted by <b>{{ meta.model }}</b> ({{ meta.provider }}) on {{ meta.date }} with prompt v{{ meta.prompt_version }} (sha256 <code>{{ meta.prompt_sha256 }}</code>), in {{ meta.attempts }} attempt(s), at a cost of {{ meta.cost_usd|usd_appendix }} (GO <code>{{ meta.go_token }}</code>). Template sha256 <code>{{ template_sha256 }}</code>.</p>
+  <p>The AI saw a code-built summary of frozen evidence (no attack payloads) and wrote prose with placeholders only. Code checked every placeholder and reference (grounding check: {{ "passed" if ground.ok else "FAILED" }}, {{ ground.stats.placeholders }} placeholders, {{ ground.stats.findings }} findings), filled in every number, and set every confidence level. People review the text and make the decision.</p>
+  <p class="muted">Decision references (project records, for auditors): confidence rules {{ summary.confidence_rules }} and its amendments; analyst model and inputs D53; analysis, not recommendation D54 (as amended: the presenter decides in the demo); rendering D56; report structure D57; free-play audit timing D52; open-definition instability D42.</p>
+  <table>
+    <tr><th>Figure</th><th>Identifier</th><th>Value (full precision)</th></tr>
+    {% for r in results %}<tr><td>{{ r.f.label }}</td><td><code>{{ r.key }}</code></td><td>{{ r.text if r.f.kind != "usd" else (r.f.value|usd_appendix) }}</td></tr>{% endfor %}
+  </table>
 </div>
+
+<h2>Appendix C. Glossary {{ by("code") }}</h2>
+<table>
+  <tr><th>Term</th><th>Meaning</th></tr>
+  <tr><td>Known attack types</td><td>The three attack types the default defender is told about: SQL injection (CWE-89), cross-site scripting (CWE-79) and path traversal (CWE-22).</td></tr>
+  <tr><td>Default defender / original Blue</td><td>The defender as deployed in every match: it labels requests as one of the known attack types or as benign.</td></tr>
+  <tr><td>Open-definition defender / open Blue</td><td>The same defender with a wider attack definition (any attack), run afterwards on the same recorded traffic, for analysis only.</td></tr>
+  <tr><td>Free-play</td><td>Matches in which the attacker could try any technique, not only the known attack types.</td></tr>
+  <tr><td>Succeeded / successful attack</td><td>An attack request that solved one of the test application's built-in challenges.</td></tr>
+  <tr><td>Checked (audited)</td><td>The designer reviewed Red's attack labels, or judged whether each free-play request was an attack attempt; unchecked figures rest on Red's own labels.</td></tr>
+  <tr><td>False alarm</td><td>A normal (non-attack) request the defender flagged as an attack.</td></tr>
+  <tr><td>Held-back normal requests</td><td>Normal requests set aside before any experiment and never used to build or tune anything.</td></tr>
+  <tr><td>Rule library</td><td>Detection rules the defender wrote in earlier training matches and reuses read-only; a request a rule answers needs no AI call.</td></tr>
+  <tr><td>95% interval</td><td>The range of rates compatible with the observed counts (exact binomial interval); small samples give wide intervals.</td></tr>
+  <tr><td>Percentage points</td><td>The difference between two percentages (e.g. from 60.0% to 70.0% is +10.0 percentage points).</td></tr>
+  <tr><td>Confidence (High / Moderate / Low)</td><td>Set by code from fixed rules: checked figures with at least twenty units High, fewer Moderate; unchecked labels Low; the open-definition defender at most Moderate. A finding takes the lowest confidence of its figures.</td></tr>
+</table>
+{% endif %}
 </body>
 </html>

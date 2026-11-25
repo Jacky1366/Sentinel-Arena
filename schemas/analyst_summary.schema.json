@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/analyst_summary.schema.json",
-  "title": "Analyst summary (Stage 7 #16, 0.2 #17; contract 6.15)",
-  "description": "Every figure the analyst report may cite, computed by code from frozen evidence (analyst/summary.py), each with its sources, basis and D60 confidence. Descriptive fields only (model ids, dates, free-play technique strings, landed challenge names / categories); never a payload, path, body, header value or rationale (D53). 0.2 (#17): comparison figures (kind change) whose key names the baseline: <group>.<metric>_change_vs_<baseline> (designer, 2026-11-24: no percentage without its baseline).",
+  "title": "Analyst summary (Stage 7 #16, 0.3 #17; contract 6.15)",
+  "description": "Every figure the analyst report may cite, computed by code from frozen evidence (analyst/summary.py), each with its sources, basis and D60 confidence. Descriptive fields only (model ids, dates, free-play technique strings, landed challenge names / categories); never a payload, path, body, header value or rationale (D53). 0.2 (#17): comparison figures (kind change) whose key names the baseline: <group>.<metric>_change_vs_<baseline> (designer, 2026-11-24: no percentage without its baseline). 0.3 (#17 review): sources list artifact hashes as {file, sha256}; every figure carries a reader-facing `label`; free-play groups add landed-attack detection.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -59,7 +59,8 @@
         "blue",
         "confidence",
         "source_ids",
-        "definition"
+        "definition",
+        "label"
       ],
       "properties": {
         "kind": {
@@ -91,6 +92,10 @@
           "$ref": "#/$defs/sids"
         },
         "definition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
           "type": "string",
           "minLength": 1
         }
@@ -144,7 +149,8 @@
                 "type": "number",
                 "minimum": 0,
                 "maximum": 1
-              }
+              },
+              "label": true
             }
           }
         },
@@ -201,7 +207,8 @@
               },
               "vs_value": {
                 "type": "number"
-              }
+              },
+              "label": true
             }
           }
         },
@@ -232,7 +239,8 @@
               "value": {
                 "type": "number",
                 "minimum": 0
-              }
+              },
+              "label": true
             }
           }
         }
@@ -241,7 +249,7 @@
   },
   "properties": {
     "schema_version": {
-      "const": "0.2"
+      "const": "0.3"
     },
     "built_at": {
       "type": "string"

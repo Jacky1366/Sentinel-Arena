@@ -1,9 +1,10 @@
 """Report number formats (#17; designer Q4, 2026-11-24). PURE.
 
-  rate     "12/19 (63%)"            a percentage never prints without its count
+  rate     "12/19 (63.2%)"          a percentage never prints without its count
   ci       "95% CI 38.4–83.7%"
-  change   "−26% vs rules off"      a change never prints without its baseline
-           "+10.5 pp vs original"   (rates: percentage points)
+  change   "−25.7% vs <baseline>"   a change never prints without its baseline
+           "+10.5 percentage points vs <baseline>"   (rates; spelled out, #17 review)
+  Every percentage has ONE decimal, so a rate and a change of it agree (#17 review).
   usd      "$0.0029" in the body (4 decimals); "$0.002933" in the appendix (stats precision)
   count    "52"
 """
@@ -13,12 +14,12 @@ from __future__ import annotations
 MINUS = "−"
 
 
-def _pct_int(x: float) -> int:
-    return int(x * 100 + 0.5)  # half up: 10.5% -> 11%
+def _pct1(x: float) -> str:
+    return f"{100 * x:.1f}%"
 
 
 def rate(f: dict) -> str:
-    return f"{f['k']}/{f['n']} ({_pct_int(f['k'] / f['n'])}%)"
+    return f"{f['k']}/{f['n']} ({_pct1(f['k'] / f['n'])})"
 
 
 def ci(f: dict) -> str:
@@ -29,8 +30,8 @@ def change(f: dict) -> str:
     v = f["value"]
     sign = "+" if v > 0 else MINUS if v < 0 else "±"
     if f["mode"] == "points":
-        return f"{sign}{abs(v):.1f} pp vs {f['baseline']}"
-    return f"{sign}{int(abs(v) * 100 + 0.5)}% vs {f['baseline']}"
+        return f"{sign}{abs(v):.1f} percentage points vs {f['baseline']}"
+    return f"{sign}{100 * abs(v):.1f}% vs {f['baseline']}"
 
 
 def usd(v: float, appendix: bool = False) -> str:

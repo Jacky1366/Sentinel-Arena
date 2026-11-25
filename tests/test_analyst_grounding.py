@@ -31,8 +31,11 @@ SUMMARY = {
 VALID = {
     "schema_version": "0.1",
     "sections": {
-        "executive_summary": "Original Blue detected {{gate_b.detection.pct}} of audited "
-                             "taxonomy attacks (CWE-89, CWE-79, CWE-22), see F-01.",
+        "executive_summary": "Original Blue detected {{gate_b.detection.pct}} of checked "
+                             "known-type attacks (CWE-89, CWE-79, CWE-22), see F-01. On free-play "
+                             "traffic it detected {{freeplay_original.detection}}; the open prompt's "
+                             "false alarms were {{fp_check_open.fp}}. The decision required: "
+                             "choose option A, B or C.",
         "methodology": "Blue (claude-haiku-5-5) read only the proxy log; Red was gpt-6-luna. "
                        "Library v5 was read-only. The demo shows Act 1 to Act 3.",
         "results": "Free-play detection was {{freeplay_original.detection}} "
@@ -54,8 +57,8 @@ VALID = {
          "evidence_refs": ["freeplay_original#1"]},
     ],
     "options": [
-        {"id": "A", "summary": "Original Blue", "strengths": ["precise"], "weaknesses": ["blind outside the taxonomy"]},
-        {"id": "B", "summary": "Open Blue", "strengths": ["wider coverage"], "weaknesses": ["false alarms, unstable"]},
+        {"id": "A", "summary": "Original Blue", "strengths": ["detected {{gate_b.detection}}"], "weaknesses": ["blind outside the known types"]},
+        {"id": "B", "summary": "Open Blue", "strengths": ["wider coverage"], "weaknesses": ["false alarms {{fp_check_open.fp}}"]},
         {"id": "C", "summary": "Layered", "strengths": ["keeps precise alerts"], "weaknesses": ["untested"]},
     ],
     "criteria": [{"if_you_value": "few false alarms", "option": "A",
@@ -161,3 +164,49 @@ def test_allowlisted_tokens_pass_and_every_error_is_reported():
 def test_a_model_id_not_in_the_summary_is_a_bare_number():
     res = check(planted(("sections", "methodology"), "Blue was claude-opus-5-5."), SUMMARY)
     assert codes(res) == ["bare_number"]
+
+
+# -- #17 review: structure, hedging, composition, jargon (fail closed) -------------------
+
+def test_executive_summary_needs_three_figures_and_the_decision():
+    few = planted(("sections", "executive_summary"),
+                  "Detection was {{gate_b.detection}}. The decision required: choose option A, B or C.")
+    assert "structure" in codes(check(few, SUMMARY))
+    no_end = planted(("sections", "executive_summary"),
+                     "Detection {{gate_b.detection}}, free-play {{freeplay_original.detection}}, "
+                     "false alarms {{fp_check_open.fp}}.")
+    res = check(no_end, SUMMARY)
+    assert any(e["code"] == "structure" and "decision required" in e["detail"] for e in res["errors"])
+
+
+def test_options_a_and_b_must_cite_figures_c_need_not():
+    d = copy.deepcopy(VALID)
+    d["options"][1]["weaknesses"] = ["false alarms, unstable"]  # B cites nothing now
+    res = check(d, SUMMARY)
+    assert any(e["code"] == "structure" and e["path"] == "$.options[1]" for e in res["errors"])
+    assert not any(e["path"] == "$.options[2]" for e in res["errors"])
+
+
+def test_tentative_only_with_a_low_figure():
+    low = copy.deepcopy(SUMMARY)
+    low["figures"]["raw.det"] = {**fig("Low"), "basis": "raw"}
+    bad = planted(("sections", "results"), "Free-play detection {{freeplay_original.detection}} is tentative.")
+    assert "hedging" in codes(check(bad, low))
+    ok = planted(("sections", "results"), "The unchecked result {{raw.det}} is tentative.")
+    assert check(ok, low)["ok"]
+
+
+def test_a_finding_never_mixes_unchecked_and_checked_figures():
+    s = copy.deepcopy(SUMMARY)
+    s["figures"]["raw.det"] = {**fig("Low"), "basis": "raw"}
+    d = copy.deepcopy(VALID)
+    d["findings"][0]["text"] = "Checked {{gate_b.detection}}; unchecked {{raw.det}}."
+    d["findings"][0]["figure_refs"] = ["gate_b.detection", "raw.det"]
+    assert "composition" in codes(check(d, s))
+
+
+@pytest.mark.parametrize("text", ["A gain of ten pp.", "Orphaned rounds were dropped.",
+                                  "Instrumentation failures were excluded.",
+                                  "Sealed benign requests.", "Landing was measured."])
+def test_internal_jargon_is_rejected(text):
+    assert "jargon" in codes(check(planted(("sections", "limitations"), text), SUMMARY))
