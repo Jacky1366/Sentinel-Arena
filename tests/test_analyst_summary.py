@@ -150,9 +150,9 @@ def test_sources_carry_hashes_and_test_data_kind(lab, tmp_path, registry):
                   prices=PRICES, registry=registry)
     by_id = {s["id"]: s for s in doc["sources"]}
     assert set(by_id) == {"dev_tax#1", "dev_tax#2", "dev_fp#1", "dev_fpc#1"}
-    assert by_id["dev_tax#1"]["test_data"] == "not_test" and "rounds.jsonl" in by_id["dev_tax#1"]["sha256"]
+    assert by_id["dev_tax#1"]["test_data"] == "not_test" and "rounds.jsonl" in {a["file"] for a in by_id["dev_tax#1"]["artifacts"]}
     assert by_id["dev_fpc#1"]["test_data"] == "unknown"  # no manifest
-    assert any(k.endswith(f"{FP_MID}.freeplay.jsonl") for k in by_id["dev_fp#1"]["sha256"])
+    assert any(a["file"].endswith(f"{FP_MID}.freeplay.jsonl") for a in by_id["dev_fp#1"]["artifacts"])
 
 
 def test_cli_refuses_test_or_unknown_sources_without_go(tmp_path, registry, monkeypatch):
@@ -193,3 +193,17 @@ def test_committed_manifest_is_well_formed():
     for g in m["groups"]:
         for p in g["folders"]:
             assert (build_summary.REPO / p).is_dir(), p  # existence only; nothing is opened
+
+
+def test_landed_attack_detection_and_labels(lab, tmp_path, registry):
+    """#17 review: successful attacks (attempts that solved a challenge) flagged / missed."""
+    fpd, aud = freeplay_folder(tmp_path / "fp")
+    doc = S.build(manifest(two_fake_matches(lab), fpd, aud, fp_folder(tmp_path / "fpc")),
+                  prices=PRICES, registry=registry)
+    f = doc["figures"]
+    # the fixture: rounds 1 (yes, solved, detected) and 4 (yes, solved, missed); 3 is not an attempt
+    assert (f["dev_fp.landed_detection"]["k"], f["dev_fp.landed_detection"]["n"]) == (1, 2)
+    assert f["dev_fp.landed_missed"]["value"] == 1 and f["dev_fp.landed_missed"]["n"] == 2
+    assert f["dev_fp.landed_detection"]["label"] == "free-play: successful attacks flagged"
+    assert all(v["label"] for v in f.values())
+    assert doc["schema_version"] == "0.3"

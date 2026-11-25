@@ -1,0 +1,173 @@
+{
+  "schema_version": "0.1",
+  "sections": {
+    "executive_summary": "Original Blue catches almost every attack that falls inside its taxonomy. In the taxonomy matches it flagged {{gate_b.detection}} of audited attack rounds with {{gate_b.fp}} false positives on unique benign requests. Free-play Red (D41) is a harder test, because it is not limited to the taxonomy. There original Blue detected {{freeplay_original.detection}} of audited attack attempts. The misses were mostly recon, directory listing and API enumeration. Open Blue, replayed on the same traffic, detected {{freeplay_open.detection}}, a change of {{freeplay.open_detection_change_vs_original}}. Its false-positive rate on sealed benign requests was {{fp_check_open.fp}}, against {{fp_check_original.fp}} for the original prompt: {{fp_check.open_fp_change_vs_original}}. The free-play and prompt-FP figures rest on small samples and are tentative. Option C (Layered) was not tested.",
+    "methodology": "Red sends requests to the test application through a logging proxy. Blue reads only the proxy log after the traffic and labels each request. A pure-code Judge scores every round. Act 1 groups use taxonomy-bound Red: gate_b (gpt-6-luna), gate_b_deepseek (deepseek-v4-pro) and gate_b_evasion (deepseek-v4-pro with the evasion directive D40). Act 2 uses free-play Red (D41), where Red may attack anything and the designer audits each round as attack or ordinary browsing. Open Blue (v3-open) was run as a replay of the free-play traffic, for analysis only. The prompt-FP check (D42 2c) sends sealed benign requests to each prompt alone, one AI call per request, with no rules. Replays swapped the Blue model (Sonnet with library v5, and Haiku with an empty library). M5 compared library v5, an empty library and rules off. Each rate is shown with its counts and 95% interval. Moderate and Low figures are tentative.",
+    "results": "Taxonomy matches. Original Blue detection was {{gate_b.detection}} after the label audit and {{gate_b.detection_raw}} before it. Raw, unaudited rates carry Low confidence. Against deepseek-v4-pro, detection was {{gate_b_deepseek.detection}}. With the evasion directive it was {{gate_b_evasion.detection}}. Both are raw rates with Low confidence. False positives were {{gate_b.fp}}, {{gate_b_deepseek.fp}} and {{gate_b_evasion.fp}} on 17 unique benign requests. The upper interval bound for each is {{gate_b.fp.ci}}, so a low true false-positive rate is not ruled out but is not proven either. Attack landing was {{gate_b.landed}}, {{gate_b_deepseek.landed}} and {{gate_b_evasion.landed}}. Free-play. Original Blue detected {{freeplay_original.detection}} ({{freeplay_original.detection.ci}}). Open Blue detected {{freeplay_open.detection}} ({{freeplay_open.detection.ci}}). The intervals overlap widely, so the difference is tentative. Red landed {{freeplay_original.landed_rounds}} of {{freeplay_original.rounds}} rounds. In the free-play log, the missed attempts are mainly recon, directory listing, API enumeration and information-disclosure requests, which sit outside the CWE taxonomy. The open-Blue replay flagged two of the solved rounds that original Blue missed. Prompt-FP check. Original prompt: {{fp_check_original.fp}} ({{fp_check_original.fp.ci}}). Open prompt: {{fp_check_open.fp}} ({{fp_check_open.fp.ci}}). Model and library replays. Sonnet with library v5 detected {{gate_c_sonnet.detection}} at {{gate_c_sonnet.cost_per_match_usd}} per match, against {{gate_b.cost_per_match_usd}} for the live Haiku run. Haiku with an empty library detected {{gate_c_haiku_empty.detection}} at {{gate_c_haiku_empty.cost_per_match_usd}} per match. On this taxonomy-bound traffic, model size and library contents did not change the detection rate. M5. With rules on and library v5, AI calls changed {{m5.calls_change_vs_empty_library}} and {{m5.calls_change_vs_rules_off}}. Cost changed {{m5.cost_change_vs_empty_library}} and {{m5.cost_change_vs_rules_off}}. Detection was {{m5_library.detection}} with the library, {{m5_empty.detection}} with an empty library and {{m5_rules_off.detection}} with rules off. An empty library with rules on cost {{m5.empty_library_cost_change_vs_rules_off}}.",
+    "risk_register": "Three kinds of blindness frame the risks. Prompt-scope: Blue's attack definition is narrower than the attack space. This matches the free-play misses, such as recon and directory listing labelled other, and it matches the perfect scores on taxonomy-bound traffic. Those scores reflect the match between Red's menu and Blue's taxonomy, not general coverage. Application-context: Blue does not know what the site links to. Forced browsing and requests for sensitive files read as ordinary traffic. Some solved free-play rounds, such as a confidential document fetch, went unflagged by original Blue. Open Blue flagged some of them, but its extra alerts came with false alarms. Structural: detection that needs a user identity, such as broken access control, cannot be done from a log without sessions. This was not tested here and remains an open risk. Other risks: open Blue is described as varying verdict to verdict across runs, and this evaluation did not measure that variance. Open Blue's extra flags carry a cost in false alarms ({{fp_check_open.fp}}). Several Red labels are unaudited and rest on the raw rates above.",
+    "deployment_options": "Option A, Original Blue: it was precise on all benign sets, with {{fp_check_original.fp}} on the sealed benign requests. It was blind outside its taxonomy in free play ({{freeplay_original.detection}}). Option B, Open Blue: it had wider coverage in the replay ({{freeplay_open.detection}}), at the price of more false alarms ({{fp_check_open.fp}}) and verdicts that vary run to run. Option C, Layered: original Blue gives high-priority alerts and open Blue feeds a low-priority queue. It is untested here, so no figure supports or refutes it. It would combine the precision and the wider coverage only if the two layers behave as they did separately.",
+    "decision_criteria": "Decision criteria. If you value a near-zero false-alarm rate and can accept blind spots, option A fits, because it produced {{fp_check_original.fp}} on sealed benign requests and flagged every in-taxonomy attack. If you value wider coverage of recon and information disclosure and can tolerate analyst triage, option B fits, because its free-play detection was {{freeplay_open.detection}}, though that figure is tentative. If you value both and can fund a trial, option C fits, because it routes each model's verdicts to the queue that suits its error profile, but it has not been measured. If you value lower cost per match, the M5 figures show library v5 reduced AI calls and cost relative to the baselines. This is Moderate confidence on 3 matches.",
+    "limitations": "Free-play groups have {{freeplay_original.rounds}} rounds from {{freeplay_original.matches}} matches, so all free-play rates are tentative and their intervals are wide. Open Blue was replayed on traffic that original Blue's live run produced, so Red did not adapt to it. The prompt-FP check uses {{fp_check_open.fp.n}} unique benign requests, and the benign set is small. The taxonomy groups test Red against a menu matched to Blue's taxonomy, so near-perfect detection there says little about unseen techniques. Raw detection rates are unaudited and carry Low confidence. Structural blindness and option C were not tested. Cost figures depend on the D39 time-of-day rates. One test application, one Blue model family and a few matches limit generalisation."
+  },
+  "findings": [
+    {
+      "id": "F-01",
+      "text": "Original Blue flagged every audited attack round in the taxonomy matches ({{gate_b.detection}}) with {{gate_b.fp}} false positives on unique benign requests. Against deepseek-v4-pro, with and without the evasion directive, raw detection was {{gate_b_deepseek.detection}} and {{gate_b_evasion.detection}}. These are raw rates and tentative.",
+      "figure_refs": [
+        "gate_b.detection",
+        "gate_b.fp",
+        "gate_b_deepseek.detection",
+        "gate_b_evasion.detection"
+      ],
+      "evidence_refs": [
+        "gate_b#1",
+        "gate_b#2",
+        "gate_b#3",
+        "gate_b_deepseek#1",
+        "gate_b_deepseek#2",
+        "gate_b_deepseek#3",
+        "gate_b_evasion#1",
+        "gate_b_evasion#2",
+        "gate_b_evasion#3"
+      ]
+    },
+    {
+      "id": "F-02",
+      "text": "In free play, original Blue detected {{freeplay_original.detection}} of audited attack attempts ({{freeplay_original.detection.ci}}). The misses were recon, directory listing, API enumeration and information-disclosure requests, which sit outside the taxonomy. The sample is small and the result is tentative.",
+      "figure_refs": [
+        "freeplay_original.detection",
+        "freeplay_original.detection.ci"
+      ],
+      "evidence_refs": [
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3"
+      ]
+    },
+    {
+      "id": "F-03",
+      "text": "Open Blue detected {{freeplay_open.detection}} on the same traffic, a change of {{freeplay.open_detection_change_vs_original}}. The intervals overlap, so the gain is tentative.",
+      "figure_refs": [
+        "freeplay_open.detection",
+        "freeplay.open_detection_change_vs_original"
+      ],
+      "evidence_refs": [
+        "freeplay_open#1",
+        "freeplay_open#2",
+        "freeplay_open#3",
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3"
+      ]
+    },
+    {
+      "id": "F-04",
+      "text": "On sealed benign requests the open prompt flagged {{fp_check_open.fp}} ({{fp_check_open.fp.ci}}) and the original prompt flagged {{fp_check_original.fp}}. The change was {{fp_check.open_fp_change_vs_original}}. Wider coverage came with more false alarms in this check, on a small benign set.",
+      "figure_refs": [
+        "fp_check_open.fp",
+        "fp_check_open.fp.ci",
+        "fp_check_original.fp",
+        "fp_check.open_fp_change_vs_original"
+      ],
+      "evidence_refs": [
+        "fp_check_open#1",
+        "fp_check_original#1"
+      ]
+    },
+    {
+      "id": "F-05",
+      "text": "Changing the Blue model or emptying the library did not change detection on taxonomy-bound traffic. Sonnet with library v5 detected {{gate_c_sonnet.detection}} and Haiku with an empty library detected {{gate_c_haiku_empty.detection}}. Cost per match was {{gate_c_sonnet.cost_per_match_usd}} and {{gate_c_haiku_empty.cost_per_match_usd}} respectively.",
+      "figure_refs": [
+        "gate_c_sonnet.detection",
+        "gate_c_haiku_empty.detection",
+        "gate_c_sonnet.cost_per_match_usd",
+        "gate_c_haiku_empty.cost_per_match_usd"
+      ],
+      "evidence_refs": [
+        "gate_c_sonnet#1",
+        "gate_c_sonnet#2",
+        "gate_c_sonnet#3",
+        "gate_c_haiku_empty#1",
+        "gate_c_haiku_empty#2",
+        "gate_c_haiku_empty#3"
+      ]
+    },
+    {
+      "id": "F-06",
+      "text": "With rules on, library v5 changed AI calls by {{m5.calls_change_vs_empty_library}} and cost by {{m5.cost_change_vs_empty_library}}. Against rules off, calls changed {{m5.calls_change_vs_rules_off}} and cost {{m5.cost_change_vs_rules_off}}. Detection stayed at {{m5_library.detection}}. These come from only {{m5_library.matches}} matches and are tentative.",
+      "figure_refs": [
+        "m5.calls_change_vs_empty_library",
+        "m5.cost_change_vs_empty_library",
+        "m5.calls_change_vs_rules_off",
+        "m5.cost_change_vs_rules_off",
+        "m5_library.detection",
+        "m5_library.matches"
+      ],
+      "evidence_refs": [
+        "m5_library#1",
+        "m5_library#2",
+        "m5_library#3",
+        "m5_empty#1",
+        "m5_empty#2",
+        "m5_empty#3",
+        "m5_rules_off#1",
+        "m5_rules_off#2",
+        "m5_rules_off#3"
+      ]
+    }
+  ],
+  "options": [
+    {
+      "id": "A",
+      "summary": "Original Blue: precise on tested benign sets, blind outside its taxonomy.",
+      "strengths": [
+        "Zero false positives on the sealed benign requests ({{fp_check_original.fp}}) and the taxonomy matches ({{gate_b.fp}}).",
+        "Flagged every audited attack round in the taxonomy matches ({{gate_b.detection}})."
+      ],
+      "weaknesses": [
+        "Free-play detection was {{freeplay_original.detection}}, with misses on recon, listing and enumeration.",
+        "Blind to application-context and structural cases."
+      ]
+    },
+    {
+      "id": "B",
+      "summary": "Open Blue: wider coverage, more false alarms, verdicts that vary run to run.",
+      "strengths": [
+        "Free-play detection was {{freeplay_open.detection}} on the replayed traffic.",
+        "Flagged some information-disclosure rounds that original Blue missed."
+      ],
+      "weaknesses": [
+        "False positives on sealed benign requests were {{fp_check_open.fp}}.",
+        "Verdict variance was not measured here, and the coverage gain is tentative."
+      ]
+    },
+    {
+      "id": "C",
+      "summary": "Layered: original Blue as high-priority alerts, open Blue as a low-priority queue. Untested.",
+      "strengths": [
+        "Could pair the precision of option A with the coverage of option B if the layers behave as measured separately."
+      ],
+      "weaknesses": [
+        "No evidence either way, since it was not run.",
+        "Adds the cost and triage load of running both layers."
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "if_you_value": "a near-zero false-alarm rate and can accept blind spots",
+      "option": "A",
+      "because": "It produced {{fp_check_original.fp}} on sealed benign requests and flagged every in-taxonomy attack, though it detected only {{freeplay_original.detection}} in free play."
+    },
+    {
+      "if_you_value": "wider coverage of recon and information disclosure and can absorb analyst triage",
+      "option": "B",
+      "because": "Its free-play detection was {{freeplay_open.detection}}, though the gain is tentative and its false-positive rate was {{fp_check_open.fp}}."
+    },
+    {
+      "if_you_value": "both precision for alerts and coverage in a queue, and can fund a trial first",
+      "option": "C",
+      "because": "It routes each model's verdicts to the queue suited to its error profile, but it is untested, so neither benefit is measured."
+    }
+  ]
+}

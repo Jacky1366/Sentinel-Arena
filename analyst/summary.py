@@ -24,7 +24,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-from analyst.confidence import cp95, figure_confidence
+from analyst.confidence import LEVELS, cp95, figure_confidence
 from stats import autonomy
 from stats import free_play
 from stats import match_stats as ms
@@ -33,7 +33,9 @@ from tools import audit_match, autonomy_table
 from tools import free_play as free_play_tool
 
 REPO = Path(__file__).resolve().parent.parent
-SCHEMA_VERSION = "0.1"
+SCHEMA_VERSION = "0.3"
+# designer, 2026-11-24: no percentage without its baseline in the name
+CHANGE_KEY = re.compile(r"^[a-z0-9_]+\.[a-z0-9_]+_change_vs_[a-z0-9_]+$")
 TEXT_MAX = 120
 KINDS = ("taxonomy", "freeplay", "fp_check")
 ARTIFACTS = ("match.json", "replay.json", "rounds.jsonl", "benign_results.jsonl",
@@ -71,14 +73,16 @@ def _manifest_of(d: Path) -> dict:
 def _source(gid: str, i: int, d: Path, registry, extra: list[Path] = ()) -> dict:
     m = _manifest_of(d)
     v = test_data.classify(d, registry)
-    arts = {name: _sha(d / name) for name in ARTIFACTS if (d / name).is_file()}
+    # a list of {file, sha256}: a "<artifact name>": "<hex>" map trips the secret scanner
+    # (generic-api-key on "api_calls.jsonl"; see .gitleaksignore for the archived 0.2-pre files)
+    arts = [{"file": name, "sha256": _sha(d / name)} for name in ARTIFACTS if (d / name).is_file()]
     for p in extra:
         if p is not None and Path(p).is_file():
-            arts[_rel(p)] = _sha(Path(p))
+            arts.append({"file": _rel(p), "sha256": _sha(Path(p))})
     return {"id": f"{gid}#{i}", "path": _rel(d),
             "match_id": m.get("match_id") or (m.get("source") or {}).get("match_id"),
             "replay_id": m.get("replay_id"), "purpose": m.get("purpose"),
-            "test_data": v.kind, "sha256": arts}
+            "test_data": v.kind, "artifacts": arts}
 
 
 def _fig_rate(k: int, n: int, basis: str, group: dict, sources: list[str], definition: str,
@@ -124,26 +128,28 @@ def _taxonomy(g: dict, dirs: list[Path], sids: list[str], prices: dict, audits) 
         figs[f"{gid}.detection"] = _fig_rate(
             audited["k"], audited["n"], "audited", g, sids,
             "Attack rounds Blue flagged as an attack, over the rounds left after the "
-            "designer's label audit (orphans and instrument failures excluded).", "rounds")
+            "designer checked Red's attack labels (rounds that never reached the log, and "
+            "rounds where the test harness itself failed, are left out).", "rounds")
     elif raw["n"]:
         if g.get("basis") == "audited":
             notes.append("audit incomplete: detection reported raw")
         figs[f"{gid}.detection"] = _fig_rate(
             raw["k"], raw["n"], "raw", g, sids,
-            "Attack rounds Blue flagged as an attack, over all scored rounds; Red's labels "
-            "are not audited.", "rounds")
+            "Attack rounds Blue flagged as an attack, over all scored rounds; Red's attack "
+            "labels were not checked by the designer.", "rounds")
     if raw["n"]:
         figs[f"{gid}.detection_raw"] = _fig_rate(
             raw["k"], raw["n"], "raw", g, sids,
-            "Attack rounds Blue flagged as an attack, over all scored rounds (before any "
-            "label audit).", "rounds")
+            "Attack rounds Blue flagged as an attack, over all scored rounds, before the "
+            "designer checked Red's attack labels.", "rounds")
     fp = total["verdict_fp"]
     uk, un = (fp["unique"]["k"], fp["unique"]["n"]) if "unique" in fp else (fp["k"], fp["n"])
     if un:
         figs[f"{gid}.fp"] = _fig_rate(
             uk, un, "ground_truth", g, sids,
-            "Benign requests Blue flagged as an attack, over the unique benign requests "
-            "sent (a request sent in several matches counts once).", "unique benign requests")
+            "Normal (non-attack) requests Blue wrongly flagged as an attack, over the "
+            "distinct normal requests sent (a request sent in several matches counts once).",
+            "distinct normal requests")
     k = n = 0
     for f in folders:
         r = ms.landing_rate(f.rounds)
@@ -151,19 +157,19 @@ def _taxonomy(g: dict, dirs: list[Path], sids: list[str], prices: dict, audits) 
     if n:
         figs[f"{gid}.landed"] = _fig_rate(
             k, n, "measured", g, sids,
-            "Attack rounds that solved their mapped challenge, over the rounds where "
-            "landing was measurable.", "rounds")
+            "Attack rounds that succeeded, i.e. solved the test application's challenge "
+            "for their attack type, over the rounds where success could be measured.", "rounds")
     units = len(dirs)
     figs[f"{gid}.matches"] = _fig_value("count", units, units, "matches", g, sids,
                                         "Frozen matches or replays in this group.")
     figs[f"{gid}.ai_calls"] = _fig_value("count", total["ai_calls"], units, "calls", g, sids,
-                                         "AI calls of every agent (sent attempts).")
+                                         "AI model calls made (every agent).")
     figs[f"{gid}.cost_usd"] = _fig_value("usd", round(total["cost_usd"], 6), units, "USD", g,
-                                         sids, "Total AI cost, each call priced by "
-                                         "stats/cost.py (D39 time-of-day rates).")
+                                         sids, "Total AI cost in US dollars, each call "
+                                         "priced at the provider's rate for its time of day.")
     figs[f"{gid}.cost_per_match_usd"] = _fig_value(
         "usd", round(total["cost_usd"] / units, 6), units, "USD per match", g, sids,
-        "Total AI cost divided by the number of matches or replays.")
+        "Total AI cost divided by the number of matches.")
     audit_files = [audit_match.audit_path(audit_match.match_id_of(d), audits) for d in dirs]
     return figs, notes, {"audit_files": audit_files}
 
@@ -192,18 +198,31 @@ def _freeplay(g: dict, dirs: list[Path], sids: list[str], audits) -> tuple:
         if n:
             figs[f"{gid}.detection"] = _fig_rate(
                 k, n, "audited", g, sids,
-                "Attack attempts (designer's binary audit) that Blue flagged as an attack, "
-                "any label; ordinary browsing excluded.", "audited attack attempts")
+                "Requests the designer judged to be attack attempts that Blue flagged as an "
+                "attack; ordinary browsing is left out.", "attack attempts")
         figs[f"{gid}.attack_attempts"] = _fig_value(
             "count", sum(p["attack_attempts"] for p in per), total_rounds, "attempts", g, sids,
-            "Red rounds the designer audited as attack attempts.")
+            "Red requests the designer judged to be attack attempts.")
     else:
         notes.append("free-play audit incomplete: no detection figure")
     figs[f"{gid}.landed_rounds"] = _fig_value(
         "count", sum(p["landed_rounds"] for p in per), total_rounds, "rounds", g, sids,
-        "Red rounds that solved any Juice Shop challenge (free-play landing, D41).")
+        "Red requests that succeeded, i.e. solved any challenge in the test application.")
     figs[f"{gid}.rounds"] = _fig_value("count", total_rounds, total_rounds, "rounds", g, sids,
-                                       "Red rounds sent in this group.")
+                                       "Red requests sent.")
+    # Successful attacks and whether Blue flagged them (designer, #17 review): attack
+    # attempts that solved a challenge; the strongest single comparison of the two Blues.
+    if all(p["audited"] for p in per) and per:
+        landed = [r for r in rounds_desc if r["attack_attempt"] == "yes" and r["solved"]]
+        if landed:
+            k = sum(1 for r in landed if r["detected"] is True)
+            figs[f"{gid}.landed_detection"] = _fig_rate(
+                k, len(landed), "audited", g, sids,
+                "Attack attempts that succeeded (solved a challenge) and that Blue flagged as "
+                "an attack, over all attack attempts that succeeded.", "successful attacks")
+            figs[f"{gid}.landed_missed"] = _fig_value(
+                "count", len(landed) - k, len(landed), "successful attacks", g, sids,
+                "Attack attempts that succeeded but that Blue did not flag.")
     return figs, notes, {"rounds": rounds_desc, "audit_files": audit_files}
 
 
@@ -217,8 +236,9 @@ def _fp_check(g: dict, dirs: list[Path], sids: list[str]) -> tuple:
     if keys:
         figs[f"{gid}.fp"] = _fig_rate(
             sum(keys.values()), len(keys), "ground_truth", g, sids,
-            "Sealed benign requests (holdout + fixture) the prompt alone labelled as an "
-            "attack, one AI call per request, no rules (D42 2c).", "unique benign requests")
+            "Held-back normal requests (never used to build or tune anything) that the "
+            "defender's prompt alone labelled as an attack, one AI call per request, no rules.",
+            "distinct normal requests")
     return figs, [], {}
 
 
@@ -252,10 +272,17 @@ def build(manifest: dict, *, prices: dict, registry: test_data.Registry | None =
         if dup:
             raise ValueError(f"duplicate figure keys: {sorted(dup)}")
         figures.update(figs)
-        groups.append({"id": g["id"], "label": g.get("label", g["id"]), "kind": g["kind"],
+        groups.append({"id": g["id"], "label": g.get("label", g["id"]),
+                       **({"short_label": g["short_label"]} if g.get("short_label") else {}),
+                       "kind": g["kind"],
                        "blue": g.get("blue"), "basis": g.get("basis"),
                        "folders": len(dirs), "notes": notes})
         descriptive["groups"][g["id"]] = {**_models(dirs), **desc}
+    for c in manifest.get("comparisons", []):
+        if c["id"] in figures:
+            raise ValueError(f"duplicate figure key {c['id']!r}")
+        figures[c["id"]] = comparison(c, figures)
+    label_figures(figures, groups, manifest.get("comparisons", []))
     return {
         "schema_version": SCHEMA_VERSION,
         "built_at": built_at or datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -266,6 +293,66 @@ def build(manifest: dict, *, prices: dict, registry: test_data.Registry | None =
         "groups": groups, "sources": sources, "figures": dict(sorted(figures.items())),
         "descriptive": descriptive,
     }
+
+
+def comparison(c: dict, figures: dict) -> dict:
+    """A change figure from two existing figures. mode relative: (of - vs) / vs (costs,
+    calls); points: the difference in percentage points of two rates. The key must name the
+    baseline (`..._change_vs_<baseline>`); confidence is the lower of the two (D60)."""
+    key = c["id"]
+    if not CHANGE_KEY.match(key):
+        raise ValueError(f"comparison {key!r}: the key must name its baseline "
+                         f"(<group>.<metric>_change_vs_<baseline>)")
+    for ref in (c["of"], c["vs"]):
+        if ref not in figures:
+            raise ValueError(f"comparison {key!r}: unknown figure {ref!r}")
+    a, b = figures[c["of"]], figures[c["vs"]]
+    mode = c["mode"]
+    if mode == "points":
+        if a["kind"] != "rate" or b["kind"] != "rate":
+            raise ValueError(f"comparison {key!r}: points need two rates")
+        ov, vv = a["value"], b["value"]
+        value, unit = round(100.0 * (ov - vv), 1), "percentage points"
+    elif mode == "relative":
+        if a["kind"] == "rate" or b["kind"] == "rate":
+            raise ValueError(f"comparison {key!r}: a relative change compares counts or costs")
+        ov, vv = a["value"], b["value"]
+        if not vv:
+            raise ValueError(f"comparison {key!r}: the baseline is zero")
+        value, unit = round((ov - vv) / vv, 6), "relative change"  # 6 dp: 1-dp % is exact
+    else:
+        raise ValueError(f"comparison {key!r}: unknown mode {mode!r}")
+    conf = min((a["confidence"], b["confidence"]), key=LEVELS.index)
+    basis = "raw" if "raw" in (a["basis"], b["basis"]) else a["basis"]
+    return {"kind": "change", "mode": mode, "value": value, "of": c["of"], "vs": c["vs"],
+            "baseline": c["baseline"], "of_value": ov, "vs_value": vv,
+            "n": min(a["n"], b["n"]), "unit": unit, "basis": basis,
+            "blue": a.get("blue") if a.get("blue") == b.get("blue") else None,
+            "confidence": conf,
+            "source_ids": sorted(set(a["source_ids"]) | set(b["source_ids"])),
+            "definition": c.get("definition") or f"The change compared with {c['baseline']}."}
+
+
+METRIC = {  # reader-facing names of the figure metrics (designer, #17 review)
+    "detection": "detection of attacks", "detection_raw": "detection before the label check",
+    "fp": "false alarms on normal requests", "landed": "attacks that succeeded",
+    "matches": "matches", "ai_calls": "AI calls", "cost_usd": "AI cost",
+    "cost_per_match_usd": "AI cost per match", "attack_attempts": "attack attempts",
+    "landed_rounds": "requests that succeeded", "rounds": "Red requests sent",
+    "landed_detection": "successful attacks flagged", "landed_missed": "successful attacks missed",
+}
+
+
+def label_figures(figures: dict, groups: list[dict], comparisons: list[dict]) -> None:
+    """Every figure gets a reader-facing `label`; ids stay in the appendix."""
+    glabel = {g["id"]: g["label"] for g in groups}
+    clabel = {c["id"]: c.get("label") for c in comparisons}
+    for key, f in figures.items():
+        if f["kind"] == "change":
+            f["label"] = clabel.get(key) or key
+            continue
+        gid, metric = key.split(".", 1)
+        f["label"] = f"{glabel.get(gid, gid)}: {METRIC.get(metric, metric.replace('_', ' '))}"
 
 
 def model_ids(summary: dict) -> set[str]:

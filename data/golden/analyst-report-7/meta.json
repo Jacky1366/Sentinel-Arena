@@ -1,0 +1,48 @@
+{
+  "report_id": "report-20261125T025425Z-832d",
+  "run_id": "20261125T025425Z-832d",
+  "model": "gpt-6.1-sol",
+  "provider": "openai",
+  "date": "2026-11-25",
+  "prompt_version": "3",
+  "prompt_sha256": "2a90df06d6397b826a06c973c494154d1cd258d7af8c486f39ced566b502952e",
+  "attempts": 1,
+  "stop": "accepted",
+  "go_token": "manual-analyst-report",
+  "tried": [
+    {
+      "model": "gpt-6.1-sol",
+      "stop": "accepted",
+      "attempts": 1,
+      "log": [
+        {
+          "attempt": 1,
+          "ok": true,
+          "stop_reason": "completed",
+          "error_type": null,
+          "grounding_ok": true,
+          "errors": []
+        }
+      ],
+      "usd": 0.071268,
+      "tokens": {
+        "input": 18919,
+        "cached_input": 0,
+        "cache_write": 0,
+        "output": 3343
+      },
+      "calls": 1
+    }
+  ],
+  "cost_usd": 0.071268,
+  "template_sha256": "efc49bed0b24e6afb092605f97c8b535f1ecd1a658621278bff347828aed77ca",
+  "rerenders": [
+    {
+      "at": "2026-11-25T03:22:10Z",
+      "previous_template_sha256": "befd7d1cd1dddaba7474f48d732fcdace3c93dcb1dac91e377c45868d9986b03",
+      "template_sha256": "efc49bed0b24e6afb092605f97c8b535f1ecd1a658621278bff347828aed77ca",
+      "ai_calls": 0,
+      "reason": "brief: one 'written by AI' line instead of a badge per heading (designer, template-only fix)"
+    }
+  ]
+}

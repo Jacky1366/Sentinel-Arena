@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:">
+<title>Sentinel Arena — decision brief</title>
+<style>
+  :root { --ink:#111827; --muted:#4b5563; --line:#d1d5db; --high:#065f46; --moderate:#92400e; --low:#991b1b; }
+  body { font: 15px/1.55 -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--ink); background:#fff; max-width: 920px; margin: 0 auto; padding: 32px 24px; }
+  h1 { font-size: 28px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 28px 0 8px; border-bottom: 2px solid var(--ink); padding-bottom: 4px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; } p { margin: 6px 0; } .muted { color: var(--muted); }
+  .by { float: right; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+  .by-ai { background:#eef2ff; color:#3730a3; border-color:#c7d2fe; } .by-code { background:#f3f4f6; } .by-human { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+  .fig { font-weight: 600; border-bottom: 2px solid; }
+  .c-high { border-color: var(--high); } .c-moderate { border-color: var(--moderate); } .c-low { border-color: var(--low); }
+  .conf { font-size: 12px; font-weight: 700; padding: 1px 6px; border-radius: 4px; color: #fff; white-space: nowrap; }
+  .conf-high { background: var(--high); } .conf-moderate { background: var(--moderate); } .conf-low { background: var(--low); }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; } th, td { border: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; } code { font-size: 12px; } ul { margin: 0; padding-left: 18px; }
+  .finding { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+  .box { border: 2px solid var(--ink); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+  .decide { border: 3px solid var(--ink); background: #f9fafb; border-radius: 8px; padding: 12px 16px; margin: 12px 0; font-size: 17px; font-weight: 600; }
+  .decision td { height: 30px; } .decision th { width: 45%; }
+  .legend { font-size: 12px; color: var(--muted); }
+  .legend .by { float: none; }
+  @media print {
+    body { max-width: none; padding: 0; font-size: 10.5pt; }
+    .appendix { break-before: page; }
+    .finding, .box, .decide, tr { break-inside: avoid; }
+    @page { size: A4; margin: 16mm 15mm; }
+  }
+</style>
+</head>
+<body>
+<h1>Sentinel Arena — decision brief</h1>
+<p class="muted">AI defender evaluation · 2026-11-25 · prose drafted by an AI analyst (gpt-6.1-sol); every number filled in by code; the decision is made by a person. Full report: report-20261125T025425Z-832d.</p>
+<div class="decide">Decision required: choose option A, B or C.</div>
+<p class="legend">Each underlined figure carries a confidence level set by pre-registered rules (green High, amber Moderate, red Low); the full report gives every rate's 95% interval. The executive summary, options and decision criteria are <span class="by by-ai">written by AI</span>; the decision record is completed by a person.</p>
+
+<h2>Executive summary</h2>
+<p>The default defender detected the OpenAI known-type attacks at <span class="fig c-high" title="Known-type attacks by an OpenAI attacker (gpt-6-luna) against the default defender: detection of attacks · confidence High">28/28 (100.0%)</span> (<span class="fig c-high" title="Known-type attacks by an OpenAI attacker (gpt-6-luna) against the default defender: detection of attacks · confidence High">95% CI 87.7–100.0%</span>). Broader traffic exposed gaps. Detection was <span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: detection of attacks · confidence Moderate">12/19 (63.2%)</span> (<span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: detection of attacks · confidence Moderate">95% CI 38.4–83.7%</span>) in free-play, default defender, and <span class="fig c-moderate" title="The same free-play traffic re-judged by the open-definition defender (analysis only): detection of attacks · confidence Moderate">14/19 (73.7%)</span> (<span class="fig c-moderate" title="The same free-play traffic re-judged by the open-definition defender (analysis only): detection of attacks · confidence Moderate">95% CI 48.8–90.8%</span>) in free-play, open-definition defender. Among attacks that solved a challenge, the default defender flagged <span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: successful attacks flagged · confidence Moderate">5/7 (71.4%)</span> (<span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: successful attacks flagged · confidence Moderate">95% CI 29.0–96.3%</span>), versus <span class="fig c-moderate" title="The same free-play traffic re-judged by the open-definition defender (analysis only): successful attacks flagged · confidence Moderate">7/7 (100.0%)</span> (<span class="fig c-moderate" title="The same free-play traffic re-judged by the open-definition defender (analysis only): successful attacks flagged · confidence Moderate">95% CI 59.0–100.0%</span>) for the open-definition defender. The default defender missed <span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: successful attacks missed · confidence Moderate">2</span> successful attacks. On held-back normal requests, the default prompt&#39;s false-alarm check recorded <span class="fig c-high" title="False-alarm check of the default defender&#39;s prompt on held-back normal requests: false alarms on normal requests · confidence High">0/57 (0.0%)</span> (<span class="fig c-high" title="False-alarm check of the default defender&#39;s prompt on held-back normal requests: false alarms on normal requests · confidence High">95% CI 0.0–6.3%</span>), while the open prompt&#39;s false-alarm check recorded <span class="fig c-moderate" title="False-alarm check of the open-definition prompt on held-back normal requests: false alarms on normal requests · confidence Moderate">6/57 (10.5%)</span> (<span class="fig c-moderate" title="False-alarm check of the open-definition prompt on held-back normal requests: false alarms on normal requests · confidence Moderate">95% CI 4.0–21.5%</span>). The evidence shows a trade-off between broader detection and a cleaner alert stream. The layered arrangement remains untested. The decision required: choose option A, B or C.</p>
+
+<h2>Options</h2>
+<table>
+  <tr><th>Option</th><th>Summary</th><th>Strengths</th><th>Weaknesses</th></tr>
+  <tr><td><b>A</b></td><td>Original Blue: precise, with blind spots outside its known attack types.</td>
+    <td><ul><li>Detected the OpenAI known-type attacks at <span class="fig c-high" title="Known-type attacks by an OpenAI attacker (gpt-6-luna) against the default defender: detection of attacks · confidence High">28/28 (100.0%)</span> (<span class="fig c-high" title="Known-type attacks by an OpenAI attacker (gpt-6-luna) against the default defender: detection of attacks · confidence High">95% CI 87.7–100.0%</span>).</li><li>Recorded <span class="fig c-high" title="False-alarm check of the default defender&#39;s prompt on held-back normal requests: false alarms on normal requests · confidence High">0/57 (0.0%)</span> (<span class="fig c-high" title="False-alarm check of the default defender&#39;s prompt on held-back normal requests: false alarms on normal requests · confidence High">95% CI 0.0–6.3%</span>) in the default prompt&#39;s false-alarm check.</li></ul></td>
+    <td><ul><li>Detection was <span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: detection of attacks · confidence Moderate">12/19 (63.2%)</span> (<span class="fig c-moderate" title="Free-play attacks (any technique) against the default defender: detection of attacks · confidence Moderate">95% CI 38.4–83.7%</span>) in free-play, default defender.</li><li>The narrow attack definition leaves broader attack behaviour outside its alert scope.</li></ul></td></tr>
+  <tr><td><b>B</b></td><td>Open Blue: wider coverage, more false alarms, and verdicts that vary run to run.</td>
+    <td><ul><li>Detection was <span class="fig c-moderate" title="The same free-play traffic re-judged by the open-definition defender (analysis only): detection of attacks · confidence Moderate">14/19 (73.7%)</span> (<span class="fig c-moderate" title="The same free-play traffic re-judged by the open-definition defender (analysis only): detection of attacks · confidence Moderate">95% CI 48.8–90.8%</span>) in free-play, open-definition defender.</li><li>Flagged successful sensitive-data exposure requests missed by the default defender.</li></ul></td>
+    <td><ul><li>Recorded <span class="fig c-moderate" title="False-alarm check of the open-definition prompt on held-back normal requests: false alarms on normal requests · confidence Moderate">6/57 (10.5%)</span> (<span class="fig c-moderate" title="False-alarm check of the open-definition prompt on held-back normal requests: false alarms on normal requests · confidence Moderate">95% CI 4.0–21.5%</span>) in the open prompt&#39;s false-alarm check.</li><li>Verdicts vary run to run; the supplied figures do not quantify that variation.</li><li>Application-context gaps remained in the replay.</li></ul></td></tr>
+  <tr><td><b>C</b></td><td>Layered: original Blue as high-priority alerts and open Blue as a low-priority queue; untested.</td>
+    <td><ul><li>Separates the precise alert stream from broader requests for review.</li><li>Makes the additional open-definition flags available without assigning them the same priority as original Blue alerts.</li></ul></td>
+    <td><ul><li>The combined arrangement is untested.</li><li>Queue workload, duplicate handling, review delays, and combined detection have not been measured.</li><li>Layering does not supply missing application context or user identity.</li></ul></td></tr>
+</table>
+
+<h2>Decision criteria</h2>
+<table>
+  <tr><th>If you value…</th><th>Option</th><th>Because</th></tr>
+  <tr><td>a precise alert stream</td><td><b>A</b></td><td>the default prompt&#39;s false-alarm check produced a cleaner stream while checked known-type coverage remained complete</td></tr>
+  <tr><td>broader attack coverage with capacity for extra review</td><td><b>B</b></td><td>the open-definition replay flagged more attacks and successful attacks, alongside more false alarms in the held-back check</td></tr>
+  <tr><td>separate priorities for precise alerts and broader review</td><td><b>C</b></td><td>the proposed arrangement separates those roles while leaving combined performance and workload untested</td></tr>
+</table>
+
+<h2>Decision record <span class="by by-human">written by human</span></h2>
+<table class="decision">
+  <tr><th>Decision: option A, B or C (or none)</th><td></td></tr>
+  <tr><th>The decision-maker's criterion (from the decision criteria)</th><td></td></tr>
+  <tr><th>Decided by</th><td></td></tr>
+  <tr><th>Date</th><td></td></tr>
+</table>
+<p class="muted">Completed by the decision-maker, not by the AI. In the demo the presenter acts as decision-maker, states the option and the criterion behind it, and fills in this record.</p>
+<p class="muted">The analyst never recommends an option. Sources, methods, all findings with their confidence, limitations and the evidence manifest are in the full report.</p>
+</body>
+</html>

@@ -1,133 +1,532 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://sentinel-arena.local/schemas/analyst_summary.schema.json",
-  "title": "Analyst summary (Stage 7 #16; contract 6.15)",
-  "description": "Every figure the analyst report may cite, computed by code from frozen evidence (analyst/summary.py), each with its sources, basis and D60 confidence. Descriptive fields only (model ids, dates, free-play technique strings, landed challenge names / categories); never a payload, path, body, header value or rationale (D53).",
+  "title": "Analyst summary (Stage 7 #16, 0.3 #17; contract 6.15)",
+  "description": "Every figure the analyst report may cite, computed by code from frozen evidence (analyst/summary.py), each with its sources, basis and D60 confidence. Descriptive fields only (model ids, dates, free-play technique strings, landed challenge names / categories); never a payload, path, body, header value or rationale (D53). 0.2 (#17): comparison figures (kind change) whose key names the baseline: <group>.<metric>_change_vs_<baseline> (designer, 2026-11-24: no percentage without its baseline). 0.3 (#17 review): sources list artifact hashes as {file, sha256}; every figure carries a reader-facing `label`; free-play groups add landed-attack detection.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "built_at", "git", "judge_version", "confidence_rules",
-               "manifest", "groups", "sources", "figures", "descriptive"],
+  "required": [
+    "schema_version",
+    "built_at",
+    "git",
+    "judge_version",
+    "confidence_rules",
+    "manifest",
+    "groups",
+    "sources",
+    "figures",
+    "descriptive"
+  ],
   "$defs": {
-    "basis": {"enum": ["audited", "ground_truth", "raw", "measured"]},
-    "confidence": {"enum": ["Low", "Moderate", "High"]},
-    "blue": {"enum": ["original", "open", null]},
-    "sids": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "basis": {
+      "enum": [
+        "audited",
+        "ground_truth",
+        "raw",
+        "measured"
+      ]
+    },
+    "confidence": {
+      "enum": [
+        "Low",
+        "Moderate",
+        "High"
+      ]
+    },
+    "blue": {
+      "enum": [
+        "original",
+        "open",
+        null
+      ]
+    },
+    "sids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "figure": {
       "type": "object",
-      "required": ["kind", "value", "n", "unit", "basis", "blue", "confidence", "source_ids", "definition"],
+      "required": [
+        "kind",
+        "value",
+        "n",
+        "unit",
+        "basis",
+        "blue",
+        "confidence",
+        "source_ids",
+        "definition",
+        "label"
+      ],
       "properties": {
-        "kind": {"enum": ["rate", "count", "usd"]},
-        "n": {"type": "integer", "minimum": 1},
-        "unit": {"type": "string", "minLength": 1},
-        "basis": {"$ref": "#/$defs/basis"},
-        "blue": {"$ref": "#/$defs/blue"},
-        "confidence": {"$ref": "#/$defs/confidence"},
-        "source_ids": {"$ref": "#/$defs/sids"},
-        "definition": {"type": "string", "minLength": 1}
-      },
-      "if": {"properties": {"kind": {"const": "rate"}}},
-      "then": {
-        "additionalProperties": false,
-        "required": ["k", "pct", "ci_low", "ci_high"],
-        "properties": {
-          "kind": true, "n": true, "unit": true, "basis": true, "blue": true, "confidence": true,
-          "source_ids": true, "definition": true,
-          "value": {"type": "number", "minimum": 0, "maximum": 1},
-          "k": {"type": "integer", "minimum": 0},
-          "pct": {"type": "number", "minimum": 0, "maximum": 100},
-          "ci_low": {"type": "number", "minimum": 0, "maximum": 1},
-          "ci_high": {"type": "number", "minimum": 0, "maximum": 1}
+        "kind": {
+          "enum": [
+            "rate",
+            "count",
+            "usd",
+            "change"
+          ]
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "basis": {
+          "$ref": "#/$defs/basis"
+        },
+        "blue": {
+          "$ref": "#/$defs/blue"
+        },
+        "confidence": {
+          "$ref": "#/$defs/confidence"
+        },
+        "source_ids": {
+          "$ref": "#/$defs/sids"
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
         }
       },
-      "else": {
-        "additionalProperties": false,
-        "properties": {
-          "kind": true, "n": true, "unit": true, "basis": {"const": "measured"}, "blue": true,
-          "confidence": true, "source_ids": true, "definition": true,
-          "value": {"type": "number", "minimum": 0}
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "rate"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "required": [
+              "k",
+              "pct",
+              "ci_low",
+              "ci_high"
+            ],
+            "properties": {
+              "kind": true,
+              "n": true,
+              "unit": true,
+              "basis": true,
+              "blue": true,
+              "confidence": true,
+              "source_ids": true,
+              "definition": true,
+              "value": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "k": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pct": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "ci_low": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "ci_high": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "label": true
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "change"
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "of",
+              "vs",
+              "baseline",
+              "of_value",
+              "vs_value"
+            ],
+            "properties": {
+              "kind": true,
+              "n": true,
+              "unit": true,
+              "basis": true,
+              "blue": true,
+              "confidence": true,
+              "source_ids": true,
+              "definition": true,
+              "value": {
+                "type": "number"
+              },
+              "mode": {
+                "enum": [
+                  "relative",
+                  "points"
+                ]
+              },
+              "of": {
+                "type": "string",
+                "minLength": 1
+              },
+              "vs": {
+                "type": "string",
+                "minLength": 1
+              },
+              "baseline": {
+                "type": "string",
+                "minLength": 1
+              },
+              "of_value": {
+                "type": "number"
+              },
+              "vs_value": {
+                "type": "number"
+              },
+              "label": true
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "enum": [
+                  "count",
+                  "usd"
+                ]
+              }
+            }
+          },
+          "then": {
+            "additionalProperties": false,
+            "properties": {
+              "kind": true,
+              "n": true,
+              "unit": true,
+              "basis": {
+                "const": "measured"
+              },
+              "blue": true,
+              "confidence": true,
+              "source_ids": true,
+              "definition": true,
+              "value": {
+                "type": "number",
+                "minimum": 0
+              },
+              "label": true
+            }
+          }
         }
-      }
+      ]
     }
   },
   "properties": {
-    "schema_version": {"const": "0.1"},
-    "built_at": {"type": "string"},
-    "git": {"type": ["object", "null"]},
-    "judge_version": {"type": ["string", "null"]},
-    "confidence_rules": {"const": "D60"},
+    "schema_version": {
+      "const": "0.3"
+    },
+    "built_at": {
+      "type": "string"
+    },
+    "git": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "judge_version": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "confidence_rules": {
+      "const": "D60"
+    },
     "manifest": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "additionalProperties": false,
-      "required": ["path", "sha256"],
-      "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
     },
     "groups": {
-      "type": "array", "minItems": 1,
+      "type": "array",
+      "minItems": 1,
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["id", "label", "kind", "blue", "basis", "folders", "notes"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "blue",
+          "basis",
+          "folders",
+          "notes"
+        ],
         "properties": {
-          "id": {"type": "string", "pattern": "^[a-z0-9_]+$"},
-          "label": {"type": "string"},
-          "kind": {"enum": ["taxonomy", "freeplay", "fp_check"]},
-          "blue": {"$ref": "#/$defs/blue"},
-          "basis": {"enum": ["audited", "raw", null]},
-          "folders": {"type": "integer", "minimum": 1},
-          "notes": {"type": "array", "items": {"type": "string"}}
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "taxonomy",
+              "freeplay",
+              "fp_check"
+            ]
+          },
+          "blue": {
+            "$ref": "#/$defs/blue"
+          },
+          "basis": {
+            "enum": [
+              "audited",
+              "raw",
+              null
+            ]
+          },
+          "folders": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "short_label": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       }
     },
     "sources": {
-      "type": "array", "minItems": 1,
+      "type": "array",
+      "minItems": 1,
       "items": {
-        "type": "object", "additionalProperties": false,
-        "required": ["id", "path", "match_id", "replay_id", "purpose", "test_data", "sha256"],
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "path",
+          "match_id",
+          "replay_id",
+          "purpose",
+          "test_data",
+          "artifacts"
+        ],
         "properties": {
-          "id": {"type": "string", "pattern": "^[a-z0-9_]+#[0-9]+$"},
-          "path": {"type": "string"},
-          "match_id": {"type": ["string", "null"]},
-          "replay_id": {"type": ["string", "null"]},
-          "purpose": {"type": ["string", "null"]},
-          "test_data": {"enum": ["test", "not_test", "unknown"]},
-          "sha256": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9_]+#[0-9]+$"
+          },
+          "path": {
+            "type": "string"
+          },
+          "match_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "replay_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "purpose": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "test_data": {
+            "enum": [
+              "test",
+              "not_test",
+              "unknown"
+            ]
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "file",
+                "sha256"
+              ],
+              "properties": {
+                "file": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            }
+          }
         }
       }
     },
     "figures": {
       "type": "object",
-      "propertyNames": {"pattern": "^[a-z0-9_]+\\.[a-z0-9_]+$"},
-      "additionalProperties": {"$ref": "#/$defs/figure"}
+      "propertyNames": {
+        "pattern": "^[a-z0-9_]+\\.[a-z0-9_]+$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/figure"
+      }
     },
     "descriptive": {
-      "type": "object", "additionalProperties": false, "required": ["groups"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "groups"
+      ],
       "properties": {
         "groups": {
           "type": "object",
           "additionalProperties": {
-            "type": "object", "additionalProperties": false,
-            "required": ["red_models", "blue_models", "dates"],
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "red_models",
+              "blue_models",
+              "dates"
+            ],
             "properties": {
-              "red_models": {"type": "array", "items": {"type": "string"}},
-              "blue_models": {"type": "array", "items": {"type": "string"}},
-              "dates": {"type": "array", "items": {"type": "string"}},
+              "red_models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "blue_models": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "dates": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "rounds": {
                 "type": "array",
                 "items": {
-                  "type": "object", "additionalProperties": false,
-                  "required": ["match_id", "round", "label", "technique", "attack_attempt", "detected", "solved"],
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "match_id",
+                    "round",
+                    "label",
+                    "technique",
+                    "attack_attempt",
+                    "detected",
+                    "solved"
+                  ],
                   "properties": {
-                    "match_id": {"type": ["string", "null"]},
-                    "round": {"type": "integer"},
-                    "label": {"type": "string"},
-                    "technique": {"type": ["string", "null"], "maxLength": 120},
-                    "attack_attempt": {"enum": ["yes", "no", "unaudited"]},
-                    "detected": {"type": ["boolean", "null"]},
+                    "match_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "round": {
+                      "type": "integer"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "technique": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "maxLength": 120
+                    },
+                    "attack_attempt": {
+                      "enum": [
+                        "yes",
+                        "no",
+                        "unaudited"
+                      ]
+                    },
+                    "detected": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "solved": {
                       "type": "array",
                       "items": {
-                        "type": "object", "additionalProperties": false,
-                        "required": ["challenge", "category"],
-                        "properties": {"challenge": {"type": "string"}, "category": {"type": "string"}}
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "challenge",
+                          "category"
+                        ],
+                        "properties": {
+                          "challenge": {
+                            "type": "string"
+                          },
+                          "category": {
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   }

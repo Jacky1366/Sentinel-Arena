@@ -203,6 +203,10 @@ The summary is a pure reader of frozen evidence; the draft is what the AI analys
 (#17); the grounding result is code. No artifact the Judge, Red or Blue writes changes;
 `JUDGE_VERSION` is unchanged.*
 
+*Revised 2026-11-24 (Stage 7 #17): analyst summary 0.2 with baseline-named comparisons
+(§6.15a); the analyst report folder (§6.19); grounding placeholder fields are value, k, n, pct
+and `ci` (rates). No artifact the Judge, Red or Blue writes changes.*
+
 *Revised 2026-11-24 (Stage 7 #15): the Compare bundle (§6.18, `compare_bundle.schema.json`),
 a pure reader of frozen matches and their replays. No artifact the Judge, Red or Blue writes
 changes; `JUDGE_VERSION` is unchanged.*
@@ -1696,8 +1700,9 @@ under `data/golden/` (#17, D60 c).
 results, risk register, deployment options, decision criteria, limitations), findings
 (`F-NN`, title, text, `figure_refs`, `evidence_refs`), options A / B / C (summary, strengths,
 weaknesses) and criteria ("if you value X, option Y fits, because …"). Every quantity in the
-prose is a `{{figure}}` or `{{figure.field}}` placeholder (field: value, k, n, pct, ci_low,
-ci_high). There is no confidence field (code assigns it, D60) and no recommendation field
+prose is a `{{figure}}` or `{{figure.field}}` placeholder (field: value, k, n, pct; `ci` for
+rates — #17, designer Q4: a percentage prints with its count, an interval as "95% CI a–b%",
+a change with its baseline). There is no confidence field (code assigns it, D60) and no recommendation field
 (D54).
 
 ## 6.17 Grounding result — `analyst/grounding.check(draft, summary)` (Stage 7 #16; D55, D60 b)
@@ -1705,10 +1710,31 @@ ci_high). There is no confidence field (code assigns it, D60) and no recommendat
 `grounding_result.schema.json` (`"0.1"`): `ok`, every error (`code`, JSON `path`, `detail`),
 `stats`, and on success each finding's confidence (the lowest D60 confidence among its cited
 figures). Error codes: `schema`, `placeholder` (unknown figure or stray braces),
-`bare_number` (a digit outside the token allowlist: CWE ids, F-NN, D-numbers, § references,
-`v` versions, model ids from the summary), `number_word` (spelled-out numbers and fraction
+`bare_number` (a digit outside the token allowlist: CWE ids, F-NN, § references, `v`
+versions, model ids from the summary; D-numbers and milestone / gate ids are not allowed, D60 b
+amendment), `number_word` (spelled-out numbers and fraction
 words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"Act 3"),
-`figure_ref`, `evidence_ref`, `recommendation` (D54) and `confidence_claim`. Fail closed.
+`figure_ref`, `evidence_ref`, `recommendation` (D54), `confidence_claim`, and (#17 review,
+D60 amendments) `structure` (executive summary ≥ 3 figures, cites every successful-attack
+figure, has no finding ids and ends with the decision required; options A and B cite figures;
+decision criteria are bare phrases), `hedging` ("tentative" only with a Low figure), `composition`
+(no finding mixes raw with checked figures; post hoc) and `jargon`. Fail closed.
+
+## 6.15a Analyst summary 0.2 / 0.3 — comparisons, labels (Stage 7 #17; designer, 2026-11-24)
+
+`analyst_summary.schema.json` is `"0.3"` (0.1 and 0.2 frozen as `analyst_summary_v0_1` /
+`_v0_2.schema.json`; 0.2 as first committed). 0.3: sources list artifact hashes as
+`artifacts: [{file, sha256}]` (a `"<artifact>": "<hex>"` map trips the secret scanner); every
+figure carries a reader-facing `label` (`<experiment label>: <metric>`, comparisons from the
+manifest); free-play groups add `landed_detection` (attack attempts that solved a challenge
+and were flagged) and `landed_missed`. 0.2 introduced:
+New figure `kind: "change"` from the manifest's `comparisons` (`{id, of, vs, mode, baseline}`):
+`relative` = (of − vs) / vs for counts and costs, `points` = the difference in percentage
+points of two rates. **No percentage without its baseline:** the key must read
+`<group>.<metric>_change_vs_<baseline>` (refused otherwise), and the figure carries
+`baseline`, `of`, `vs`, `of_value`, `vs_value`; confidence = the lower of the two (D60). The
+M5 cost trio sits side by side: `m5.cost_change_vs_rules_off` (the headline),
+`m5.cost_change_vs_empty_library`, `m5.empty_library_cost_change_vs_rules_off`.
 
 ## 6.18 Compare bundle — `dashboard/public/compare/<name>.json` (Stage 7 #15; D52)
 
@@ -1735,6 +1761,32 @@ words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"A
   exported with its own GO. **`notes`:** the D52 disclosures (selection, instability, audit
   timing, roles).
 - **Copy only;** humans and the dashboard read it, Blue never does.
+
+## 6.19 Analyst report folder — `data/runs/analyst/report-<ts>/`; final `data/golden/analyst-report-7/` (Stage 7 #17; D53–D57)
+
+`tools/build_report.py --run` (GO `manual-analyst-report`) writes: `summary.json` (§6.15),
+`draft.json` (§6.16), `grounding_result.json` (§6.17), `meta.json` (model, provider, date,
+prompt version + sha256, attempts, stop, cost, template sha256, GO token, the models tried),
+`report.html`, `brief.html` (the decision brief: decision required, executive summary,
+options, criteria, decision record; the Report tab's default view) and
+the analyst's `api_calls.jsonl`; it also publishes `dashboard/public/report/report.{html,js}`.
+`--probe` (GO `manual-analyst-probe`) writes `probe-<ts>/` with `probe.json` and each
+candidate's draft / grounding result.
+
+- **Rendering (D56):** Jinja2 3.1.4 pinned, autoescape on, `StrictUndefined`; the template
+  (`analyst/templates/report.html.j2`) is frozen by sha256. AI text is inserted only as
+  autoescaped text segments; every number is a code-formatted figure (designer Q4: a
+  percentage with its count, `95% CI a–b%`, a change with its baseline). The report carries a
+  CSP that allows no script; the dashboard shows it in an `<iframe sandbox="">`.
+- **Structure (D57):** sections 0–10 and appendices A (evidence manifest), B (AI disclosure
+  and identifiers) and C (glossary), each marked as written by code, AI or human. Print breaks
+  only between the body and the appendices. The decision record has no audience vote (D54
+  amendment).
+- **Final:** committed under `data/golden/analyst-report-7/` only after the designer has read
+  the text (D60 c), with `brief.pdf` / `report.pdf` rendered once (the Report tab links to the
+  same frozen PDFs in `dashboard/public/report/`, so the demo needs no print dialog). A
+  template-only re-render (`--render`, no AI call) is recorded in `meta.json` `rerenders`. A
+  failed run is archived under `data/golden/incidents/`, never deleted.
 
 ---
 

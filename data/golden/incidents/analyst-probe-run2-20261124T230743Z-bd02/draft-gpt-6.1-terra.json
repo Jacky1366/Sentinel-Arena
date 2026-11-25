@@ -1,0 +1,181 @@
+{
+  "schema_version": "0.1",
+  "sections": {
+    "executive_summary": "Original Blue detected the audited taxonomy attacks in the frozen Gate B traffic, but missed some audited free-play attempts. Open Blue detected more attempts in the free-play replay and produced more false alarms in the sealed benign prompt check. Those comparisons are tentative. The layered option has not been tested.",
+    "methodology": "Red sent requests through a logging proxy. Blue labelled requests from the log after traffic was sent, and a code-based Judge scored rounds. The designer audited labels for selected detection measures. Free-play detection counts any attack label and excludes ordinary browsing. Open Blue was evaluated by replay, not live. The sealed benign check tested the prompts without rules.",
+    "results": "The findings distinguish detection from challenge landing and false alarms. Replays test configurations on existing traffic; they do not show how those configurations would affect future traffic.",
+    "risk_register": "Prompt-scope blindness: Original Blue's attack definition is narrower than the attack space. Application-context blindness: Blue does not know what the site links to, so forced browsing can read as ordinary traffic. Structural blindness: Some detection requires user identity, as in access control; this was not tested here.",
+    "deployment_options": "A is Original Blue. B is Open Blue. C is Layered: Original Blue supplies high-priority alerts and Open Blue supplies a low-priority queue. C is untested.",
+    "decision_criteria": "The choice depends on the value placed on alert precision, broader coverage, workload and evidence from a tested configuration. The decision is human.",
+    "limitations": "The evidence is limited to the frozen application traffic and the specified configurations. The free-play audit is a designer assessment, and the detection comparison is tentative. Deepseek taxonomy labels were not audited. Challenge landing is not the same as detection. The summary does not quantify run-to-run verdict variation or test the layered deployment."
+  },
+  "findings": [
+    {
+      "id": "F-01",
+      "text": "Original Blue flagged {{gate_b.detection}} of audited Gate B attack rounds; the interval was {{gate_b.detection.ci}}. Orphans and instrument failures were excluded. Among rounds with measurable landing, {{gate_b.landed}} solved their mapped challenge.",
+      "figure_refs": [
+        "gate_b.detection",
+        "gate_b.landed"
+      ],
+      "evidence_refs": [
+        "gate_b#1",
+        "gate_b#2",
+        "gate_b#3"
+      ]
+    },
+    {
+      "id": "F-02",
+      "text": "The unaudited deepseek taxonomy results were {{gate_b_deepseek.detection}} without the evasion directive and {{gate_b_evasion.detection}} with it. These results are tentative because Red's labels were not audited.",
+      "figure_refs": [
+        "gate_b_deepseek.detection",
+        "gate_b_evasion.detection"
+      ],
+      "evidence_refs": [
+        "gate_b_deepseek#1",
+        "gate_b_deepseek#2",
+        "gate_b_deepseek#3",
+        "gate_b_evasion#1",
+        "gate_b_evasion#2",
+        "gate_b_evasion#3"
+      ]
+    },
+    {
+      "id": "F-03",
+      "text": "In free play, the designer audited {{freeplay_original.attack_attempts}} rounds as attack attempts among {{freeplay_original.rounds}} rounds. Original Blue detected {{freeplay_original.detection}} of those attempts; the interval was {{freeplay_original.detection.ci}}. Challenge landing occurred in {{freeplay_original.landed_rounds}} rounds. The detection estimate is tentative.",
+      "figure_refs": [
+        "freeplay_original.attack_attempts",
+        "freeplay_original.rounds",
+        "freeplay_original.detection",
+        "freeplay_original.landed_rounds"
+      ],
+      "evidence_refs": [
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3"
+      ]
+    },
+    {
+      "id": "F-04",
+      "text": "On replay of the same free-play traffic, Open Blue detected {{freeplay_open.detection}} of audited attack attempts; the interval was {{freeplay_open.detection.ci}}. The change was {{freeplay.open_detection_change_vs_original}}. This comparison is tentative. Open Blue still missed some enumeration and directory-listing attempts in this traffic.",
+      "figure_refs": [
+        "freeplay_open.detection",
+        "freeplay.open_detection_change_vs_original"
+      ],
+      "evidence_refs": [
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3",
+        "freeplay_open#1",
+        "freeplay_open#2",
+        "freeplay_open#3"
+      ]
+    },
+    {
+      "id": "F-05",
+      "text": "On sealed benign requests with rules disabled, the original prompt flagged {{fp_check_original.fp}}; the interval was {{fp_check_original.fp.ci}}. The open prompt flagged {{fp_check_open.fp}}; the interval was {{fp_check_open.fp.ci}}. The observed change was {{fp_check.open_fp_change_vs_original}}. The open-prompt result and comparison are tentative.",
+      "figure_refs": [
+        "fp_check_original.fp",
+        "fp_check_open.fp",
+        "fp_check.open_fp_change_vs_original"
+      ],
+      "evidence_refs": [
+        "fp_check_original#1",
+        "fp_check_open#1"
+      ]
+    },
+    {
+      "id": "F-06",
+      "text": "On Gate B replay, Sonnet with the library detected {{gate_c_sonnet.detection}} of audited attack rounds, and Haiku with an empty library detected {{gate_c_haiku_empty.detection}}. Both matched the original Gate B detection figure in this traffic. This does not establish equivalence on other traffic.",
+      "figure_refs": [
+        "gate_c_sonnet.detection",
+        "gate_c_haiku_empty.detection"
+      ],
+      "evidence_refs": [
+        "gate_b#1",
+        "gate_b#2",
+        "gate_b#3",
+        "gate_c_sonnet#1",
+        "gate_c_sonnet#2",
+        "gate_c_sonnet#3",
+        "gate_c_haiku_empty#1",
+        "gate_c_haiku_empty#2",
+        "gate_c_haiku_empty#3"
+      ]
+    },
+    {
+      "id": "F-07",
+      "text": "On M5 traffic, the library configuration detected {{m5_library.detection}} of audited attack rounds, matching the empty-library and rules-off configurations. Its total AI call count changed by {{m5.calls_change_vs_empty_library}} and {{m5.calls_change_vs_rules_off}}. Its total AI cost changed by {{m5.cost_change_vs_empty_library}} and {{m5.cost_change_vs_rules_off}}. The call and cost comparisons are tentative and cover every agent.",
+      "figure_refs": [
+        "m5_library.detection",
+        "m5.calls_change_vs_empty_library",
+        "m5.calls_change_vs_rules_off",
+        "m5.cost_change_vs_empty_library",
+        "m5.cost_change_vs_rules_off"
+      ],
+      "evidence_refs": [
+        "m5_library#1",
+        "m5_library#2",
+        "m5_library#3",
+        "m5_empty#1",
+        "m5_empty#2",
+        "m5_empty#3",
+        "m5_rules_off#1",
+        "m5_rules_off#2",
+        "m5_rules_off#3"
+      ]
+    }
+  ],
+  "options": [
+    {
+      "id": "A",
+      "summary": "Original Blue",
+      "strengths": [
+        "Precise within the tested scope.",
+        "The original prompt produced no observed false alarms in the sealed benign check."
+      ],
+      "weaknesses": [
+        "Blind outside its taxonomy.",
+        "Missed audited free-play attempts."
+      ]
+    },
+    {
+      "id": "B",
+      "summary": "Open Blue",
+      "strengths": [
+        "Wider coverage in the free-play replay."
+      ],
+      "weaknesses": [
+        "More false alarms in the sealed benign check.",
+        "Verdicts vary run to run; the summary does not quantify that variation."
+      ]
+    },
+    {
+      "id": "C",
+      "summary": "Layered: Original Blue as high-priority alerts, Open Blue as a low-priority queue.",
+      "strengths": [
+        "Separates the alert streams by priority."
+      ],
+      "weaknesses": [
+        "The combined deployment is untested.",
+        "The low-priority queue may add review work."
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "if_you_value": "Precision and a tested original configuration",
+      "option": "A",
+      "because": "The original prompt produced no observed false alarms in the sealed benign check, though it missed free-play attempts outside its taxonomy."
+    },
+    {
+      "if_you_value": "Broader coverage and can accept more false alarms and variable verdicts",
+      "option": "B",
+      "because": "Open Blue detected more audited attempts in the tentative free-play replay comparison, while the open prompt produced more false alarms in the benign check."
+    },
+    {
+      "if_you_value": "Separating high-priority alerts from a broader review queue",
+      "option": "C",
+      "because": "The layered design assigns those roles to the original and open configurations, but its combined performance and workload are untested."
+    }
+  ]
+}

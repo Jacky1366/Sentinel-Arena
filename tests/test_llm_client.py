@@ -419,13 +419,13 @@ def test_committed_config_loads_with_designer_caps():
     assert lc.caps_limits(cfg) == {
         "red": {"max_calls": 60, "max_tokens": 400000, "max_usd": 0.25},
         "blue": {"max_calls": 100, "max_tokens": 300000, "max_usd": 0.25},
-        "analyst": {"max_calls": 0, "max_tokens": 0, "max_usd": 0},
+        "analyst": {"max_calls": 12, "max_tokens": 600000, "max_usd": 1.0},  # D53: $1 (#17)
         "match": {"max_calls": None, "max_tokens": None, "max_usd": 0.50}}
     assert "provider_caching" not in cfg  # replaced by agents.<agent>.caching (5.7)
     assert {a: lc.agent_caching(cfg, a) for a in ("red", "blue")} == {"red": "off",
                                                                      "blue": "off"}
     assert {a: cfg["agents"][a]["provider"] for a in lc.AGENTS} == {
-        "red": "openai", "blue": "anthropic", "analyst": None}
+        "red": "openai", "blue": "anthropic", "analyst": "openai"}  # #17: gpt-6.1-sol
 
 
 @pytest.mark.parametrize("mutate", [

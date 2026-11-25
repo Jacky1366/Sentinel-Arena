@@ -1,0 +1,200 @@
+{
+  "schema_version": "0.1",
+  "sections": {
+    "executive_summary": "The default defender detected the OpenAI known-type attacks at {{gate_b.detection}} ({{gate_b.detection.ci}}). Broader traffic exposed gaps. Detection was {{freeplay_original.detection}} ({{freeplay_original.detection.ci}}) in free-play, default defender, and {{freeplay_open.detection}} ({{freeplay_open.detection.ci}}) in free-play, open-definition defender. Among attacks that solved a challenge, the default defender flagged {{freeplay_original.landed_detection}} ({{freeplay_original.landed_detection.ci}}), versus {{freeplay_open.landed_detection}} ({{freeplay_open.landed_detection.ci}}) for the open-definition defender. The default defender missed {{freeplay_original.landed_missed}} successful attacks. On held-back normal requests, the default prompt's false-alarm check recorded {{fp_check_original.fp}} ({{fp_check_original.fp.ci}}), while the open prompt's false-alarm check recorded {{fp_check_open.fp}} ({{fp_check_open.fp.ci}}). The evidence shows a trade-off between broader detection and a cleaner alert stream. The layered arrangement remains untested. The decision required: choose option A, B or C.",
+    "methodology": "Red sent requests through a logging proxy to a test web application. Blue read only the proxy log after the traffic and labelled requests. A code-based judge scored the rounds. The designer checked attack labels for the audited results. Detection measures whether Blue flagged an attack, not whether it prevented success. The known attack types (SQL injection, cross-site scripting, path traversal) were tested separately from unrestricted traffic. Free-play, open-definition defender re-judged the same traffic as free-play, default defender; it was an analysis replay, not a new attacker interaction. The default prompt's false-alarm check and the open prompt's false-alarm check used held-back normal requests that had not been used for building or tuning. These checks tested the prompts without rules. Unaudited attacker labels are reported separately from checked labels.",
+    "results": "The OpenAI known-type attacks show complete detection within the checked sample. Free-play, default defender shows that this coverage did not extend across the broader attack space. Free-play, open-definition defender flagged more attacks, including successful attacks missed by the default defender. The open prompt's false-alarm check also produced more false alarms than the default prompt's false-alarm check. The stronger-model replay and the no-library replay preserved checked known-type detection. The separate cost comparison shows lower measured AI cost for the defender with the rule library than for the defender with an empty library or the defender without rules.",
+    "risk_register": "Prompt-scope blindness: Blue's attack definition is narrower than the attack space. Strong results on the known attack types do not establish broad attack detection. Application-context blindness: Blue does not know what the site links to, so forced browsing can read as ordinary traffic. Directory and endpoint exploration remained unflagged in free-play, open-definition defender. Structural blindness: some detection requires a user identity and knowledge of permissions, as in access-control checks. This was untested here; attacker-written technique labels do not establish that identity-dependent detection was tested. Operational risk: Open Blue has more false alarms and verdicts that vary run to run. The supplied figures do not quantify that variability. Layering leaves the combined queue's workload and handling effectiveness untested.",
+    "deployment_options": "A retains Original Blue as a precise alert source with blind spots outside its known attack types. B uses Open Blue for wider coverage, with more false alarms and verdicts that vary run to run. C is Layered: original Blue supplies high-priority alerts, while open Blue supplies a low-priority review queue. C is untested. These arrangements express different alert-handling trade-offs, not a ranking.",
+    "decision_criteria": "The criteria below connect operational values to the available arrangements. The human decision depends on the cost of missed attacks, the capacity to review false alarms, and willingness to evaluate an untested queue design.",
+    "limitations": "The frozen samples do not establish production-wide detection or false-alarm rates. Confidence labels and intervals accompany the reported figures. Replays reuse traffic and are not independent attacker campaigns. The prompt-only false-alarm checks do not measure a complete rules-enabled deployment. Reported AI costs cover model calls at the applicable provider prices, not total operating cost or analyst workload. The supplied evidence does not quantify run-to-run verdict variation. The layered arrangement and identity-dependent detection remain untested."
+  },
+  "findings": [
+    {
+      "id": "F-01",
+      "title": "Checked known-type coverage did not establish broad coverage",
+      "text": "The OpenAI known-type attacks were detected at {{gate_b.detection}} ({{gate_b.detection.ci}}). Detection in free-play, default defender was {{freeplay_original.detection}} ({{freeplay_original.detection.ci}}). The default defender recognised the checked known-type traffic but missed attacks in the broader sample. This separates recognition of familiar attack patterns from coverage of the attack space.",
+      "figure_refs": [
+        "gate_b.detection",
+        "freeplay_original.detection"
+      ],
+      "evidence_refs": [
+        "gate_b#1",
+        "gate_b#2",
+        "gate_b#3",
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3"
+      ]
+    },
+    {
+      "id": "F-02",
+      "title": "The broader definition increased detection on the same traffic",
+      "text": "Free-play, default defender contained {{freeplay_original.attack_attempts}} designer-checked attack attempts. Detection was {{freeplay_original.detection}} ({{freeplay_original.detection.ci}}), compared with {{freeplay_open.detection}} ({{freeplay_open.detection.ci}}) in free-play, open-definition defender. The change was {{freeplay.open_detection_change_vs_original}}. The added flags covered sensitive-data exposure requests. Directory and endpoint exploration still went unflagged, showing the remaining application-context gap.",
+      "figure_refs": [
+        "freeplay_original.attack_attempts",
+        "freeplay_original.detection",
+        "freeplay_open.detection",
+        "freeplay.open_detection_change_vs_original"
+      ],
+      "evidence_refs": [
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3",
+        "freeplay_open#1",
+        "freeplay_open#2",
+        "freeplay_open#3"
+      ]
+    },
+    {
+      "id": "F-03",
+      "title": "The default defender missed attacks that succeeded",
+      "text": "In free-play, default defender, {{freeplay_original.landed_rounds}} attack attempts succeeded by solving a challenge. The default defender flagged {{freeplay_original.landed_detection}} ({{freeplay_original.landed_detection.ci}}) and missed {{freeplay_original.landed_missed}} successful attacks. Free-play, open-definition defender flagged {{freeplay_open.landed_detection}} ({{freeplay_open.landed_detection.ci}}) on the same successful attacks. The missed successes involved sensitive-data exposure outside the default definition. Success counts refer to attack attempts, not the number of challenges solved.",
+      "figure_refs": [
+        "freeplay_original.landed_rounds",
+        "freeplay_original.landed_detection",
+        "freeplay_original.landed_missed",
+        "freeplay_open.landed_detection"
+      ],
+      "evidence_refs": [
+        "freeplay_original#1",
+        "freeplay_original#2",
+        "freeplay_original#3",
+        "freeplay_open#1",
+        "freeplay_open#2",
+        "freeplay_open#3"
+      ]
+    },
+    {
+      "id": "F-04",
+      "title": "Broader detection came with more false alarms",
+      "text": "The default prompt's false-alarm check recorded {{fp_check_original.fp}} ({{fp_check_original.fp.ci}}) on held-back normal requests. The open prompt's false-alarm check recorded {{fp_check_open.fp}} ({{fp_check_open.fp.ci}}). The change was {{fp_check.open_fp_change_vs_original}}. This measures prompt behaviour without rules, rather than the false-alarm rate of a complete deployment.",
+      "figure_refs": [
+        "fp_check_original.fp",
+        "fp_check_open.fp",
+        "fp_check.open_fp_change_vs_original"
+      ],
+      "evidence_refs": [
+        "fp_check_original#1",
+        "fp_check_open#1"
+      ]
+    },
+    {
+      "id": "F-05",
+      "title": "Unaudited attacker labels provide separate supporting evidence",
+      "text": "Detection in the DeepSeek known-type attacks was tentative at {{gate_b_deepseek.detection}} ({{gate_b_deepseek.detection.ci}}). Detection in the DeepSeek evasion attacks was tentative at {{gate_b_evasion.detection}} ({{gate_b_evasion.detection.ci}}). Red's attack labels were not checked by the designer in these experiments. These results describe flags against attacker-provided labels, not audited attack coverage.",
+      "figure_refs": [
+        "gate_b_deepseek.detection",
+        "gate_b_evasion.detection"
+      ],
+      "evidence_refs": [
+        "gate_b_deepseek#1",
+        "gate_b_deepseek#2",
+        "gate_b_deepseek#3",
+        "gate_b_evasion#1",
+        "gate_b_evasion#2",
+        "gate_b_evasion#3"
+      ]
+    },
+    {
+      "id": "F-06",
+      "title": "Model and library replays preserved checked known-type detection",
+      "text": "The stronger-model replay detected {{gate_c_sonnet.detection}} ({{gate_c_sonnet.detection.ci}}). The no-library replay detected {{gate_c_haiku_empty.detection}} ({{gate_c_haiku_empty.detection.ci}}). These replays show no detection difference on this checked known-type sample. They do not test whether a stronger model or a library change resolves the broader gaps seen in unrestricted traffic.",
+      "figure_refs": [
+        "gate_c_sonnet.detection",
+        "gate_c_haiku_empty.detection"
+      ],
+      "evidence_refs": [
+        "gate_c_sonnet#1",
+        "gate_c_sonnet#2",
+        "gate_c_sonnet#3",
+        "gate_c_haiku_empty#1",
+        "gate_c_haiku_empty#2",
+        "gate_c_haiku_empty#3"
+      ]
+    },
+    {
+      "id": "F-07",
+      "title": "The rule library reduced measured AI cost",
+      "text": "Total AI cost was {{m5_library.cost_usd}} for the defender with the rule library, {{m5_empty.cost_usd}} for the defender with an empty library, and {{m5_rules_off.cost_usd}} for the defender without rules. The library cost changes were {{m5.cost_change_vs_empty_library}} and {{m5.cost_change_vs_rules_off}}. Checked detection was {{m5_library.detection}} ({{m5_library.detection.ci}}), {{m5_empty.detection}} ({{m5_empty.detection.ci}}), and {{m5_rules_off.detection}} ({{m5_rules_off.detection.ci}}), respectively. The measured benefit here was efficiency without a detection difference on the checked sample.",
+      "figure_refs": [
+        "m5_library.cost_usd",
+        "m5_empty.cost_usd",
+        "m5_rules_off.cost_usd",
+        "m5.cost_change_vs_empty_library",
+        "m5.cost_change_vs_rules_off",
+        "m5_library.detection",
+        "m5_empty.detection",
+        "m5_rules_off.detection"
+      ],
+      "evidence_refs": [
+        "m5_library#1",
+        "m5_library#2",
+        "m5_library#3",
+        "m5_empty#1",
+        "m5_empty#2",
+        "m5_empty#3",
+        "m5_rules_off#1",
+        "m5_rules_off#2",
+        "m5_rules_off#3"
+      ]
+    }
+  ],
+  "options": [
+    {
+      "id": "A",
+      "summary": "Original Blue: precise, with blind spots outside its known attack types.",
+      "strengths": [
+        "Detected the OpenAI known-type attacks at {{gate_b.detection}} ({{gate_b.detection.ci}}).",
+        "Recorded {{fp_check_original.fp}} ({{fp_check_original.fp.ci}}) in the default prompt's false-alarm check."
+      ],
+      "weaknesses": [
+        "Detection was {{freeplay_original.detection}} ({{freeplay_original.detection.ci}}) in free-play, default defender.",
+        "The narrow attack definition leaves broader attack behaviour outside its alert scope."
+      ]
+    },
+    {
+      "id": "B",
+      "summary": "Open Blue: wider coverage, more false alarms, and verdicts that vary run to run.",
+      "strengths": [
+        "Detection was {{freeplay_open.detection}} ({{freeplay_open.detection.ci}}) in free-play, open-definition defender.",
+        "Flagged successful sensitive-data exposure requests missed by the default defender."
+      ],
+      "weaknesses": [
+        "Recorded {{fp_check_open.fp}} ({{fp_check_open.fp.ci}}) in the open prompt's false-alarm check.",
+        "Verdicts vary run to run; the supplied figures do not quantify that variation.",
+        "Application-context gaps remained in the replay."
+      ]
+    },
+    {
+      "id": "C",
+      "summary": "Layered: original Blue as high-priority alerts and open Blue as a low-priority queue; untested.",
+      "strengths": [
+        "Separates the precise alert stream from broader requests for review.",
+        "Makes the additional open-definition flags available without assigning them the same priority as original Blue alerts."
+      ],
+      "weaknesses": [
+        "The combined arrangement is untested.",
+        "Queue workload, duplicate handling, review delays, and combined detection have not been measured.",
+        "Layering does not supply missing application context or user identity."
+      ]
+    }
+  ],
+  "criteria": [
+    {
+      "if_you_value": "a precise alert stream",
+      "option": "A",
+      "because": "the default prompt's false-alarm check produced a cleaner stream while checked known-type coverage remained complete"
+    },
+    {
+      "if_you_value": "broader attack coverage with capacity for extra review",
+      "option": "B",
+      "because": "the open-definition replay flagged more attacks and successful attacks, alongside more false alarms in the held-back check"
+    },
+    {
+      "if_you_value": "separate priorities for precise alerts and broader review",
+      "option": "C",
+      "because": "the proposed arrangement separates those roles while leaving combined performance and workload untested"
+    }
+  ]
+}

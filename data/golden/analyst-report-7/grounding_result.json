@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1",
+  "ok": true,
+  "errors": [],
+  "stats": {
+    "placeholders": 65,
+    "findings": 7,
+    "texts": 44
+  },
+  "findings": [
+    {
+      "id": "F-01",
+      "confidence": "Moderate"
+    },
+    {
+      "id": "F-02",
+      "confidence": "Moderate"
+    },
+    {
+      "id": "F-03",
+      "confidence": "Moderate"
+    },
+    {
+      "id": "F-04",
+      "confidence": "Moderate"
+    },
+    {
+      "id": "F-05",
+      "confidence": "Low"
+    },
+    {
+      "id": "F-06",
+      "confidence": "High"
+    },
+    {
+      "id": "F-07",
+      "confidence": "Moderate"
+    }
+  ]
+}

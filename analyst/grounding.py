@@ -7,14 +7,29 @@ exactly what to fix. Fail closed: a false reject only costs a retry within the a
   schema           the draft matches schemas/analyst_draft.schema.json (no confidence and no
                    recommendation field exist in it: code assigns confidence, D55)
   placeholder      every {{key}} / {{key.field}} resolves to a summary figure
-                   (field: value, k, n, pct, ci_low, ci_high); stray braces are rejected
+                   (field: value, k, n, pct; ci for rates); stray braces are rejected.
+                   (#17, designer Q4: a percentage always prints with its count, an
+                   interval as "95% CI a-b%", a change with its baseline, so the bare
+                   interval endpoints ci_low / ci_high are not placeholder fields.)
   bare_number      after placeholders and allowlisted tokens are removed, no digit remains
+                   (D60 b amendment, 2026-11-24: decision numbers and internal milestone /
+                   gate ids are NOT allowed; experiments are named by their summary labels)
   number_word      no spelled-out number or fraction word, outside a few fixed phrases
   figure_ref       every finding's figure_refs entry is a summary figure; every placeholder
                    used in a finding is listed in its figure_refs
   evidence_ref     every finding's evidence_refs entry is a summary source id
   recommendation   no recommending phrasing (D54: analysis, criteria, never a recommendation)
   confidence_claim no "high / moderate / low confidence" in prose (code assigns it, D60)
+  structure        (#17 review) the executive summary cites at least 3 distinct figures and ends
+                   with the decision required (choose A, B or C); options A and B each cite at
+                   least one figure (option C is untested)
+  hedging          (#17 review) "tentative(ly)" only in a text that cites a Low figure:
+                   uncertainty is carried by the confidence labels and intervals
+  composition      (#17 review, POST HOC, disclosed in the report) a finding never mixes
+                   unaudited (raw) figures with audited / ground-truth ones, so an audited
+                   result is not rated by its unaudited contrast
+  jargon           (#17 review) internal terms readers do not know: "pp", "orphan(ed)",
+                   "instrumentation failure", "sealed", "landing"
 
 On success the result lists each finding's confidence: the lowest D60 confidence among the
 figures it cites (analyst/confidence.finding_confidence).
@@ -37,13 +52,13 @@ DRAFT_SCHEMA = Draft202012Validator(json.loads(
 RESULT_SCHEMA = Draft202012Validator(json.loads(
     (REPO / "schemas" / "grounding_result.schema.json").read_text(encoding="utf-8")))
 
-FIELDS = ("value", "k", "n", "pct", "ci_low", "ci_high")
+FIELDS = ("value", "k", "n", "pct", "ci")
+RATE_ONLY = ("k", "pct", "ci")
 PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_.\-]+)\s*\}\}")
 # Tokens that carry digits but are not quantities.
 TOKEN_ALLOW = [
     re.compile(r"\bCWE-\d+\b"),                 # taxonomy ids
     re.compile(r"\bF-\d{2}\b"),                 # finding ids
-    re.compile(r"\bD\d{1,3}\b"),                # decision numbers
     re.compile(r"§\d+(?:\.\d+)*"),              # section references
     re.compile(r"\bv\d+(?:\.\d+)*\b"),          # library / prompt versions
 ]
@@ -62,6 +77,14 @@ RECOMMEND = re.compile(
     r"\b(the\s+)?best\s+(option|choice)\b|\bis\s+(clearly\s+)?preferable\b",
     re.IGNORECASE)
 CONFIDENCE = re.compile(r"\b(high|moderate|medium|low)\s+confidence\b", re.IGNORECASE)
+TENTATIVE = re.compile(r"\btentative(ly)?\b", re.IGNORECASE)
+JARGON = re.compile(r"\bpp\b|\borphan(ed|s)?\b|\binstrument(ation)?\s+failures?\b|\bsealed\b|"
+                    r"\blanding\b", re.IGNORECASE)
+DECISION_END = re.compile(r"\b(choose|decide|decision)\b.*\bA\b.*\bB\b.*\bC\b", re.IGNORECASE)
+MIN_SUMMARY_FIGURES = 3
+FINDING_ID = re.compile(r"\bF-\d{2}\b")
+CRIT_VALUE_PREFIX = re.compile(r"^\s*if\s+you\s+value\b", re.IGNORECASE)
+CRIT_BECAUSE_PREFIX = re.compile(r"^\s*option\s+[ABC]\s+fits\b|\bfits,\s*because\b", re.IGNORECASE)
 
 
 def _texts(draft: dict):
@@ -87,9 +110,11 @@ def resolve(ref: str, figures: dict) -> str | None:
     if ref in figures:
         return ref
     base, _, field = ref.rpartition(".")
-    if field in FIELDS and base in figures and field in figures[base]:
-        return base
-    return None
+    if field not in FIELDS or base not in figures:
+        return None
+    if field in RATE_ONLY and figures[base]["kind"] != "rate":
+        return None
+    return base
 
 
 def _strip_allowed(text: str, models: set[str]) -> str:
@@ -147,6 +172,42 @@ def check(draft, summary: dict) -> dict:
             err("recommendation", path, f"recommending phrase {m.group(0)!r} (D54)")
         for m in CONFIDENCE.finditer(text):
             err("confidence_claim", path, f"{m.group(0)!r}: confidence is assigned by code (D60)")
+        if TENTATIVE.search(text) and not any(figures[k]["confidence"] == "Low" for k in refs):
+            err("hedging", path, "'tentative' without a Low figure in the same text: the "
+                "confidence labels and intervals already carry the uncertainty")
+        for m in JARGON.finditer(rest):
+            err("jargon", path, f"internal term {m.group(0)!r}: use plain language (see the glossary)")
+
+    # structure (#17 review)
+    es = used.get("$.sections.executive_summary", set())
+    if len(es) < MIN_SUMMARY_FIGURES:
+        err("structure", "$.sections.executive_summary",
+            f"cites {len(es)} figure(s); cite at least {MIN_SUMMARY_FIGURES} key figures")
+    last = re.split(r"(?<=[.!?])\s+", draft["sections"]["executive_summary"].strip())[-1]
+    if not DECISION_END.search(last):
+        err("structure", "$.sections.executive_summary",
+            "must end with the decision required: choose option A, B or C")
+    if FINDING_ID.search(draft["sections"]["executive_summary"]):
+        err("structure", "$.sections.executive_summary",
+            "the executive summary stands alone: no finding ids")
+    for key in sorted(k for k in figures if k.endswith(".landed_detection")):
+        if key not in es:
+            err("structure", "$.sections.executive_summary",
+                f"cite the successful-attack figure {{{{{key}}}}} in the executive summary")
+    for i, c in enumerate(draft["criteria"]):
+        if CRIT_VALUE_PREFIX.search(c["if_you_value"]):
+            err("structure", f"$.criteria[{i}].if_you_value",
+                "a bare phrase: the table already says 'If you value'")
+        if CRIT_BECAUSE_PREFIX.search(c["because"]):
+            err("structure", f"$.criteria[{i}].because",
+                "a bare reason: the table already says 'option X fits, because'")
+    for i, o in enumerate(draft["options"]):
+        if o["id"] in ("A", "B"):
+            paths = [f"$.options[{i}].summary"] + \
+                [f"$.options[{i}].strengths[{j}]" for j in range(len(o["strengths"]))] + \
+                [f"$.options[{i}].weaknesses[{j}]" for j in range(len(o["weaknesses"]))]
+            if not any(used.get(p_) for p_ in paths):
+                err("structure", f"$.options[{i}]", f"option {o['id']} cites no figure")
 
     out_findings = []
     for i, f in enumerate(draft["findings"]):
@@ -159,6 +220,11 @@ def check(draft, summary: dict) -> dict:
                 f"placeholder {r!r} is used in the finding but not listed")
         for r in sorted(set(f["evidence_refs"]) - sources):
             err("evidence_ref", f"$.findings[{i}].evidence_refs", f"unknown source {r!r}")
+        bases = {figures[r]["basis"] for r in f["figure_refs"] if r in figures}
+        if "raw" in bases and bases & {"audited", "ground_truth"}:
+            err("composition", f"$.findings[{i}].figure_refs",
+                "mixes unaudited (raw) figures with audited ones: give unaudited results their "
+                "own finding")
         known = [figures[r]["confidence"] for r in f["figure_refs"] if r in figures]
         out_findings.append({"id": f["id"],
                              "confidence": finding_confidence(known) if known else None})

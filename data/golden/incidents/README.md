@@ -53,3 +53,36 @@ in `config/test_set.json` and nothing here is scored.
   allow `other`, requiring a library for open mode (0.4 rows), and adding a full-Judge offline
   test that labels an attack AND a benign line `other`. The gate was then re-run.
 - Preserved here (not deleted). Nothing from this run is in test_set.json.
+
+## analyst-probe-run1-20261124T230557Z — Stage 7 #17 analyst probe, run 1 (build bug; a paid call went unrecorded)
+
+- GO `manual-analyst-probe`, 2026-11-24 23:05 UTC, commit `e4eb35f`.
+- The first candidate call (`gpt-6.1-sol`, agent `analyst`) **succeeded and was billed**; the
+  ledger write was then refused: `tools/build_report.py` passed the folder name
+  (`probe-...`) as `match_id`, which `api_call.schema.json` rejects. The run crashed before the
+  next candidate. **No `api_calls.jsonl` line exists for this call**, the reply text was lost,
+  and the $1 analyst cap could not count it.
+- **Cost as reported by the provider:** pending (the designer reads it from the OpenAI usage
+  page; recorded here when given). Upper bound from the request settings: 16384 output tokens
+  at $10/M plus about 15k input tokens at $2/M, about $0.19.
+- Root cause: the ledger record was first validated AFTER the paid call (inside
+  `agents/llm_client.py`). Fixed in #17: a match-id-shaped run id (`4f95b68`), and the
+  analyst code validates a complete ledger record BEFORE any paid call (no change to
+  `agents/llm_client.py`); tests run the probe through the real client.
+- Contents: `summary.json` (the probe's input; test-set derived figures, no payloads),
+  `INCIDENT.md`. Nothing here is scored or in `config/test_set.json`.
+
+## analyst-probe-run2-20261124T230743Z-bd02 — Stage 7 #17 analyst probe, run 2 (build bug; invalid as a model comparison)
+
+- GO `manual-analyst-probe`, 2026-11-24 23:07 UTC, commit `4f95b68`; **$0.309720** (ledger).
+- All four candidates failed the draft schema identically: no finding had a `title`.
+  `analyst/draft.strict_schema()` dropped the findings' `title` PROPERTY as if it were the
+  annotation keyword, so no candidate was asked for it. A build bug, not a model result.
+  Fixed in `5265632` (property names never dropped; a test compares every property name;
+  prompt v1 states title + at least one figure per finding).
+- Zero-cost diagnostic of these drafts (title injected, findings without figures set aside):
+  prose grounding errors gpt-6.1-sol 0, gpt-6.1-terra 1, gpt-5.6-sol 2, claude-sonnet-5-5 19.
+  On this evidence the designer chose gpt-6.1-sol for the report run without a re-probe
+  (2026-11-24), falling back to gpt-6.1-terra, then claude-sonnet-5-5.
+- Contents: `probe.json`, `api_calls.jsonl`, each candidate's `draft-*.json` and
+  `grounding-*.json`, `summary.json`, `INCIDENT.md`.
