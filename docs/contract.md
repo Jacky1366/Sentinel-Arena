@@ -1715,8 +1715,9 @@ versions, model ids from the summary; D-numbers and milestone / gate ids are not
 amendment), `number_word` (spelled-out numbers and fraction
 words, outside fixed phrases such as "three kinds of blindness" and "Act 1"–"Act 3"),
 `figure_ref`, `evidence_ref`, `recommendation` (D54), `confidence_claim`, and (#17 review,
-D60 amendments) `structure` (executive summary ≥ 3 figures and ends with the decision required;
-options A and B cite figures), `hedging` ("tentative" only with a Low figure), `composition`
+D60 amendments) `structure` (executive summary ≥ 3 figures, cites every successful-attack
+figure, has no finding ids and ends with the decision required; options A and B cite figures;
+decision criteria are bare phrases), `hedging` ("tentative" only with a Low figure), `composition`
 (no finding mixes raw with checked figures; post hoc) and `jargon`. Fail closed.
 
 ## 6.15a Analyst summary 0.2 / 0.3 — comparisons, labels (Stage 7 #17; designer, 2026-11-24)

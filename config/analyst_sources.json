@@ -12,7 +12,8 @@
         "data/golden/eval-6.3-gateB-match1",
         "data/golden/eval-6.3-gateB-match2",
         "data/golden/eval-6.3-gateB-match3"
-      ]
+      ],
+      "short_label": "the OpenAI known-type attacks"
     },
     {
       "id": "gate_b_deepseek",
@@ -24,7 +25,8 @@
         "data/golden/eval-6.3-gateB-deepseek-match1",
         "data/golden/eval-6.3-gateB-deepseek-match2",
         "data/golden/eval-6.3-gateB-deepseek-match3"
-      ]
+      ],
+      "short_label": "the DeepSeek known-type attacks"
     },
     {
       "id": "gate_b_evasion",
@@ -36,7 +38,8 @@
         "data/golden/eval-6.3-gateB-evasion-match1",
         "data/golden/eval-6.3-gateB-evasion-match2",
         "data/golden/eval-6.3-gateB-evasion-match3"
-      ]
+      ],
+      "short_label": "the DeepSeek evasion attacks"
     },
     {
       "id": "freeplay_original",
@@ -48,7 +51,8 @@
         "data/golden/eval-6.3-gateB-freeplay-match1",
         "data/golden/eval-6.3-gateB-freeplay-match2",
         "data/golden/eval-6.3-gateB-freeplay-match3"
-      ]
+      ],
+      "short_label": "free-play, default defender"
     },
     {
       "id": "freeplay_open",
@@ -60,7 +64,8 @@
         "data/golden/replays/gate-6.3-C-open/eval-6.3-gateB-freeplay-match1-open",
         "data/golden/replays/gate-6.3-C-open/eval-6.3-gateB-freeplay-match2-open",
         "data/golden/replays/gate-6.3-C-open/eval-6.3-gateB-freeplay-match3-open"
-      ]
+      ],
+      "short_label": "free-play, open-definition defender"
     },
     {
       "id": "fp_check_original",
@@ -70,7 +75,8 @@
       "blue": "original",
       "folders": [
         "data/golden/replays/gate-6.3-C-open/fp-on"
-      ]
+      ],
+      "short_label": "the default prompt's false-alarm check"
     },
     {
       "id": "fp_check_open",
@@ -80,7 +86,8 @@
       "blue": "open",
       "folders": [
         "data/golden/replays/gate-6.3-C-open/fp-open"
-      ]
+      ],
+      "short_label": "the open prompt's false-alarm check"
     },
     {
       "id": "gate_c_sonnet",
@@ -92,7 +99,8 @@
         "data/golden/replays/gate-6.3-C/eval-6.3-gateB-match1-sonnet-v5",
         "data/golden/replays/gate-6.3-C/eval-6.3-gateB-match2-sonnet-v5",
         "data/golden/replays/gate-6.3-C/eval-6.3-gateB-match3-sonnet-v5"
-      ]
+      ],
+      "short_label": "the stronger-model replay"
     },
     {
       "id": "gate_c_haiku_empty",
@@ -104,7 +112,8 @@
         "data/golden/replays/gate-6.3-C/eval-6.3-gateB-match1-haiku-empty",
         "data/golden/replays/gate-6.3-C/eval-6.3-gateB-match2-haiku-empty",
         "data/golden/replays/gate-6.3-C/eval-6.3-gateB-match3-haiku-empty"
-      ]
+      ],
+      "short_label": "the no-library replay"
     },
     {
       "id": "m5_library",
@@ -116,7 +125,8 @@
         "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match1-library",
         "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match2-library",
         "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match3-library"
-      ]
+      ],
+      "short_label": "the defender with the rule library"
     },
     {
       "id": "m5_empty",
@@ -128,7 +138,8 @@
         "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match1-empty",
         "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match2-empty",
         "data/golden/replays/gate-6.1b-2/ai-vs-ai-gate3-match3-empty"
-      ]
+      ],
+      "short_label": "the defender with an empty library"
     },
     {
       "id": "m5_rules_off",
@@ -140,7 +151,8 @@
         "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match1-off",
         "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match2-off",
         "data/golden/replays/gate-6.1b-2b/ai-vs-ai-gate3-match3-off"
-      ]
+      ],
+      "short_label": "the defender without rules"
     }
   ],
   "comparisons": [

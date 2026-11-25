@@ -194,3 +194,9 @@ the decision criterion (report section 8) behind it, and fills in the decision r
   glossary; every figure has a reader-facing label and ids appear only in the appendix.
 - *Formats:* every percentage prints with one decimal (so a rate and its change agree), and
   "percentage points" is written in full.
+- *Round 2 (prompt v3):* experiments have short prose labels (long labels stay in tables);
+  the executive summary stands alone (no finding ids) and cites the successful-attack figures
+  itself; decision criteria are bare phrases (no repeated "If you value" / "option X fits,
+  because"). All enforced by the grounding check (`structure`). **Stopping rule (designer):**
+  this is the last re-run for wording; only a factual error (wrong figure, wrong direction, an
+  implied recommendation) justifies another paid run.

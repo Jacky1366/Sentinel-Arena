@@ -84,7 +84,9 @@ def test_committed_labels_and_baselines_are_reader_facing():
     from analyst import grounding
     m = json.loads(build_summary.MANIFEST.read_text())
     models = {"gpt-6-luna", "deepseek-v4-pro", "claude-sonnet-5-5"}
-    texts = [g["label"] for g in m["groups"]] + [c["baseline"] for c in m["comparisons"]]
+    texts = ([g["label"] for g in m["groups"]] + [g["short_label"] for g in m["groups"]]
+             + [c["baseline"] for c in m["comparisons"]] + [c["label"] for c in m["comparisons"]])
+    assert all(len(g["short_label"]) < len(g["label"]) for g in m["groups"])
     for t in texts:
         rest = grounding._strip_allowed(t, models)
         assert not re.search(r"\d", rest), t

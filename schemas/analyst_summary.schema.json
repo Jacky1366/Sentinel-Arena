@@ -338,6 +338,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "short_label": {
+            "type": "string",
+            "minLength": 1
           }
         }
       }

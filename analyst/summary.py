@@ -272,7 +272,9 @@ def build(manifest: dict, *, prices: dict, registry: test_data.Registry | None =
         if dup:
             raise ValueError(f"duplicate figure keys: {sorted(dup)}")
         figures.update(figs)
-        groups.append({"id": g["id"], "label": g.get("label", g["id"]), "kind": g["kind"],
+        groups.append({"id": g["id"], "label": g.get("label", g["id"]),
+                       **({"short_label": g["short_label"]} if g.get("short_label") else {}),
+                       "kind": g["kind"],
                        "blue": g.get("blue"), "basis": g.get("basis"),
                        "folders": len(dirs), "notes": notes})
         descriptive["groups"][g["id"]] = {**_models(dirs), **desc}

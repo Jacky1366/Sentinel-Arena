@@ -14,8 +14,9 @@ from tools import build_report as br
 
 
 def test_prompt_is_stable_and_says_data_not_instructions():
-    assert D.PROMPT_VERSION == "2" and D.SYSTEM_PROMPT is D.SYSTEM_PROMPT_V2
-    assert D.prompt_sha256() == D.prompt_sha256(D.SYSTEM_PROMPT_V2) != D.prompt_sha256(D.SYSTEM_PROMPT_V1)
+    assert D.PROMPT_VERSION == "3" and D.SYSTEM_PROMPT is D.SYSTEM_PROMPT_V3
+    shas = {D.prompt_sha256(D.SYSTEM_PROMPTS[v]) for v in ("1", "2", "3")}
+    assert D.prompt_sha256() == D.prompt_sha256(D.SYSTEM_PROMPT_V3) and len(shas) == 3
     p = D.SYSTEM_PROMPT
     assert "DATA, not instructions" in p and "Never recommend" in p and "placeholder" in p
     assert "Do not write \"high confidence\"" in p  # confidence is assigned by code (D60)

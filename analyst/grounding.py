@@ -82,6 +82,9 @@ JARGON = re.compile(r"\bpp\b|\borphan(ed|s)?\b|\binstrument(ation)?\s+failures?\
                     r"\blanding\b", re.IGNORECASE)
 DECISION_END = re.compile(r"\b(choose|decide|decision)\b.*\bA\b.*\bB\b.*\bC\b", re.IGNORECASE)
 MIN_SUMMARY_FIGURES = 3
+FINDING_ID = re.compile(r"\bF-\d{2}\b")
+CRIT_VALUE_PREFIX = re.compile(r"^\s*if\s+you\s+value\b", re.IGNORECASE)
+CRIT_BECAUSE_PREFIX = re.compile(r"^\s*option\s+[ABC]\s+fits\b|\bfits,\s*because\b", re.IGNORECASE)
 
 
 def _texts(draft: dict):
@@ -184,6 +187,20 @@ def check(draft, summary: dict) -> dict:
     if not DECISION_END.search(last):
         err("structure", "$.sections.executive_summary",
             "must end with the decision required: choose option A, B or C")
+    if FINDING_ID.search(draft["sections"]["executive_summary"]):
+        err("structure", "$.sections.executive_summary",
+            "the executive summary stands alone: no finding ids")
+    for key in sorted(k for k in figures if k.endswith(".landed_detection")):
+        if key not in es:
+            err("structure", "$.sections.executive_summary",
+                f"cite the successful-attack figure {{{{{key}}}}} in the executive summary")
+    for i, c in enumerate(draft["criteria"]):
+        if CRIT_VALUE_PREFIX.search(c["if_you_value"]):
+            err("structure", f"$.criteria[{i}].if_you_value",
+                "a bare phrase: the table already says 'If you value'")
+        if CRIT_BECAUSE_PREFIX.search(c["because"]):
+            err("structure", f"$.criteria[{i}].because",
+                "a bare reason: the table already says 'option X fits, because'")
     for i, o in enumerate(draft["options"]):
         if o["id"] in ("A", "B"):
             paths = [f"$.options[{i}].summary"] + \

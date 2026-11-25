@@ -144,7 +144,7 @@ stats/autonomy.py       autonomy table (M6): per-CWE detection / FP / rule cover
 analyst/confidence.py   D60 (a) as code: figure / finding confidence; exact Clopper-Pearson 95%
 analyst/summary.py      #16: summary.json from frozen evidence via the existing stats (no payloads, D53)
 analyst/fmt.py          #17: report number formats (designer Q4: % with count, 95% CI a–b%, change with baseline)
-analyst/draft.py        #17: the AI analyst: prompt v2 (v1 frozen; data not instructions, no recommendation, key figures + decision required, plain language), values + labels + confidence + CI shown, retry with grounding errors (max 3)
+analyst/draft.py        #17: the AI analyst: prompt v3 (v1, v2 frozen; short prose labels; data not instructions, no recommendation, key figures + decision required, plain language), values + labels + confidence + CI shown, retry with grounding errors (max 3)
 analyst/render.py       #17: Jinja2 (pinned, autoescape) render of the frozen template analyst/templates/report.html.j2 (D56/D57): decision brief + full report, labels in the body, glossary
 analyst/grounding.py    #16: grounding check (placeholders, bare numbers, number words, refs, recommendation; D55, D60 b)
 liveserver/             Stage 7 #12: read-only live server (stdlib, 127.0.0.1, SSE) + tailer; `python -m liveserver` (README)

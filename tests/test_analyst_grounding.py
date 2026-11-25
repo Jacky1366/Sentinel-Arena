@@ -32,7 +32,7 @@ VALID = {
     "schema_version": "0.1",
     "sections": {
         "executive_summary": "Original Blue detected {{gate_b.detection.pct}} of checked "
-                             "known-type attacks (CWE-89, CWE-79, CWE-22), see F-01. On free-play "
+                             "known-type attacks (CWE-89, CWE-79, CWE-22). On free-play "
                              "traffic it detected {{freeplay_original.detection}}; the open prompt's "
                              "false alarms were {{fp_check_open.fp}}. The decision required: "
                              "choose option A, B or C.",
@@ -210,3 +210,38 @@ def test_a_finding_never_mixes_unchecked_and_checked_figures():
                                   "Sealed benign requests.", "Landing was measured."])
 def test_internal_jargon_is_rejected(text):
     assert "jargon" in codes(check(planted(("sections", "limitations"), text), SUMMARY))
+
+
+# -- #17 review round 2 ------------------------------------------------------------------
+
+def test_executive_summary_has_no_finding_ids():
+    d = planted(("sections", "executive_summary"), VALID["sections"]["executive_summary"].replace(
+        "(CWE-89, CWE-79, CWE-22).", "(CWE-89, CWE-79, CWE-22); see F-01."))
+    res = check(d, SUMMARY)
+    assert any(e["code"] == "structure" and "finding ids" in e["detail"] for e in res["errors"])
+
+
+def test_executive_summary_cites_every_successful_attack_figure():
+    s = copy.deepcopy(SUMMARY)
+    s["figures"]["freeplay_original.landed_detection"] = fig("Moderate")
+    s["figures"]["freeplay_open.landed_detection"] = fig("Moderate")
+    res = check(copy.deepcopy(VALID), s)
+    missing = sorted(e["detail"] for e in res["errors"] if e["code"] == "structure")
+    assert len(missing) == 2 and all("landed_detection" in m for m in missing)
+    d = copy.deepcopy(VALID)
+    d["sections"]["executive_summary"] = d["sections"]["executive_summary"].replace(
+        "The decision required", "Successful attacks flagged: {{freeplay_original.landed_detection}} "
+        "vs {{freeplay_open.landed_detection}}. The decision required")
+    assert check(d, s)["ok"]
+
+
+@pytest.mark.parametrize("field,text", [
+    ("if_you_value", "If you value few false alarms"),
+    ("because", "option A fits, because it is precise"),
+    ("because", "it fits, because it is precise"),
+])
+def test_criteria_are_bare_phrases(field, text):
+    d = copy.deepcopy(VALID)
+    d["criteria"][0][field] = text
+    assert any(e["code"] == "structure" and e["path"] == f"$.criteria[0].{field}"
+               for e in check(d, SUMMARY)["errors"])
