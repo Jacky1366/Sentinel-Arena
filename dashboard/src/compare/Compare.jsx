@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import {
   ARM_NAMES, armCards, cell, defaultMatch, matchTabs, pct, plain, takeaway, visibleRows,
 } from "./compareModel.js";
+import { SUCCESS_RULES } from "../battle/model.js";
 
 // Compare view (Stage 7 #15, D52; #29 clarity pass). Two defenders over the SAME attacks.
 // For a non-technical audience: the question on top, detection AND false alarms side by side
@@ -114,6 +115,7 @@ export default function Compare() {
 
       <div className="flex flex-col gap-4 lg:flex-row">{cards.map((a) => <ArmCard key={a.id} a={a} />)}</div>
       {line && <div className="rounded-xl bg-slate-900 px-5 py-3 text-2xl font-bold text-white">{line}</div>}
+      <div className="text-lg text-slate-400">★ {SUCCESS_RULES.any} (free-attacker matches)</div>
 
       <details className="rounded-xl border border-amber-600/60 bg-amber-950/30 px-4 py-2" open={limits}
         onToggle={(e) => setLimits(e.currentTarget.open)}>

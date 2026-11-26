@@ -31,8 +31,8 @@ function events(matchId = "m1", extra = {}) {
   push("benign_request", { row: { request_id: RID(4), benign_id: "n02" } });
   push("proxy_frozen");
   push("rule", { row: { rule_id: "r-001" } });
-  push("round_record", { row: { round: 1, request_id: RID(1), detected: true, landed: true } });
-  push("round_record", { row: { round: 2, request_id: RID(3), detected: false, landed: true } });
+  push("round_record", { row: { round: 1, request_id: RID(1), detected: true, landed: true, newly_solved: ["Login Admin"] } });
+  push("round_record", { row: { round: 2, request_id: RID(3), detected: false, landed: true, newly_solved: ["Confidential Document"] } });
   push("benign_result", { row: { request_id: RID(2), false_positive: true } });
   push("benign_result", { row: { request_id: RID(4), false_positive: false } });
   push("match_finished", { status: "completed" });
@@ -59,7 +59,7 @@ test("turn cards: one outcome each, a star when the attack succeeded; nothing be
   const cards = turnCards(s);
   assert.deepEqual(cards.map((c) => [c.round, c.outcome, c.succeeded]),
     [[1, "caught", true], [2, "missed", true], [3, "not sent", false]]);
-  assert.deepEqual(stats4(s), { attacks: 2, caught: 1, missed: 1, succeeded: 2, verdictsShown: true });
+  assert.deepEqual(stats4(s), { attacks: 2, caught: 1, missed: 1, succeeded: 2, rule: "mapped", verdictsShown: true });
   assert.equal(normalLine(s).text, "2 normal requests · 1 false alarm");
   assert.deepEqual(missedAttacks(s), [{ round: 2, technique: "file access", succeeded: true }]);
 });
@@ -77,7 +77,7 @@ test("library rules and new rules are counted apart", () => {
 
 test("summary row counts every Judge result of a finished run, whatever the reveal shows", () => {
   assert.deepEqual(summaryRow(run(events())), { attacks: 2, caught: 1, missed: 1, succeededMissed: 1,
-    succeeded: 2, falseAlarms: 1, normal: 2 });
+    succeeded: 2, rule: "mapped", falseAlarms: 1, normal: 2 });
   assert.equal(summaryRow(initialState()), null);
 });
 
@@ -209,4 +209,30 @@ test("sessions: the stage shows only runs of the current demo session", async ()
   let cur2 = null;
   for (const ev of [{ type: "match_started", match_id: "m1", session_id: "s1" }]) cur2 = reduceSession(cur2, ev);
   assert.equal(cur2, "s1");
+});
+
+test("succeeded: free-play = any solved challenge (D41); taxonomy = the Judge's mapped landing", async () => {
+  const { successRule, SUCCESS_RULES } = await import("../src/battle/model.js");
+  assert.equal(successRule("freeplay"), "any");
+  assert.equal(successRule("open"), "any");
+  assert.equal(successRule("taxonomy"), "mapped");
+  assert.equal(successRule(null), "mapped");
+  assert.match(SUCCESS_RULES.any, /any challenge/);
+  // turn 2 solved a challenge outside its type: landed false (mapped), newly_solved set (D41)
+  const evs = events("m1", { matchup: "freeplay" }).map((e) => (e.type === "round_record" && e.row.round === 2
+    ? { ...e, row: { ...e.row, landed: false, newly_solved: ["Error Handling"] } }
+    : e.type === "round_record" ? { ...e, row: { ...e.row, newly_solved: ["Login Admin"] } } : e));
+  const free = playAll(evs);
+  assert.equal(stats4(free).succeeded, 2);
+  assert.equal(stats4(free).rule, "any");
+  assert.deepEqual(summaryRow(free).succeeded, 2);
+  assert.deepEqual(summaryRow(free).succeededMissed, 1);
+  const tax = playAll(evs.map((e) => (e.type === "match_started" ? { ...e, matchup: "taxonomy" } : e)));
+  assert.equal(stats4(tax).succeeded, 1);
+  assert.equal(summaryRow(tax).succeededMissed, 0);
+  // the mapped rule is unknown before the Judge's results; free-play shows the live solves
+  const before = (m) => evs.filter((e) => !["round_record", "benign_result", "match_finished"].includes(e.type))
+    .map((e) => (e.type === "match_started" ? { ...e, matchup: m } : e)).reduce(reduce, initialState("live"));
+  assert.equal(stats4(before("taxonomy")).succeeded, null);
+  assert.equal(stats4(before("freeplay")).succeeded, 2);
 });
