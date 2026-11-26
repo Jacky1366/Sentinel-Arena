@@ -200,3 +200,39 @@ the decision criterion (report section 8) behind it, and fills in the decision r
   because"). All enforced by the grounding check (`structure`). **Stopping rule (designer):**
   this is the last re-run for wording; only a factual error (wrong figure, wrong direction, an
   implied recommendation) justifies another paid run.
+
+## Demo (continued)
+
+**D61 — Demo structure: three matchups, three commands (designer, 2026-11-26).**
+The demo shows three matchups. The presenter starts each one separately, from the terminal,
+with `ARENA_GO` (D48).
+
+1. **Limited attacker vs limited defender.** A taxonomy match: Red `deepseek-v4-pro`, effort
+   max, prompt v1, the Gate B-deepseek configuration, against original Blue.
+   Command: `scripts/demo.sh --taxonomy`.
+2. **Free attacker vs limited defender.** A free-play match (the D46 configuration) against
+   original Blue. Command: `scripts/demo.sh` (default).
+3. **Free attacker vs free defender (same attacks as 2).** Open Blue re-judges the frozen log
+   of matchup 2. Open Blue uses prompt v3-open, as in the gate-6.3-C-open replays (D42).
+   - This is a replay, so open Blue stays replay-only (D44). No new match is run, and the
+     evaluated configuration is unchanged.
+   - Both Blues judge the same traffic, so the comparison with matchup 2 has no confound.
+   - Command: `scripts/demo.sh --open-replay`. It uses the latest completed free-play demo
+     match and refuses if there is none.
+
+Rules for all three matchups:
+- All three are `purpose=dev`: samples, never evidence (D45). Nothing is pooled with Stage 6
+  results.
+- Matchups 1 and 2 are paid live matches, and matchup 3 is a paid replay (Blue calls only),
+  so all three need `ARENA_GO`.
+- The backup Red `gpt-6-luna` (`--luna`, D46) covers matchups 1 and 2.
+
+Relation to earlier decisions:
+- **D45** (amended). The demo has three live parts instead of one. Each matchup has its own
+  golden run, recorded in the E2E runs (D58) and played with
+  `scripts/demo.sh --replay taxonomy | freeplay | open` (no GO, no network). Any golden run
+  shown is announced as recorded.
+- **D47.** Matchups 1 and 2 keep the three acts. Matchup 3 has no attack act: the attacks
+  are those of matchup 2. It shows both Blues' verdicts on the same attacks and normal
+  requests side by side.
+- **D50.** The animation honesty rules apply unchanged.
