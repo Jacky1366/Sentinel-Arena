@@ -196,9 +196,11 @@ def main(argv: list[str] | None = None) -> int:
               f"command (never set by this tool)", file=sys.stderr)
         return 2
     if args.open_replay:
+        print("demo matchup: open", flush=True)  # the live server's matchup line (D61)
         return open_replay()
     if args.one_turn:
         return one_turn(kw)
+    print(f"demo matchup: {args.matchup}", flush=True)
     code, _ = run_match.run_match(**kw)
     return code
 

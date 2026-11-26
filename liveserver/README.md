@@ -31,11 +31,14 @@ ARENA_GO=manual-<what> .venv/bin/python -u run_match.py <flags> 2>&1 | tee data/
 
 Each SSE message is `id: N` + `data: {"id": N, "type": ..., "observed_at": <UTC, when the server saw it>, "match_id": ..., ...}`. Artifact
 events carry the line as `row`. A client connecting mid-match receives the whole current
-match first; `match_started` starts a new history (reset the view).
+history first: the last 10 runs (matches or replays), each beginning with its
+`match_started` (D61: the Battle view splits them into runs; a single-run view resets there).
 
 | type | from | extra fields |
 |---|---|---|
 | `match_started` | `live/match.lock` (or the transcript's `match <id> ->` line; or its `replay <id> of <match> -> <dir>` line for a Blue replay under `data/replays/`, D61 matchup 3) | `pid`, `started_at`, `source`, `kind` (`match` \| `replay`), `source_match_id` (replay: the re-judged match) |
+| `matchup` | transcript `demo matchup: taxonomy\|freeplay\|open` (`tools/demo_match.py`), printed before the run starts; attached once to the next run | `matchup` |
+| `source_results` | replay only: the re-judged match's `rounds.jsonl` + `benign_results.jsonl` in `data/runs/<source>/`, only if finished and not test data (D59) | `source_match_id`, `rounds` [`round`, `request_id`, `detected`, `landed`], `benign` [`request_id`, `false_positive`] |
 | `match_plan` | transcript `seed …` line | `seed`, `n_red`, `n_benign`, `planned` (kinds in slot order; `derived: true`, the orchestrator's `runner/schedule.plan`) |
 | `target_reset` | transcript | `solved` |
 | `library_loaded` | `<run>/library.json` | `library_version`, `n_rules` |

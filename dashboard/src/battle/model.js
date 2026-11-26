@@ -10,6 +10,21 @@
 
 export const ACTS = { IDLE: 0, ATTACK: 1, ANALYSIS: 2, VERDICT: 3 };
 const FEED_MAX = 200;
+export const KEEP_RUNS = 10; // as the live server (liveserver/tailer.py KEEP_RUNS)
+
+// D61: the demo's three matchups, in plain words (projector, non-technical audience).
+export const MATCHUPS = {
+  taxonomy: { n: 1, title: "1 · Limited attacker vs limited defender" },
+  freeplay: { n: 2, title: "2 · Free attacker vs limited defender" },
+  open: { n: 3, title: "3 · Free attacker vs free defender (same attacks as 2)" },
+};
+export const MATCHUP_ORDER = ["taxonomy", "freeplay", "open"];
+
+// The golden run of each matchup is the bundle golden-<matchup> (tools/export_golden.py).
+export function matchupOfBundle(name) {
+  const m = /^golden-(taxonomy|freeplay|open)$/.exec(name || "");
+  return m ? m[1] : null;
+}
 
 export function initialState(mode = "live") {
   return {
@@ -28,6 +43,11 @@ export function initialState(mode = "live") {
     cost: { usd: 0, calls: 0, lowerBound: false },
     catalog: {},
     library: null,
+    newRules: 0, // rules Blue invented in this run (rules.jsonl); the library's are separate
+    matchup: null, // D61: taxonomy | freeplay | open (from `demo matchup:` or the bundle name)
+    runKind: "match", // match | replay
+    sourceMatchId: null, // replay: the match whose log is re-judged
+    source: null, // replay: the re-judged match's own results {rounds, benign} (original Blue)
     results: { rounds: {}, benign: {}, verdicts: 0, ready: false },
     reveal: { index: -1, done: false },
     finish: null,
@@ -87,6 +107,21 @@ export function attackView(row) {
   };
 }
 
+// An attack in plain words: Red's own technique when the run has it (live, free-play), else
+// the name of its label (recorded bundles carry no technique, contract §6.14).
+export const LABEL_NAMES = {
+  "CWE-89": "SQL injection", "CWE-79": "cross-site scripting", "CWE-22": "path traversal",
+  other: "an attack outside the three known types",
+};
+export const attackName = (a) => (a ? a.technique || LABEL_NAMES[a.label] || a.label || null : null);
+
+// A Red turn with nothing sent, in plain words.
+export const UNSENT_WHAT = {
+  guard_block: "blocked by the rules of engagement",
+  brain_failure: "the AI's reply was unusable",
+  instrument_failure: "the AI call failed",
+};
+
 // The Judge's fact for a revealed slot -> the timeline outcome.
 export function outcomeOf(slot, results) {
   if (slot.kind === "red") {
@@ -110,7 +145,14 @@ export function reduce(state, ev) {
     s.act = ACTS.ATTACK;
     s.startedAt = ev.started_at ?? ev.observed_at ?? null;
     s.lastEventId = ev.id ?? null;
-    feed(s, `Match ${s.matchId ?? ""} started`, "slate", ev.observed_at);
+    s.matchup = ev.matchup ?? null;
+    s.runKind = ev.kind === "replay" ? "replay" : "match";
+    s.sourceMatchId = ev.source_match_id ?? null;
+    // A recorded run knows its number of Red turns up front (from the bundle): lay out the
+    // turn cards at once, as the live plan does. Pending until their own events arrive.
+    for (let r = 1; r <= (ev.red_turns || 0); r++) s.slots.push({ kind: "red", round: r, state: "pending" });
+    feed(s, s.runKind === "replay" ? "The free defender starts reading the same requests" : "Match started",
+      "slate", ev.observed_at);
     return s;
   }
   if (ev.type === "reveal_next") return revealNext(state);
@@ -133,14 +175,26 @@ export function reduce(state, ev) {
         s.slots = s.plan.map((k) => (k === "red" ? (reds[++r] || { kind: "red", round: r, state: "pending" })
           : (benign[b++] || { kind: "benign", state: "pending" })));
       }
-      feed(s, `Plan: ${ev.n_red} Red turns, ${ev.n_benign} benign requests (seed ${ev.seed})`, "slate", at);
+      feed(s, `Plan: ${ev.n_red} attacker turns mixed with ${ev.n_benign} normal requests`, "slate", at);
       break;
     }
     case "target_reset":
-      feed(s, `Target reset: ${ev.solved} challenges solved`, "slate", at);
+      feed(s, "The web shop is reset: nothing hacked yet", "slate", at);
       break;
     case "library_loaded":
       s.library = { version: ev.library_version, rules: ev.n_rules };
+      break;
+    case "matchup":
+      s.matchup = ev.matchup ?? s.matchup;
+      break;
+    case "source_results":
+      s.source = {
+        rounds: Object.fromEntries((ev.rounds || []).map((r) => [r.round, r])),
+        benign: Object.fromEntries((ev.benign || []).map((b) => [b.request_id, b])),
+      };
+      break;
+    case "rule":
+      s.newRules += 1;
       break;
     case "challenge_catalog":
       s.catalog = ev.categories || {};
@@ -150,7 +204,7 @@ export function reduce(state, ev) {
       putSlot(s, i, { state: "active" });
       s.red = { phase: "thinking", round: ev.round, since: at, slot: i, attack: null, failure: null };
       s.target = { ...s.target, burst: null }; // the last turn's banner ends with the next turn
-      feed(s, `Red turn ${ev.round}: thinking…`, "rose", at);
+      feed(s, `Attacker turn ${ev.round}: thinking…`, "rose", at);
       break;
     }
     case "api_call": {
@@ -158,7 +212,7 @@ export function reduce(state, ev) {
         lowerBound: s.cost.lowerBound || !!ev.usd_lower_bound };
       if (row.agent === "red" && row.ok === false) {
         const secs = row.latency_ms != null ? ` after ${(row.latency_ms / 1000).toFixed(1)} s` : "";
-        feed(s, `Red call (turn ${row.round}, attempt ${row.attempt}) failed: ${row.error_type}${secs}`, "amber", at);
+        feed(s, `Attacker turn ${row.round}: the AI call failed${secs} (${row.error_type})`, "amber", at);
       } else if (row.agent === "blue") {
         s.blue = { ...s.blue, calls: s.blue.calls + 1,
           failedCalls: s.blue.failedCalls + (row.ok === false ? 1 : 0),
@@ -180,7 +234,7 @@ export function reduce(state, ev) {
       const a = attackView(row);
       putSlot(s, i, { state: "sent", requestId: row.request_id, attack: a });
       s.red = { phase: "attack", round: row.round, since: s.red.since, slot: i, attack: a, failure: null };
-      feed(s, `Red turn ${row.round}: ${a.technique || a.label} → ${a.method} ${short(a.endpoint, 60)}`, "rose", at);
+      feed(s, `Attacker turn ${row.round}: ${attackName(a)} → ${a.method} ${short(a.endpoint, 60)}`, "rose", at);
       break;
     }
     case "red_unsent": {
@@ -188,9 +242,7 @@ export function reduce(state, ev) {
       const failure = { kind: row.kind, reason: row.reason, detail: row.detail ?? null };
       putSlot(s, i, { state: "unsent", failure });
       s.red = { phase: "failed", round: row.round, since: s.red.since, slot: i, attack: null, failure };
-      const what = { guard_block: "blocked by the rules of engagement", brain_failure: "unusable reply",
-        instrument_failure: "call failed" }[row.kind] || row.kind;
-      feed(s, `Red turn ${row.round}: nothing sent — ${what} (${row.reason})`, "amber", at);
+      feed(s, `Attacker turn ${row.round}: nothing sent (${UNSENT_WHAT[row.kind] || row.kind})`, "amber", at);
       break;
     }
     case "benign_request": {
@@ -206,7 +258,7 @@ export function reduce(state, ev) {
         putSlot(s, i, { status: row.status });
         if (s.slots[i].kind === "red") {
           s.target = { ...s.target, hit: { status: row.status, requestId: row.request_id, seq: s.proxyLines } };
-          feed(s, `Target answered Red turn ${s.slots[i].round}: HTTP ${row.status}`, "slate", at);
+          feed(s, `The web shop answered attacker turn ${s.slots[i].round}: HTTP ${row.status}`, "slate", at);
         }
       }
       break;
@@ -218,8 +270,8 @@ export function reduce(state, ev) {
       if (newly.length) {
         s.target = { ...s.target, burst: { names: newly, requestId: row.request_id,
           traffic: row.traffic, seq: (s.target.burst?.seq || 0) + 1 } };
-        const who = row.traffic === "red" ? "Red" : "benign traffic";
-        feed(s, `Challenge solved by ${who}: ${newly.join(", ")}`, row.traffic === "red" ? "rose" : "amber", at);
+        const who = row.traffic === "red" ? "The attack succeeded" : "Normal traffic solved a challenge";
+        feed(s, `${who}: ${newly.join(", ")}`, row.traffic === "red" ? "rose" : "amber", at);
       }
       break;
     }
@@ -229,7 +281,7 @@ export function reduce(state, ev) {
       if (s.act < ACTS.ANALYSIS) s.act = ACTS.ANALYSIS;
       s.red = { ...s.red, phase: "done" };
       s.target = { ...s.target, burst: null };
-      feed(s, "Traffic done. Blue reads the frozen log now (it was never on the traffic path).", "sky", at);
+      feed(s, "Attacks over. Blue now reads the record of every request (it never stood in the way).", "sky", at);
       break;
     case "landed":
       break;
@@ -244,7 +296,7 @@ export function reduce(state, ev) {
       break;
     case "match_failed":
       s.failure = { step: ev.step, error: ev.error };
-      feed(s, `Match failed at step '${ev.step}'`, "amber", at);
+      feed(s, "The run stopped with an error", "amber", at);
       break;
     case "match_finished": {
       s.finish = { status: ev.status, failedStep: ev.failed_step ?? null, error: ev.error ?? null,
@@ -261,7 +313,7 @@ export function reduce(state, ev) {
         s.results = { ...s.results, ready: true };
         s.reveal = { index: -1, done: s.slots.length === 0 };
       }
-      feed(s, `Match ${ev.status}. Judge facts ready.`, "slate", at);
+      feed(s, ev.status === "failed" ? "The run stopped with an error" : "Results are in", "slate", at);
       break;
     }
     case "tail_warning":
@@ -319,11 +371,17 @@ export function blueProgress(s) {
 // ---------------------------------------------------------------- REPLAY: bundle -> events
 // Built only from the bundle's fields (exported from the artifacts). Each step becomes the
 // events the live tailer would have emitted for it; unsent Red turns are placed by round.
-export function bundleToEvents(bundle) {
+export function bundleToEvents(bundle, opts = {}) {
   const out = [];
   let id = 0;
   const push = (type, data = {}) => out.push({ id: ++id, type, match_id: bundle.match_id, ...data });
-  push("match_started", { source: "bundle" });
+  const rounds = [...(bundle.steps || []).map((st) => (st.red?.kind === "attack" ? st.red.round : 0)),
+    ...(bundle.unsent || []).map((u) => u.round)];
+  push("match_started", { source: "bundle", kind: bundle.kind === "replay" ? "replay" : "match",
+    red_turns: rounds.length ? Math.max(...rounds) : 0,
+    matchup: opts.matchup ?? null, source_match_id: bundle.kind === "replay" ? bundle.match_id : null });
+  // Matchup 3: the re-judged match's own results, from its bundle (same match_id, D61).
+  if (opts.source) push("source_results", sourceResultsOf(opts.source));
   if (bundle.meta?.library) push("library_loaded", { library_version: bundle.meta.library.library_version,
     n_rules: bundle.meta.library.entries });
   const steps = bundle.steps || [];
@@ -354,6 +412,7 @@ export function bundleToEvents(bundle) {
   }
   flushUnsent(null);
   push("proxy_frozen");
+  for (const r of bundle.rules || []) if (r.origin === "match") push("rule", { row: { rule_id: r.rule_id } });
   for (const st of steps) {
     push("blue_progress", { log_seq: st.log_seq, ai_call: st.blue?.source === "ai" });
     if (st.cost_so_far) push("cost_total", { usd: st.cost_so_far.usd, calls: st.cost_so_far.calls });
@@ -373,7 +432,12 @@ export function bundleToEvents(bundle) {
 }
 
 // REPLAY pacing (ms before an event is shown). Pacing only: nothing here changes a fact.
-export function replayDelay(ev) {
+// Matchup 3 (skipAttack) has no attack act: its traffic is the attacks of matchup 2, so
+// those events pass without pacing and the replay starts at the defender reading them.
+const TRAFFIC_EVENTS = new Set(["red_turn_start", "red_attack", "red_unsent", "proxy_line", "snapshot",
+  "benign_request"]);
+export function replayDelay(ev, skipAttack = false) {
+  if (skipAttack && TRAFFIC_EVENTS.has(ev.type)) return 0;
   switch (ev.type) {
     case "red_turn_start": return 900;
     case "red_attack": return 1400;
@@ -395,4 +459,146 @@ export function playAll(events, mode = "live") {
   let guard = s.slots.length + 2;
   while (s.act === ACTS.VERDICT && !s.reveal.done && guard-- > 0) s = revealNext(s);
   return s;
+}
+
+// The original Blue's results of a match bundle, as the live tailer's source_results event.
+export function sourceResultsOf(bundle) {
+  const steps = bundle.steps || [];
+  return {
+    source_match_id: bundle.match_id,
+    rounds: steps.filter((st) => st.judge?.kind === "attack").map((st) => ({ round: st.red.round,
+      request_id: st.request_id, detected: st.judge.detected, landed: st.judge.landed })),
+    benign: steps.filter((st) => st.judge?.kind === "benign").map((st) => ({ request_id: st.request_id,
+      false_positive: st.judge.false_positive })),
+  };
+}
+
+// The bundle a matchup-3 bundle re-judges: the match bundle with the same match_id.
+export function sourceBundleFor(bundle, bundles) {
+  if (!bundle || bundle.kind !== "replay") return null;
+  return Object.values(bundles || {}).find((b) => b.kind === "match" && b.match_id === bundle.match_id) || null;
+}
+
+// ---------------------------------------------------------------- runs (D61 switcher)
+// LIVE: the server's history holds several runs, each starting with match_started. Every run
+// keeps its own model state, so the presenter can return to an earlier matchup.
+export function reduceRuns(runs, ev) {
+  if (!ev || typeof ev !== "object") return runs;
+  if (ev.type === "match_started") {
+    const id = ev.match_id ?? `run-${runs.length + 1}`;
+    const kept = runs.filter((r) => r.id !== id); // a reconnect replays history: same run again
+    return [...kept, { id, state: reduce(initialState("live"), ev) }].slice(-KEEP_RUNS);
+  }
+  if (ev.type === "reveal_next") {
+    return runs.map((r) => (r.id === ev.run ? { ...r, state: revealNext(r.state) } : r));
+  }
+  if (!runs.length) return runs;
+  const target = ev.match_id != null ? runs.findIndex((r) => r.id === ev.match_id) : runs.length - 1;
+  const i = target >= 0 ? target : runs.length - 1;
+  const next = reduce(runs[i].state, ev);
+  if (next === runs[i].state) return runs;
+  const out = runs.slice();
+  out[i] = { ...runs[i], state: next };
+  return out;
+}
+
+// The latest live run of a matchup (the switcher's first choice; else its golden run).
+export function latestRunOf(runs, matchup) {
+  for (let i = runs.length - 1; i >= 0; i--) if (runs[i].state.matchup === matchup) return runs[i];
+  return null;
+}
+
+// ---------------------------------------------------------------- display selectors
+const isRed = (x) => x.kind === "red";
+const judged = (s, round) => (s.results.ready ? s.results.rounds[round] : null);
+
+// Did this attack succeed? The Judge's landed fact once results are in; before, a challenge
+// solved right after the request (the live snapshot).
+export function succeeded(s, slot) {
+  const r = judged(s, slot.round);
+  if (r) return r.landed === true;
+  return (slot.newlySolved || []).length > 0;
+}
+
+// Item 5: one large card per Red turn, one outcome each.
+export function turnCards(s) {
+  return s.slots.filter(isRed).map((x) => ({
+    round: x.round,
+    state: x.state, // pending | active | sent | unsent
+    outcome: x.outcome === "TP" ? "caught" : x.outcome === "FN" ? "missed" : x.outcome === "unsent" ? "not sent"
+      : x.outcome === "unscored" ? "no result" : null,
+    succeeded: x.state === "sent" && succeeded(s, x),
+    technique: attackName(x.attack),
+  }));
+}
+
+// Item 5: normal traffic as one line; false alarms once the reveal is done.
+export function normalLine(s) {
+  const benign = s.slots.filter((x) => x.kind === "benign");
+  const sent = benign.filter((x) => x.state === "sent").length;
+  const done = s.act === ACTS.VERDICT && s.reveal.done;
+  const alarms = done ? benign.filter((x) => x.outcome === "FP").length : null;
+  return { sent, alarms, text: `${sent} normal request${sent === 1 ? "" : "s"}${done ? ` · ${alarms} false alarm${alarms === 1 ? "" : "s"}` : ""}` };
+}
+
+// Item 6: four numbers. Caught / missed count revealed turns only (Act 3 pacing, D50).
+export function stats4(s) {
+  const reds = s.slots.filter(isRed);
+  return {
+    attacks: reds.filter((x) => x.state === "sent").length,
+    caught: reds.filter((x) => x.outcome === "TP").length,
+    missed: reds.filter((x) => x.outcome === "FN").length,
+    succeeded: reds.filter((x) => x.state === "sent" && succeeded(s, x)).length,
+    verdictsShown: s.act === ACTS.VERDICT,
+  };
+}
+
+// Item 8: the attacks Blue missed, once revealed.
+export function missedAttacks(s) {
+  return s.slots.filter((x) => isRed(x) && x.outcome === "FN").map((x) => ({
+    round: x.round, technique: attackName(x.attack),
+    succeeded: succeeded(s, x),
+  }));
+}
+
+// Item 3: matchup 3, both Blues on the same attacks. The original verdicts are the source
+// match's own results (shown from the start); the open ones appear as they are revealed.
+export function sideBySide(s) {
+  const src = s.source || { rounds: {}, benign: {} };
+  const rows = s.slots.filter((x) => isRed(x) && x.state === "sent").map((x) => {
+    const o = src.rounds[x.round];
+    return {
+      round: x.round,
+      technique: attackName(x.attack),
+      original: o ? (o.detected ? "caught" : "missed") : null,
+      open: x.outcome === "TP" ? "caught" : x.outcome === "FN" ? "missed" : null,
+      succeeded: o ? o.landed === true : succeeded(s, x),
+    };
+  });
+  const benign = s.slots.filter((x) => x.kind === "benign" && x.state === "sent");
+  const done = s.act === ACTS.VERDICT && s.reveal.done;
+  return {
+    rows,
+    normal: benign.length,
+    originalAlarms: s.source ? benign.filter((x) => src.benign[x.requestId]?.false_positive === true).length : null,
+    openAlarms: done ? benign.filter((x) => x.outcome === "FP").length : null,
+    hasSource: !!s.source,
+  };
+}
+
+// Item 4: one summary row per matchup, from a FINISHED run's Judge results (all of them,
+// whatever the reveal shows). Copy and count only.
+export function summaryRow(s) {
+  if (!s || !s.results.ready) return null;
+  const rounds = Object.values(s.results.rounds);
+  const benign = Object.values(s.results.benign);
+  return {
+    attacks: rounds.length,
+    caught: rounds.filter((r) => r.detected === true).length,
+    missed: rounds.filter((r) => r.detected === false).length,
+    succeededMissed: rounds.filter((r) => r.landed === true && r.detected === false).length,
+    succeeded: rounds.filter((r) => r.landed === true).length,
+    falseAlarms: benign.filter((b) => b.false_positive === true).length,
+    normal: benign.length,
+  };
 }

@@ -47,6 +47,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 from runner import schedule as schedule_mod  # noqa: E402  (pure)
+from stats import test_data  # noqa: E402  (manifest-only classification, D59)
 from stats import cost as cost_stats  # noqa: E402  (pure)
 
 RUNS = REPO / "data" / "runs"
@@ -66,6 +67,7 @@ RESULTS = [("landed.jsonl", "landed"), ("verdicts.jsonl", "verdict"), ("rules.js
            ("rule_results.jsonl", "rule_result")]
 
 RE_MATCH = re.compile(r"^match (\S+) -> ")
+RE_MATCHUP = re.compile(r"^demo matchup: (taxonomy|freeplay|open)$")  # tools/demo_match.py (D61)
 RE_REPLAY = re.compile(r"^replay (\S+) of (\S+) -> (\S+)")  # tools/replay_blue.py
 RE_SEED = re.compile(r"^seed (\d+) \((\w+)\): (\d+) Red \+ (\d+) benign slots")
 RE_RESET = re.compile(r"^target reset: (\d+) challenges solved")
@@ -73,9 +75,13 @@ RE_SLOT = re.compile(r"^slot\s+(\d+) (?:round (\d+)|benign (\S+))")
 RE_FAILED = re.compile(r"^MATCH FAILED at step '([^']*)': (.*)$")
 
 
+KEEP_RUNS = 10  # D61: the presenter can return to earlier matchups (the dashboard splits runs)
+
+
 class EventLog:
-    """Thread-safe event history of the CURRENT match. Ids increase across matches; a new
-    match clears the history (clients reset on match_started)."""
+    """Thread-safe event history of the last KEEP_RUNS runs (matches or replays). Ids increase
+    across runs; each run begins with its match_started (a client that shows one run resets
+    there; the Battle switcher splits the history into runs)."""
 
     def __init__(self):
         self._cond = threading.Condition()
@@ -85,7 +91,9 @@ class EventLog:
     def append(self, etype: str, data: dict) -> dict:
         with self._cond:
             if etype == "match_started":
-                self._events = []
+                starts = [i for i, e in enumerate(self._events) if e["type"] == "match_started"]
+                if len(starts) >= KEEP_RUNS:
+                    self._events = self._events[starts[len(starts) - KEEP_RUNS + 1]:]
             ev = {"id": self._next_id, "type": etype,
                   "observed_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds")
                   .replace("+00:00", "Z"), **data}
@@ -95,7 +103,7 @@ class EventLog:
             return ev
 
     def since(self, last_id: int | None) -> list[dict]:
-        """Events after last_id; the whole current match if last_id is older than it."""
+        """Events after last_id; the whole kept history if last_id is older than it."""
         with self._cond:
             if (last_id is None or not self._events or last_id < self._events[0]["id"] - 1
                     or last_id > self._events[-1]["id"]):  # a client of an earlier server run
@@ -118,6 +126,23 @@ class _File:
     offset: int = 0
     buf: bytes = b""
     inode: int | None = None
+
+
+def _jsonl(path: Path) -> list[dict]:
+    """Every complete JSON line of a finished file ([] if absent); malformed lines skipped."""
+    out = []
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return out
+    for line in text.splitlines():
+        try:
+            row = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(row, dict):
+            out.append(row)
+    return out
 
 
 def _read_lines(path: Path, st: _File) -> list[str]:
@@ -151,6 +176,7 @@ class Match:
         self.kind = kind                          # "match" | "replay" (D61 matchup 3)
         self.source_match_id = source_match_id    # replay: the match whose log is re-judged
         self.manifest = "replay.json" if kind == "replay" else "match.json"  # written last
+        self.matchup: str | None = None
         self.files: dict[str, _File] = {}
         self.proxy = _File()
         self.proxy_frozen = False
@@ -182,6 +208,7 @@ class Tailer:
         self._tx_match: str | None = None
         self._tx_backlog: list[str] = []   # lines of a match not started here yet
         self._tx_ready: list[str] = []     # lines of the current match, not yet applied
+        self._pending_matchup: str | None = None  # from `demo matchup:`, for the next run
         self._stop = threading.Event()
 
     # -- the loop -----------------------------------------------------------------
@@ -239,6 +266,33 @@ class Tailer:
             "kind": self.match.kind, "source_match_id": self.match.source_match_id})
         self._tx_ready += self._tx_backlog
         self._tx_backlog = []
+        self._claim_matchup()
+        if self.match.kind == "replay":
+            self._source_results(self.match)
+
+    def _claim_matchup(self) -> None:
+        """The demo matchup printed just before this run started (D61), once."""
+        m = self.match
+        if m is not None and m.matchup is None and self._pending_matchup is not None:
+            m.matchup, self._pending_matchup = self._pending_matchup, None
+            self.log.append("matchup", {"match_id": m.match_id, "matchup": m.matchup})
+
+    def _source_results(self, m: Match) -> None:
+        """Matchup 3: the re-judged match's own Judge results (original Blue), so both Blues
+        show side by side. Read only if that folder is finished and NOT test data (D59)."""
+        src = self.runs_dir / (m.source_match_id or "")
+        if not m.source_match_id or not (src / "match.json").is_file():
+            return
+        if test_data.classify(src, test_data.load_registry()).kind != test_data.NOT_TEST:
+            return
+        rounds = [{"round": r.get("round"), "request_id": r.get("request_id"),
+                   "detected": r.get("detected"), "landed": r.get("landed")}
+                  for r in _jsonl(src / "rounds.jsonl")]
+        benign = [{"request_id": b.get("request_id"), "false_positive": b.get("false_positive")}
+                  for b in _jsonl(src / "benign_results.jsonl")]
+        self.log.append("source_results", {"match_id": m.match_id,
+                                           "source_match_id": m.source_match_id,
+                                           "rounds": rounds, "benign": benign})
 
     def _finish(self, m: Match) -> None:
         try:
@@ -307,7 +361,7 @@ class Tailer:
         if library is not None:
             self.log.append("library_loaded", {
                 "match_id": m.match_id, "library_version": library.get("library_version"),
-                "n_rules": len(library.get("rules") or [])})
+                "n_rules": len(library.get("entries") or library.get("rules") or [])})
         self._emit(m, "api_call", [c for c in calls if c.get("agent") == "red"])
         for name, etype in TRAFFIC:
             if name in traffic:
@@ -383,6 +437,10 @@ class Tailer:
         if ino != self._tx.inode:
             self._tx = _File(inode=ino)
         for line in _read_lines(self.transcript, self._tx):
+            mu = RE_MATCHUP.match(line)
+            if mu:
+                self._pending_matchup = mu.group(1)
+                continue
             rr = RE_REPLAY.match(line)
             if rr:
                 d = self._replay_dir(rr.group(3))
@@ -399,6 +457,8 @@ class Tailer:
                 if self.match is None or self.match.match_id != self._tx_match:
                     if (self.runs_dir / self._tx_match).is_dir():
                         self._start(self._tx_match, self._lock())
+                if self.match is not None and self.match.match_id == self._tx_match:
+                    self._claim_matchup()  # the lock may have started it before this line
                 continue
             if self.match is not None and self._tx_match == self.match.match_id:
                 self._tx_ready.append(line)

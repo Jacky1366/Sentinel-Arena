@@ -182,7 +182,18 @@ def test_event_log_reconnect_semantics():
     assert [e["id"] for e in log.since(3)] == []
     assert [e["id"] for e in log.since(999)] == [1, 2, 3]  # client of an earlier server run
     log.append("match_started", {})
-    assert [e["type"] for e in log.since(2)] == ["match_started"]  # older match: full replay
+    assert [e["id"] for e in log.since(2)] == [3, 4]  # D61: earlier runs are kept
+    assert [e["type"] for e in log.since(None)] == ["x", "x", "x", "match_started"]
+
+
+def test_event_log_keeps_the_last_runs_only():
+    log = T.EventLog()
+    for run in range(T.KEEP_RUNS + 3):
+        log.append("match_started", {"match_id": f"m{run}"})
+        log.append("x", {"run": run})
+    starts = [e["match_id"] for e in log.since(None) if e["type"] == "match_started"]
+    assert starts == [f"m{r}" for r in range(3, T.KEEP_RUNS + 3)]
+    assert log.since(None)[0]["type"] == "match_started"  # never a run cut in half
 
 
 # ---- D61 matchup 3: a Blue replay followed from its transcript line --------------------
@@ -230,3 +241,65 @@ def test_a_replay_line_outside_the_replays_dir_is_never_followed(lab, tmp_path):
     tl = T.Tailer(log, live, runs, tx, prices=PRICES, replays_dir=tmp_path / "replays")
     tl.poll()
     assert log.types() == []
+
+
+def test_matchup_line_library_count_and_source_results(lab, tmp_path):  # noqa: F811
+    """D61: `demo matchup:` is attached to the next run; the library counts its entries;
+    a replay carries the re-judged match's own Judge results (original Blue)."""
+    import json as _json
+    from live_fakes import LiveOps, tee
+    from tools import replay_blue
+    live, runs, transcript = lab
+    transcript.write_text("demo matchup: freeplay\n")
+    code, src = play(lab)
+    assert code == 0
+    # the library count: a library file keeps its rules under `entries`
+    lib = {"library_version": 5, "entries": [{"rule_id": f"r{i}"} for i in range(19)]}
+    (src / "library.json").write_text(_json.dumps(lib))
+    log = T.EventLog()
+    tl = T.Tailer(log, live, runs, transcript, prices=PRICES)
+    for _ in range(5):
+        tl.poll()
+    ev = log.since(None)
+    mu = [e for e in ev if e["type"] == "matchup"]
+    assert [e["matchup"] for e in mu] == ["freeplay"] and mu[0]["match_id"] == src.name
+    assert [e["n_rules"] for e in ev if e["type"] == "library_loaded"] == [19]
+
+    replays = tmp_path / "replays"
+    tx2 = tmp_path / "r.log"
+    tx2.write_text("demo matchup: open\n")
+    out = tee(tx2)
+    rcode, rdir = replay_blue.replay(src, replays / "r1", ops=LiveOps(live, out), out_fn=out,
+                                     engine="claude", rules_mode="on")
+    assert rcode == 0
+    log2 = T.EventLog()
+    tl2 = T.Tailer(log2, live, runs, tx2, prices=PRICES, replays_dir=replays)
+    for _ in range(5):
+        tl2.poll()
+    ev2 = log2.since(None)
+    assert [e["matchup"] for e in ev2 if e["type"] == "matchup"] == ["open"]
+    sr = [e for e in ev2 if e["type"] == "source_results"]
+    assert len(sr) == 1 and sr[0]["source_match_id"] == src.name
+    assert {r["round"] for r in sr[0]["rounds"]} == {r["round"] for r in jsonl(src / "rounds.jsonl")}
+    assert len(sr[0]["benign"]) == len(jsonl(src / "benign_results.jsonl"))
+    assert set(sr[0]["rounds"][0]) == {"round", "request_id", "detected", "landed"}
+
+
+def test_source_results_never_read_from_test_data(lab, tmp_path):  # noqa: F811
+    import json as _json
+    live, runs, _ = lab
+    code, src = play(lab)
+    m = _json.loads((src / "match.json").read_text())
+    m["purpose"] = "eval"                                  # test data by construction (D35)
+    (src / "match.json").write_text(_json.dumps(m))
+    (src / "rounds.jsonl").chmod(0)                         # opening it would raise
+    replays = tmp_path / "replays"
+    (replays / "r9").mkdir(parents=True)
+    tx = tmp_path / "t.log"
+    tx.write_text(f"replay r9 of {src.name} -> {replays / 'r9'}\n")
+    log = T.EventLog()
+    try:
+        T.Tailer(log, live, runs, tx, prices=PRICES, replays_dir=replays).poll()
+    finally:
+        (src / "rounds.jsonl").chmod(0o644)
+    assert "match_started" in log.types() and "source_results" not in log.types()
