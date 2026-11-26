@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { runLabel } from "./labels.js";
 
 // Inspect view (Stage 6.4, M8; a tab since Stage 7 #13). Plays back ONE exported bundle
 // (tools/export_dashboard.py, contract §6.14). Read-only: every value shown comes from the
@@ -302,7 +303,7 @@ export default function Inspect() {
           >
             {names.map((n) => (
               <option key={n} value={n}>
-                {n}
+                {runLabel(n)}
               </option>
             ))}
           </select>

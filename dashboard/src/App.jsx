@@ -1,14 +1,16 @@
 import React, { useState } from "react";
 import Battle from "./battle/Battle.jsx";
 import { liveAvailable } from "./battle/live.js";
+import { MATCHUP_ORDER } from "./battle/model.js";
 import Compare from "./compare/Compare.jsx";
 import Inspect from "./Inspect.jsx";
 import Report from "./report/Report.jsx";
 
-// Sentinel Arena dashboard (Stage 7, D49): one index.html, two modes, three views.
+// Sentinel Arena dashboard (Stage 7, D49; #29 clarity pass): one index.html, two modes.
 //   LIVE   — opened from the live server on 127.0.0.1 (python -m liveserver): events over SSE.
-//   REPLAY — opened from file:// (or picked here): an exported bundle, announced as recorded.
-// Views: Battle (#13), Compare (#15), Report (#17); Inspect is the Stage 6.4 step-through.
+//   REPLAY — opened from file://: exported bundles, announced as recorded.
+// Main views: Battle (the three matchups, D61), Compare, Report. Inspect is an audit tool,
+// reached from the small "Audit" link.
 
 const bundles = () => (typeof window !== "undefined" && window.ARENA_BUNDLES) || {};
 
@@ -17,62 +19,47 @@ const fromHash = () => {
   return { tab: h.get("tab"), src: h.get("src") };
 };
 
-const TABS = ["battle", "compare", "report", "inspect"];
+const TABS = ["battle", "compare", "report"];
 
-function Placeholder({ title, issue, text }) {
-  return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
-      <div className="text-4xl font-black text-white">{title}</div>
-      <div className="max-w-2xl text-2xl text-slate-400">{text}</div>
-      <div className="text-lg text-slate-500">(issue {issue})</div>
-    </div>
-  );
+function initialSelection(src, live, all) {
+  if (src === "live" && live) return { kind: "follow" };
+  const name = src && src.replace(/^bundle:/, "");
+  if (name && all[name]) return { kind: "bundle", name };
+  if (live) return { kind: "follow" };
+  const golden = MATCHUP_ORDER.map((m) => `golden-${m}`).find((n) => all[n]);
+  if (golden) return { kind: "bundle", name: golden };
+  const names = Object.keys(all).sort();
+  return names.length ? { kind: "bundle", name: names[0] } : { kind: "none" };
 }
 
 export default function App() {
-  const names = Object.keys(bundles()).sort();
+  const all = bundles();
   const live = liveAvailable();
   const h = fromHash();
-  const [tab, setTab] = useState(TABS.includes(h.tab) ? h.tab : "battle");
-  const defaultSrc = h.src && (h.src === "live" ? live : names.includes(h.src.replace(/^bundle:/, "")))
-    ? h.src : live ? "live" : names.length ? `bundle:${names[0]}` : "none";
-  const [src, setSrc] = useState(defaultSrc);
-  const source = src === "live" ? { kind: "live" }
-    : src.startsWith("bundle:") ? { kind: "replay", bundle: bundles()[src.slice(7)] } : null;
+  const [tab, setTab] = useState([...TABS, "audit", "inspect"].includes(h.tab) ? (h.tab === "inspect" ? "audit" : h.tab) : "battle");
+  const [initial] = useState(() => initialSelection(h.src, live, all));
 
   return (
     <div className="min-h-screen text-slate-100">
       <nav className="flex h-14 items-center justify-between border-b border-slate-800 bg-slate-950 px-5">
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1">
+          <span className="mr-4 text-lg font-black tracking-widest text-slate-300">SENTINEL ARENA</span>
           {TABS.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`rounded-lg px-4 py-1.5 text-lg font-bold capitalize ${tab === t ? "bg-slate-200 text-slate-950" : "text-slate-400 hover:bg-slate-800"}`}
-            >
+            <button key={t} onClick={() => setTab(t)}
+              className={`rounded-lg px-4 py-1.5 text-lg font-bold capitalize ${tab === t ? "bg-slate-200 text-slate-950" : "text-slate-400 hover:bg-slate-800"}`}>
               {t}
             </button>
           ))}
         </div>
-        {tab === "battle" && (
-          <label className="flex items-center gap-2 text-base text-slate-400">
-            source
-            <select className="rounded border border-slate-700 bg-slate-900 px-2 py-1 text-slate-100" value={src}
-              onChange={(e) => setSrc(e.target.value)}>
-              {live && <option value="live">live match (this server)</option>}
-              {names.map((n) => (
-                <option key={n} value={`bundle:${n}`}>recorded: {n}</option>
-              ))}
-            </select>
-          </label>
-        )}
+        <button onClick={() => setTab(tab === "audit" ? "battle" : "audit")}
+          className={`text-sm underline-offset-4 hover:underline ${tab === "audit" ? "text-slate-200" : "text-slate-500"}`}>
+          {tab === "audit" ? "← back" : "Audit"}
+        </button>
       </nav>
-      {tab === "battle" && (source
-        ? <Battle key={src} source={source} onCompare={() => setTab("compare")} />
-        : <Placeholder title="Nothing to show" issue="#13" text="Open this page from the live server, or export a bundle." />)}
+      {tab === "battle" && <Battle live={live} bundles={all} initial={initial} onCompare={() => setTab("compare")} />}
       {tab === "compare" && <Compare />}
       {tab === "report" && <Report />}
-      {tab === "inspect" && <Inspect />}
+      {tab === "audit" && <Inspect />}
     </div>
   );
 }
