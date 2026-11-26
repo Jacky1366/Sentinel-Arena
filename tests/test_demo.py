@@ -110,8 +110,8 @@ def test_demo_kwargs_run_a_full_match_and_print_the_diagnosis(lab):  # noqa: F81
     tx = transcript.read_text()
     assert "red diagnosis: round 2 invalid_shape: stop=completed" in tx and "notes:dict" in tx
     assert "notes" not in (d / "red_unsent.jsonl").read_text()
-    # and it qualifies as the golden run, except for being under tmp (fine) — the checks:
-    assert export_golden.problems(d) == []
+    # and it qualifies as the matchup-2 golden run
+    assert export_golden.classify_run(d) == ("freeplay", [])
 
 
 # ---- golden-run export ----------------------------------------------------------------
@@ -127,22 +127,24 @@ def _dev_copy(tmp_path, **patch) -> Path:
 
 
 def test_golden_accepts_a_clean_dev_demo_match_and_exports(tmp_path):
-    d = _dev_copy(tmp_path)  # Luna Red + Haiku Blue rules on = the --luna demo config
-    assert export_golden.problems(d) == []
+    d = _dev_copy(tmp_path)  # Luna prompt v1 + Haiku rules on = the --taxonomy --luna config
+    assert export_golden.classify_run(d) == ("taxonomy", [])
     out = tmp_path / "public"
-    p = export_dashboard.export(d, export_golden.NAME, out)
-    assert p.name == "golden-run.json" and (out / "bundles.js").exists()
+    p = export_dashboard.export(d, export_golden.bundle_name("taxonomy"), out)
+    assert p.name == "golden-taxonomy.json" and (out / "bundles.js").exists()
     dist = tmp_path / "dist"
     export_golden.sync_dist(out, dist)
-    assert (dist / "golden-run.json").read_bytes() == p.read_bytes()
+    assert (dist / "golden-taxonomy.json").read_bytes() == p.read_bytes()
 
 
 @pytest.mark.parametrize("patch,why", [
     ({"purpose": "train"}, "not dev"),
     ({"status": "failed", "failed_step": "blue"}, "status 'failed'"),
     ({"models": {"red": {"provider": "openai", "model": "gpt-6.1-sol"},
-                 "blue": {"provider": "anthropic", "model": "claude-haiku-5-5"}}}, "not a demo Red"),
-    ({"blue_engine": "scripted"}, "not the demo Blue"),
+                 "blue": {"provider": "anthropic", "model": "claude-haiku-5-5"}}},
+     "not the taxonomy demo configuration"),
+    ({"blue_engine": "scripted"}, "not the taxonomy demo configuration"),
+    ({"red_params": {"prompt_version": "2"}}, "not a demo matchup"),
 ])
 def test_golden_refusals(tmp_path, patch, why):
     d = _dev_copy(tmp_path, **patch)
@@ -173,7 +175,7 @@ def test_golden_cli_check_writes_nothing(tmp_path, capsys):
 
 def _sh(*args, env_extra=None):
     env = {k: v for k, v in os.environ.items() if k != "ARENA_GO"}
-    env.update({"DEMO_NO_OPEN": "1", **(env_extra or {})})
+    env.update({"DEMO_DRY": "1", **(env_extra or {})})
     return subprocess.run(["bash", str(DEMO_SH), *args], capture_output=True, text=True,
                           env=env, timeout=30)
 
@@ -183,7 +185,8 @@ def test_demo_sh_syntax_and_executable():
     assert subprocess.run(["bash", "-n", str(DEMO_SH)]).returncode == 0
 
 
-@pytest.mark.parametrize("args", [[], ["--luna"]])
+@pytest.mark.parametrize("args", [[], ["--luna"], ["--taxonomy"], ["--taxonomy", "--luna"],
+                                  ["--open-replay"]])
 def test_demo_sh_live_modes_refuse_without_go(args):
     r = _sh(*args)
     assert r.returncode != 0 and "ARENA_GO is not set" in r.stderr
@@ -192,13 +195,21 @@ def test_demo_sh_live_modes_refuse_without_go(args):
 
 def test_demo_sh_rejects_unknown_and_extra_options():
     assert "unknown option" in _sh("--fast").stderr
-    assert "one option at most" in _sh("--luna", "--replay").stderr
+    assert "--replay needs one of" in _sh("--replay").stderr
+    assert "--replay needs one of" in _sh("--replay", "live").stderr
+    assert "takes no other option" in _sh("--luna", "--replay", "open").stderr
+    assert "matchup 3 has no Red" in _sh("--open-replay", "--luna").stderr
 
 
-def test_demo_sh_replay_needs_no_go_and_points_at_the_golden_bundle():
+@pytest.mark.parametrize("kind", ["taxonomy", "freeplay", "open"])
+def test_demo_sh_replay_needs_no_go_and_names_the_golden_bundle(kind):
+    r = _sh("--replay", kind)
+    if (REPO / "dashboard" / "dist" / "data" / f"golden-{kind}.json").exists():
+        assert r.returncode == 0 and f"#src=bundle:golden-{kind}&tab=battle" in r.stdout
+    else:
+        assert r.returncode != 0 and f"no golden-{kind} run yet" in r.stderr
     text = DEMO_SH.read_text()
-    assert "#src=bundle:golden-run&tab=battle" in text
-    replay = text.split('if [ "$mode" = replay ]; then')[1].split("\nfi\n")[0]
+    replay = text.split('if [ -n "$replay" ]; then\n  echo')[1].split("\nfi\n")[0]
     assert "ARENA_GO" not in replay and "demo_match" not in replay and "curl" not in replay
 
 
@@ -236,3 +247,67 @@ def test_one_turn_refusal_reports_not_accepted_with_diagnosis(tmp_path):
                              out_root=tmp_path / "chk", out=lines.append)
     assert rc == 1 and "NOT ACCEPTED: brain_failure refusal (the model refused)" in lines
     assert any(l.startswith("red diagnosis: round 1 refusal: stop=refusal") for l in lines)
+
+
+# ---- D61: matchup 1 (taxonomy) and matchup 3 (open Blue replay) ------------------------
+
+def test_taxonomy_is_gate_b_deepseek_and_its_backup_gate_b():
+    kw = demo_match.demo_kwargs(matchup="taxonomy")
+    arm = s63.DEEPSEEK_ARM
+    assert (kw["red_model"], kw["red_provider"], kw["red_effort"]) == (
+        arm["model"], arm["provider"], arm["effort"])
+    assert kw["red_prompt_version"] == "1" == ai_red.RED_PROMPT_VERSION
+    assert "prompt_version" not in arm and "caps" not in arm and "max_output_tokens" not in arm
+    assert kw["red_max_output_tokens"] == s63.RED_MAX_OUTPUT and kw["caps"] is None
+    luna = demo_match.demo_kwargs("luna", matchup="taxonomy")
+    assert (luna["red_model"], luna["red_effort"], luna["red_max_output_tokens"],
+            luna["red_prompt_version"]) == (s63.RED_MODEL, s63.RED_EFFORT, s63.RED_MAX_OUTPUT, "1")
+    blue_keys = ("engine", "blue_model", "blue_rules_mode", "blue_caching", "library", "purpose")
+    assert all(kw[k] == demo_match.demo_kwargs()[k] for k in blue_keys)  # same original Blue
+
+
+def test_open_replay_settings_are_gate_c_open():
+    import inspect
+    src = inspect.getsource(s63.gate_c_open)
+    assert demo_match.OPEN_REPLAY == {"engine": "claude", "model": s63.BLUE_LIVE,
+                                      "rules_mode": "on", "caching": "on", "blue_prompt": "open"}
+    for part in ('engine="claude"', "model=BLUE_LIVE", 'rules_mode="on"', 'caching="on"',
+                 "library=library", 'blue_prompt="open"'):
+        assert part in src, part
+    assert "thinking" not in src.split("replay_blue.replay(")[1].split(")")[0]
+
+
+def _demo_match(lab, matchup="freeplay"):
+    live, runs, transcript = lab
+    out = tee(transcript)
+    kw = demo_match.demo_kwargs(seed=live_fakes.SEED, matchup=matchup)
+    code, d = run_match.run_match(ops=DemoOps(live, out), live_dir=live, runs_dir=runs,
+                                  settle=0, out=out, **kw)
+    assert code == 0
+    return d
+
+
+def test_matchup_3_rejudges_the_latest_freeplay_match_end_to_end(lab, tmp_path):  # noqa: F811
+    live, runs, transcript = lab
+    assert demo_match.latest_freeplay(runs) is None
+    lines: list[str] = []
+    assert demo_match.open_replay(runs, out_fn=lines.append) == 2 and "REFUSED" in lines[0]
+    src = _demo_match(lab)
+    _demo_match(lab, "taxonomy")                 # newer, but not free-play
+    ev = tmp_path / "ev"                          # newer free-play copy marked eval: test data
+    shutil.copytree(src, runs / "zz-eval")
+    m = json.loads((runs / "zz-eval" / "match.json").read_text())
+    m.update(purpose="eval", started_at="2099-01-01T00:00:00Z")
+    (runs / "zz-eval" / "match.json").write_text(json.dumps(m))
+    assert demo_match.latest_freeplay(runs) == src
+    lines = []
+    code = demo_match.open_replay(runs, out_fn=lines.append, ops=DemoOps(live, tee(transcript)),
+                                  out=tmp_path / "r")
+    assert code == 0, "\n".join(lines)
+    assert lines[0] == f"matchup 3: open Blue re-judges free-play match {src.name} (same traffic)"
+    r = json.loads((tmp_path / "r" / "replay.json").read_text())
+    assert r["source"]["match_id"] == src.name and r["blue_params"]["prompt_version"] == "3-open"
+    assert r["blue_params"]["rules"]["mode"] == "on" and r["models"]["blue"]["model"] == demo_match.BLUE
+    assert (tmp_path / "r" / "proxy.jsonl").read_bytes() == (src / "proxy.jsonl").read_bytes()
+    assert export_golden.classify_run(tmp_path / "r") == ("open", [])
+    assert not ev.exists()
