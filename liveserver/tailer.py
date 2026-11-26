@@ -209,6 +209,8 @@ class Tailer:
         self._tx_backlog: list[str] = []   # lines of a match not started here yet
         self._tx_ready: list[str] = []     # lines of the current match, not yet applied
         self._pending_matchup: str | None = None  # from `demo matchup:`, for the next run
+        self.sessions = self.runs_dir / "demo" / "sessions.jsonl"  # scripts/demo.sh --new-session
+        self.session: dict | None = None
         self._stop = threading.Event()
 
     # -- the loop -----------------------------------------------------------------
@@ -225,6 +227,7 @@ class Tailer:
         snapshots, proxy, records, calls), so anything a later file shows has its causes
         already complete on disk when the earlier file is read; events are then emitted in
         causal order. A stdout line is printed only after the artifacts it reports."""
+        self._read_session()
         lock = self._lock()
         if lock is not None and (self.match is None or lock["match_id"] != self.match.match_id):
             self._start(lock["match_id"], lock)
@@ -263,12 +266,22 @@ class Tailer:
             "match_id": match_id, "pid": (lock or {}).get("pid"),
             "started_at": (lock or {}).get("started_at"),
             "source": "match.lock" if lock is not None else "transcript",
-            "kind": self.match.kind, "source_match_id": self.match.source_match_id})
+            "kind": self.match.kind, "source_match_id": self.match.source_match_id,
+            "session_id": (self.session or {}).get("session_id")})
         self._tx_ready += self._tx_backlog
         self._tx_backlog = []
         self._claim_matchup()
         if self.match.kind == "replay":
             self._source_results(self.match)
+
+    def _read_session(self) -> None:
+        """The current demo session: the last line of data/runs/demo/sessions.jsonl. A new one
+        is announced once (`session`); every run is stamped with the session it started in."""
+        rows = [r for r in _jsonl(self.sessions) if isinstance(r.get("session_id"), str)]
+        cur = rows[-1] if rows else None
+        if cur is not None and cur.get("session_id") != (self.session or {}).get("session_id"):
+            self.session = {"session_id": cur["session_id"], "started_at": cur.get("started_at")}
+            self.log.append("session", dict(self.session))
 
     def _claim_matchup(self) -> None:
         """The demo matchup printed just before this run started (D61), once."""

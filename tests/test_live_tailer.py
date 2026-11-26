@@ -303,3 +303,21 @@ def test_source_results_never_read_from_test_data(lab, tmp_path):  # noqa: F811
     finally:
         (src / "rounds.jsonl").chmod(0o644)
     assert "match_started" in log.types() and "source_results" not in log.types()
+
+
+def test_demo_session_is_announced_once_and_stamps_each_run(lab):  # noqa: F811
+    import json as _json
+    live, runs, transcript = lab
+    (runs / "demo").mkdir()
+    (runs / "demo" / "sessions.jsonl").write_text(
+        _json.dumps({"session_id": "old", "started_at": "2026-12-03T10:00:00.000Z"}) + "\n"
+        + _json.dumps({"session_id": "s1", "started_at": "2026-12-03T17:00:00.000Z"}) + "\n")
+    code, _ = play(lab)
+    assert code == 0
+    log = T.EventLog()
+    tl = T.Tailer(log, live, runs, transcript, prices=PRICES)
+    for _ in range(4):
+        tl.poll()
+    ev = log.since(None)
+    assert [e["session_id"] for e in ev if e["type"] == "session"] == ["s1"]   # the last line only
+    assert [e["session_id"] for e in ev if e["type"] == "match_started"] == ["s1"]

@@ -36,7 +36,8 @@ history first: the last 10 runs (matches or replays), each beginning with its
 
 | type | from | extra fields |
 |---|---|---|
-| `match_started` | `live/match.lock` (or the transcript's `match <id> ->` line; or its `replay <id> of <match> -> <dir>` line for a Blue replay under `data/replays/`, D61 matchup 3) | `pid`, `started_at`, `source`, `kind` (`match` \| `replay`), `source_match_id` (replay: the re-judged match) |
+| `match_started` | `live/match.lock` (or the transcript's `match <id> ->` line; or its `replay <id> of <match> -> <dir>` line for a Blue replay under `data/replays/`, D61 matchup 3) | `pid`, `started_at`, `source`, `kind` (`match` \| `replay`), `source_match_id` (replay: the re-judged match), `session_id` (the demo session current when it started, or null) |
+| `session` | the last line of `data/runs/demo/sessions.jsonl` (`scripts/demo.sh --new-session`), once per new session | `session_id`, `started_at`; the dashboard then shows only runs stamped with it |
 | `matchup` | transcript `demo matchup: taxonomy\|freeplay\|open` (`tools/demo_match.py`), printed before the run starts; attached once to the next run | `matchup` |
 | `source_results` | replay only: the re-judged match's `rounds.jsonl` + `benign_results.jsonl` in `data/runs/<source>/`, only if finished and not test data (D59) | `source_match_id`, `rounds` [`round`, `request_id`, `detected`, `landed`], `benign` [`request_id`, `false_positive`] |
 | `match_plan` | transcript `seed …` line | `seed`, `n_red`, `n_benign`, `planned` (kinds in slot order; `derived: true`, the orchestrator's `runner/schedule.plan`) |

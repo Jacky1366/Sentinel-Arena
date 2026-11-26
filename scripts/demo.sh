@@ -6,6 +6,8 @@
 #   ARENA_GO=manual-<what> scripts/demo.sh --open-replay     3 · free attacker vs free defender (open Blue re-judges 2)
 #   add --luna to 1 or 2                                     backup Red gpt-6-luna (D46)
 #   scripts/demo.sh --replay taxonomy|freeplay|open          a recorded golden run (no GO, no network, no cost)
+#   scripts/demo.sh --new-session                            start the demo session: from now on the stage
+#                                                            shows only new runs, and 3 picks only from them
 #
 # Live modes: preflight (ARENA_GO given; for 1 and 2 also the Docker stack healthy and
 # data/runs/live/ clean; no stale lock; dashboard built), then caffeinate for the whole
@@ -30,18 +32,20 @@ DIST=dashboard/dist
 
 die() { echo "DEMO STOP: $*" >&2; exit 1; }
 ok() { echo "  ok    $*"; }
-usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # ---- options -------------------------------------------------------------------------
 matchup=freeplay   # taxonomy | freeplay | open
 red=deepseek
 replay=""
+session=""
 given="$*"
 while [ $# -gt 0 ]; do
   case "$1" in
     --taxonomy) matchup=taxonomy ;;
     --open-replay) matchup=open ;;
     --luna) red=luna ;;
+    --new-session) session=new ;;
     --replay)
       [ $# -ge 2 ] || die "--replay needs one of: taxonomy freeplay open"
       replay="$2"; shift ;;
@@ -50,6 +54,11 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
+if [ -n "$session" ]; then
+  [ $# -eq 0 ] && [ "$given" = "--new-session" ] || die "--new-session takes no other option"
+  [ -x "$PY" ] || die "no project venv at $PY"
+  exec "$PY" tools/demo_match.py --new-session
+fi
 if [ -n "$replay" ]; then
   case "$replay" in taxonomy|freeplay|open) ;; *) die "--replay needs one of: taxonomy freeplay open (got '$replay')" ;; esac
   [ "$matchup" = freeplay ] && [ "$red" = deepseek ] || die "--replay takes no other option"
@@ -116,6 +125,12 @@ fi
 [ ! -e "$LIVE/match.lock" ] \
   || die "stale lock $LIVE/match.lock (a match is running, or one crashed: check, then remove it by hand)"
 ok "no match running (no $LIVE/match.lock)"
+sess="$(sed -n '$p' "$DEMO_DIR/sessions.jsonl" 2>/dev/null | sed -n 's/.*"session_id": *"\([^"]*\)".*/\1/p')"
+if [ -n "$sess" ]; then
+  ok "demo session $sess (the stage shows only its runs)"
+else
+  echo "  WARN  no demo session: start one first with  scripts/demo.sh --new-session  (rehearsal runs stay visible)"
+fi
 
 [ -f "$DIST/index.html" ] || die "dashboard not built: $DIST/index.html missing"
 ok "dashboard built"
