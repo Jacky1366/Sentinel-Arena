@@ -23,6 +23,9 @@ Sources, polled every `interval` seconds (stdlib only, no inotify):
   <run>/match.json             -> match_finished (status, failed_step, cost total)
   optional tee'd stdout transcript -> match_plan, target_reset, slot_done, red_turn_start
                                   (derived), match_failed
+  transcript `replay <id> of <match> -> <dir>` (tools/replay_blue.py; D61 matchup 3) ->
+                                  match_started kind "replay" for <dir>, ONLY if it is a folder
+                                  directly under data/replays/; finished by its replay.json
 
 Order within one poll follows causality: Red call -> Red record -> proxy line -> snapshot,
 and all traffic before Blue and the Judge. A proxy line is emitted only after the record
@@ -48,6 +51,7 @@ from stats import cost as cost_stats  # noqa: E402  (pure)
 
 RUNS = REPO / "data" / "runs"
 LIVE = RUNS / "live"
+REPLAYS = REPO / "data" / "replays"  # D61 matchup 3: a Blue replay, followed from its transcript line
 LOCK = "match.lock"
 PENDING_POLLS = 40  # polls a proxy line may wait for its record before it counts as unknown
 
@@ -62,6 +66,7 @@ RESULTS = [("landed.jsonl", "landed"), ("verdicts.jsonl", "verdict"), ("rules.js
            ("rule_results.jsonl", "rule_result")]
 
 RE_MATCH = re.compile(r"^match (\S+) -> ")
+RE_REPLAY = re.compile(r"^replay (\S+) of (\S+) -> (\S+)")  # tools/replay_blue.py
 RE_SEED = re.compile(r"^seed (\d+) \((\w+)\): (\d+) Red \+ (\d+) benign slots")
 RE_RESET = re.compile(r"^target reset: (\d+) challenges solved")
 RE_SLOT = re.compile(r"^slot\s+(\d+) (?:round (\d+)|benign (\S+))")
@@ -139,9 +144,13 @@ def _inode(path: Path) -> int | None:
 class Match:
     """Per-match tail state."""
 
-    def __init__(self, match_id: str, run_dir: Path):
+    def __init__(self, match_id: str, run_dir: Path, kind: str = "match",
+                 source_match_id: str | None = None):
         self.match_id = match_id
         self.run_dir = run_dir
+        self.kind = kind                          # "match" | "replay" (D61 matchup 3)
+        self.source_match_id = source_match_id    # replay: the match whose log is re-judged
+        self.manifest = "replay.json" if kind == "replay" else "match.json"  # written last
         self.files: dict[str, _File] = {}
         self.proxy = _File()
         self.proxy_frozen = False
@@ -160,10 +169,12 @@ class Match:
 
 class Tailer:
     def __init__(self, log: EventLog, live_dir: Path = LIVE, runs_dir: Path = RUNS,
-                 transcript: Path | None = None, prices: dict | None = None):
+                 transcript: Path | None = None, prices: dict | None = None,
+                 replays_dir: Path = REPLAYS):
         self.log = log
         self.live_dir = Path(live_dir)
         self.runs_dir = Path(runs_dir)
+        self.replays_dir = Path(replays_dir)
         self.transcript = Path(transcript) if transcript is not None else None
         self.prices = prices if prices is not None else cost_stats.load_prices()
         self.match: Match | None = None
@@ -199,7 +210,7 @@ class Tailer:
         if m is None or m.finished:
             return
         if (lock is None or lock["match_id"] != m.match_id) and \
-                (m.run_dir / "match.json").is_file():
+                (m.run_dir / m.manifest).is_file():
             self._read_transcript()  # drain anything written just before match.json
             self._poll_files(m)
             self._apply_transcript()
@@ -213,20 +224,25 @@ class Tailer:
             return None
         return lock if isinstance(lock, dict) and isinstance(lock.get("match_id"), str) else None
 
-    def _start(self, match_id: str, lock: dict | None) -> None:
-        self.match = Match(match_id, self.runs_dir / match_id)
+    def _start(self, match_id: str, lock: dict | None, replay: tuple[Path, str] | None = None
+               ) -> None:
+        if replay is None:
+            self.match = Match(match_id, self.runs_dir / match_id)
+        else:
+            self.match = Match(match_id, replay[0], kind="replay", source_match_id=replay[1])
         if self._tx_match != match_id:
             self._tx_backlog = []  # lines of another match
         self.log.append("match_started", {
             "match_id": match_id, "pid": (lock or {}).get("pid"),
             "started_at": (lock or {}).get("started_at"),
-            "source": "match.lock" if lock is not None else "transcript"})
+            "source": "match.lock" if lock is not None else "transcript",
+            "kind": self.match.kind, "source_match_id": self.match.source_match_id})
         self._tx_ready += self._tx_backlog
         self._tx_backlog = []
 
     def _finish(self, m: Match) -> None:
         try:
-            manifest = json.loads((m.run_dir / "match.json").read_text(encoding="utf-8"))
+            manifest = json.loads((m.run_dir / m.manifest).read_text(encoding="utf-8"))
         except ValueError:
             return  # still being written: next poll
         m.finished = True
@@ -367,6 +383,16 @@ class Tailer:
         if ino != self._tx.inode:
             self._tx = _File(inode=ino)
         for line in _read_lines(self.transcript, self._tx):
+            rr = RE_REPLAY.match(line)
+            if rr:
+                d = self._replay_dir(rr.group(3))
+                if d is None:  # not a folder directly under data/replays/: never followed
+                    self._tx_match = None
+                    continue
+                self._tx_match = rr.group(1)
+                if self.match is None or self.match.match_id != self._tx_match:
+                    self._start(self._tx_match, None, replay=(d, rr.group(2)))
+                continue
             mm = RE_MATCH.match(line)
             if mm:
                 self._tx_match = mm.group(1)
@@ -378,6 +404,15 @@ class Tailer:
                 self._tx_ready.append(line)
             elif self._tx_match is not None:  # its match has not started here yet
                 self._tx_backlog.append(line)
+
+    def _replay_dir(self, shown: str) -> Path | None:
+        """The replay folder a transcript line names, only if it is an existing folder
+        directly under replays_dir (the line is printed after the source files are copied)."""
+        p = Path(shown)
+        p = (p if p.is_absolute() else REPO / p).resolve()
+        if p.parent != self.replays_dir.resolve() or not p.is_dir():
+            return None
+        return p
 
     def _apply_transcript(self, pre_traffic_only: bool = False) -> None:
         """Apply ready transcript lines. pre_traffic_only: only the leading lines before the

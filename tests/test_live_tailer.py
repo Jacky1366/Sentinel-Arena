@@ -183,3 +183,50 @@ def test_event_log_reconnect_semantics():
     assert [e["id"] for e in log.since(999)] == [1, 2, 3]  # client of an earlier server run
     log.append("match_started", {})
     assert [e["type"] for e in log.since(2)] == ["match_started"]  # older match: full replay
+
+
+# ---- D61 matchup 3: a Blue replay followed from its transcript line --------------------
+
+def test_follows_a_replay_from_its_transcript_line(lab, tmp_path):  # noqa: F811
+    from live_fakes import LiveOps, tee
+    from tools import replay_blue
+    live, runs, transcript = lab
+    code, src = play(lab)
+    assert code == 0
+    replays = tmp_path / "replays"
+    tx2 = tmp_path / "replay.transcript.log"
+    log = T.EventLog()
+    tl = T.Tailer(log, live, runs, tx2, prices=PRICES, replays_dir=replays)
+    th = threading.Thread(target=tl.run, args=(0.002,), daemon=True)
+    th.start()
+    out = tee(tx2)
+    rcode, rdir = replay_blue.replay(src, replays / "r1", ops=LiveOps(live, out), out_fn=out,
+                                     engine="claude", rules_mode="on")
+    deadline = time.monotonic() + 10
+    while "lock_released" not in log.types() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    tl.stop()
+    th.join(2)
+    assert rcode == 0
+    events = log.since(None)
+    types = [e["type"] for e in events]
+    start = events[0]
+    assert start["type"] == "match_started" and start["kind"] == "replay"
+    assert start["source_match_id"] == src.name and start["match_id"] != src.name
+    for name, etype in FILE_EVENTS.items():   # every replay artifact line -> one event
+        assert types.count(etype) == len(jsonl(rdir / name)), (name, etype)
+    # the same end markers as a match (the dashboard's end signal; a replay takes no lock)
+    assert types.count("match_finished") == 1 and types[-2:] == ["match_finished", "lock_released"]
+    assert events[-2]["status"] == "completed"
+
+
+def test_a_replay_line_outside_the_replays_dir_is_never_followed(lab, tmp_path):  # noqa: F811
+    live, runs, _ = lab
+    other = tmp_path / "elsewhere" / "r9"
+    other.mkdir(parents=True)
+    tx = tmp_path / "t.log"
+    tx.write_text(f"replay r9 of m1 -> {other}\nreplay r8 of m1 -> ../../etc\n")
+    log = T.EventLog()
+    tl = T.Tailer(log, live, runs, tx, prices=PRICES, replays_dir=tmp_path / "replays")
+    tl.poll()
+    assert log.types() == []

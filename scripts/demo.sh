@@ -1,19 +1,21 @@
 #!/usr/bin/env bash
-# Stage 7 demo launcher (#18; checklist: docs/demo.md).
+# Stage 7 demo launcher (#18; D61 three matchups; checklist: docs/demo.md).
 #
-#   ARENA_GO=manual-<what> scripts/demo.sh           live match, D46 config (DeepSeek Red)
-#   ARENA_GO=manual-<what> scripts/demo.sh --luna    the same with the backup Red (gpt-6-luna)
-#   scripts/demo.sh --replay                         the golden run from file:// (no GO, no network, no cost)
+#   ARENA_GO=manual-<what> scripts/demo.sh --taxonomy        1 · limited attacker vs limited defender (live)
+#   ARENA_GO=manual-<what> scripts/demo.sh                   2 · free attacker vs limited defender (live)
+#   ARENA_GO=manual-<what> scripts/demo.sh --open-replay     3 · free attacker vs free defender (open Blue re-judges 2)
+#   add --luna to 1 or 2                                     backup Red gpt-6-luna (D46)
+#   scripts/demo.sh --replay taxonomy|freeplay|open          a recorded golden run (no GO, no network, no cost)
 #
-# Live modes: preflight (Docker stack healthy, data/runs/live/ clean, no stale lock, dashboard
-# built, ARENA_GO given), then caffeinate for the whole session, the live server on
-# 127.0.0.1:8765 if not already running, the dashboard opened in the browser, and the match
-# (tools/demo_match.py: D46 config, red_timeout_s from DEMO_RED_TIMEOUT_S there) with
-# python -u, its stdout tee'd to the transcript the server follows.
+# Live modes: preflight (ARENA_GO given; for 1 and 2 also the Docker stack healthy and
+# data/runs/live/ clean; no stale lock; dashboard built), then caffeinate for the whole
+# session, the live server on 127.0.0.1:8765 if not already running, the dashboard opened in
+# the browser, and tools/demo_match.py with python -u, its stdout tee'd to the transcript the
+# server follows.
 #
 # ARENA_GO always comes from the caller, for that one command. This script never sets,
 # defaults or stores it, and refuses a live mode without it.
-# DEMO_NO_OPEN=1 prints the URL instead of opening the browser.
+# DEMO_DRY=1 prints the URL instead of opening the browser and skips caffeinate (tests).
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
@@ -25,29 +27,42 @@ DEMO_DIR=data/runs/demo
 TX="$DEMO_DIR/transcript.log"
 LIVE=data/runs/live
 DIST=dashboard/dist
-GOLDEN_URL="file://${REPO}/${DIST}/index.html#src=bundle:golden-run&tab=battle"
 
 die() { echo "DEMO STOP: $*" >&2; exit 1; }
 ok() { echo "  ok    $*"; }
+usage() { sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; }
 
-usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; }
-
-mode=live
+# ---- options -------------------------------------------------------------------------
+matchup=freeplay   # taxonomy | freeplay | open
 red=deepseek
-[ $# -le 1 ] || die "one option at most (got: $*)"
-case "${1:-}" in
-  "") ;;
-  --luna) red=luna ;;
-  --replay) mode=replay ;;
-  -h|--help) usage; exit 0 ;;
-  *) usage >&2; die "unknown option $1" ;;
-esac
+replay=""
+given="$*"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --taxonomy) matchup=taxonomy ;;
+    --open-replay) matchup=open ;;
+    --luna) red=luna ;;
+    --replay)
+      [ $# -ge 2 ] || die "--replay needs one of: taxonomy freeplay open"
+      replay="$2"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) usage >&2; die "unknown option $1" ;;
+  esac
+  shift
+done
+if [ -n "$replay" ]; then
+  case "$replay" in taxonomy|freeplay|open) ;; *) die "--replay needs one of: taxonomy freeplay open (got '$replay')" ;; esac
+  [ "$matchup" = freeplay ] && [ "$red" = deepseek ] || die "--replay takes no other option"
+fi
+[ "$matchup" != open ] || [ "$red" = deepseek ] \
+  || die "--luna is the backup Red for matchups 1 and 2; matchup 3 has no Red (it re-judges matchup 2)"
 
 open_url() {
-  if [ -n "${DEMO_NO_OPEN:-}" ]; then echo "  open  $1"; else open "$1"; ok "opened $1"; fi
+  if [ -n "${DEMO_DRY:-}" ]; then echo "  open  $1"; else open "$1"; ok "opened $1"; fi
 }
 
 start_caffeinate() {
+  if [ -n "${DEMO_DRY:-}" ]; then echo "  dry   caffeinate skipped"; return; fi
   mkdir -p "$DEMO_DIR"
   if pgrep -f "caffeinate -dims" >/dev/null; then
     ok "caffeinate -dims already running"
@@ -59,41 +74,48 @@ start_caffeinate() {
 }
 
 # ---- replay: no GO, no network, no cost ----------------------------------------------
-if [ "$mode" = replay ]; then
-  echo "Sentinel Arena demo: REPLAY (recorded golden run; announce it as recorded, D45)"
+if [ -n "$replay" ]; then
+  echo "Sentinel Arena demo: REPLAY golden-$replay (recorded; announce it as recorded, D45)"
   [ -f "$DIST/index.html" ] || die "dashboard not built: $DIST/index.html missing"
-  [ -f "$DIST/data/golden-run.json" ] \
-    || die "no golden run yet: export one with  $PY tools/export_golden.py data/runs/<match_id>"
+  [ -f "$DIST/data/golden-$replay.json" ] \
+    || die "no golden-$replay run yet: export one with  $PY tools/export_golden.py <match or replay folder>"
   start_caffeinate
-  open_url "$GOLDEN_URL"
+  open_url "file://${REPO}/${DIST}/index.html#src=bundle:golden-${replay}&tab=battle"
   exit 0
 fi
 
 # ---- live: preflight ------------------------------------------------------------------
-echo "Sentinel Arena demo: LIVE ($red Red) — preflight"
+case "$matchup" in
+  taxonomy) title="1 · Limited attacker vs limited defender"; args=(--matchup taxonomy --red "$red") ;;
+  freeplay) title="2 · Free attacker vs limited defender"; args=(--matchup freeplay --red "$red") ;;
+  open) title="3 · Free attacker vs free defender (same attacks as 2)"; args=(--open-replay) ;;
+esac
+[ "$matchup" = open ] || title="$title — $red Red"
+echo "Sentinel Arena demo: LIVE $title — preflight"
 [ -x "$PY" ] || die "no project venv at $PY"
-[ -n "${ARENA_GO:-}" ] || die "ARENA_GO is not set. A live match is paid: run  ARENA_GO=<token> scripts/demo.sh${1:+ $1}"
+[ -n "${ARENA_GO:-}" ] || die "ARENA_GO is not set. This is paid: run  ARENA_GO=<token> scripts/demo.sh $given"
 "$PY" -c 'import os, sys; from runner import go_token; sys.exit(0 if go_token.valid(os.environ.get("ARENA_GO")) else 1)' \
   || die "ARENA_GO is not a well-formed token (gate-<id> or manual-<what>)"
 ok "ARENA_GO given by the caller"
 
-command -v docker >/dev/null || die "docker not found"
-ps_out="$(docker compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>&1)" \
-  || die "docker compose ps failed: $ps_out (start: docker compose up -d --wait)"
-for svc in juice-shop nginx; do
-  line="$(printf '%s\n' "$ps_out" | awk -v s="$svc" '$1 == s')"
-  state="$(printf '%s' "$line" | awk '{print $2}')"
-  health="$(printf '%s' "$line" | awk '{print $3}')"
-  [ "$state" = running ] || die "Docker service $svc is '${state:-absent}' (start: docker compose up -d --wait)"
-  [ -z "$health" ] || [ "$health" = healthy ] || die "Docker service $svc is $health (wait, or: docker compose up -d --wait)"
-done
-ok "Docker stack: juice-shop and nginx running"
-
+if [ "$matchup" != open ]; then  # matchup 3 is a replay: no Target, no live log
+  command -v docker >/dev/null || die "docker not found"
+  ps_out="$(docker compose ps --format '{{.Service}} {{.State}} {{.Health}}' 2>&1)" \
+    || die "docker compose ps failed: $ps_out (start: docker compose up -d --wait)"
+  for svc in juice-shop nginx; do
+    line="$(printf '%s\n' "$ps_out" | awk -v s="$svc" '$1 == s')"
+    state="$(printf '%s' "$line" | awk '{print $2}')"
+    health="$(printf '%s' "$line" | awk '{print $3}')"
+    [ "$state" = running ] || die "Docker service $svc is '${state:-absent}' (start: docker compose up -d --wait)"
+    [ -z "$health" ] || [ "$health" = healthy ] || die "Docker service $svc is $health (wait, or: docker compose up -d --wait)"
+  done
+  ok "Docker stack: juice-shop and nginx running"
+  extra="$(ls -A "$LIVE" 2>/dev/null | grep -vx -e proxy.jsonl -e archive -e match.lock || true)"
+  [ -z "$extra" ] || die "$LIVE/ must hold only proxy.jsonl and archive/; found: $(echo $extra)"
+fi
 [ ! -e "$LIVE/match.lock" ] \
   || die "stale lock $LIVE/match.lock (a match is running, or one crashed: check, then remove it by hand)"
-extra="$(ls -A "$LIVE" 2>/dev/null | grep -vx -e proxy.jsonl -e archive || true)"
-[ -z "$extra" ] || die "$LIVE/ must hold only proxy.jsonl and archive/; found: $(echo $extra)"
-ok "$LIVE/ clean, no lock"
+ok "no match running (no $LIVE/match.lock)"
 
 [ -f "$DIST/index.html" ] || die "dashboard not built: $DIST/index.html missing"
 ok "dashboard built"
@@ -102,7 +124,7 @@ ok "dashboard built"
 mkdir -p "$DEMO_DIR/transcripts"
 start_caffeinate
 
-if [ -s "$TX" ]; then  # one transcript per match; the server follows the path (new inode)
+if [ -s "$TX" ]; then  # one transcript per run; the server follows the path (new inode)
   mv "$TX" "$DEMO_DIR/transcripts/$(date -u +%Y%m%dT%H%M%SZ).log"
 fi
 
@@ -123,18 +145,22 @@ else
 fi
 open_url "$URL"
 
-# ---- the match -------------------------------------------------------------------------
-echo "Sentinel Arena demo: starting the match ($red Red; transcript $TX)"
+# ---- the run ---------------------------------------------------------------------------
+echo "Sentinel Arena demo: starting $title (transcript $TX)"
 set +e
-"$PY" -u tools/demo_match.py --red "$red" 2>&1 | tee "$TX"
+"$PY" -u tools/demo_match.py "${args[@]}" 2>&1 | tee "$TX"
 status=${PIPESTATUS[0]}
 set -e
-mid="$(sed -n 's/^match \([^ ]*\) -> .*/\1/p' "$TX" | head -1)"
+if [ "$matchup" = open ]; then
+  folder="$(sed -n 's/^replay [^ ]* of [^ ]* -> \(.*\)$/\1/p' "$TX" | head -1 | sed 's/ .*//')"
+else
+  folder="$(sed -n 's/^match [^ ]* -> \(.*\)$/\1/p' "$TX" | head -1)"
+fi
 echo
 if [ "$status" = 0 ]; then
-  echo "DEMO MATCH DONE: ${mid:-?} (exit 0). The dashboard keeps showing it."
-  [ -z "$mid" ] || echo "  golden-run candidate check:  $PY tools/export_golden.py data/runs/$mid --check"
+  echo "DEMO RUN DONE: ${folder:-?} (exit 0). The dashboard keeps showing it."
+  [ -z "$folder" ] || echo "  golden-run candidate check:  $PY tools/export_golden.py $folder --check"
 else
-  echo "DEMO MATCH FAILED (exit $status): ${mid:-no match id}. Fallback: scripts/demo.sh --replay (docs/demo.md)" >&2
+  echo "DEMO RUN FAILED (exit $status): ${folder:-nothing started}. Fallback: docs/demo.md" >&2
 fi
 exit "$status"

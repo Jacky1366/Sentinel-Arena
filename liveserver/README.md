@@ -35,7 +35,7 @@ match first; `match_started` starts a new history (reset the view).
 
 | type | from | extra fields |
 |---|---|---|
-| `match_started` | `live/match.lock` (or the transcript's `match <id> ->` line) | `pid`, `started_at`, `source` |
+| `match_started` | `live/match.lock` (or the transcript's `match <id> ->` line; or its `replay <id> of <match> -> <dir>` line for a Blue replay under `data/replays/`, D61 matchup 3) | `pid`, `started_at`, `source`, `kind` (`match` \| `replay`), `source_match_id` (replay: the re-judged match) |
 | `match_plan` | transcript `seed …` line | `seed`, `n_red`, `n_benign`, `planned` (kinds in slot order; `derived: true`, the orchestrator's `runner/schedule.plan`) |
 | `target_reset` | transcript | `solved` |
 | `library_loaded` | `<run>/library.json` | `library_version`, `n_rules` |
