@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
-  ACTS, MATCHUPS, MATCHUP_ORDER, UNSENT_WHAT, attackName, blueProgress, bundleToEvents, initialState, latestRunOf,
+  ACTS, MATCHUPS, MATCHUP_ORDER, SUCCESS_RULES, UNSENT_WHAT, attackName, blueProgress, successRule, bundleToEvents, initialState, latestRunOf,
   matchupOfBundle, missedAttacks, normalLine, playAll, reduce, reduceRuns, reduceSession, replayDelay,
   sessionRuns, sideBySide,
   sourceBundleFor, stats4, summaryRow, turnCards,
@@ -198,7 +198,7 @@ function TargetPanel({ state }) {
         )}
         {burst && (
           <div key={`b${burst.seq}`} className="burst absolute inset-x-2 bottom-2 rounded-lg bg-yellow-400 px-3 py-2 text-center text-xl font-black text-slate-950">
-            ★ Attack succeeded: {burst.names.join(", ")}
+            ★ {burst.traffic === "red" && successRule(state.matchup) === "any" ? "Attack succeeded" : "Challenge solved"}: {burst.names.join(", ")}
           </div>
         )}
       </div>
@@ -206,10 +206,16 @@ function TargetPanel({ state }) {
         <Stat label="attacks" value={st.attacks} />
         <Stat label="caught" value={st.verdictsShown ? st.caught : "–"} tone="text-emerald-300" />
         <Stat label="missed" value={st.verdictsShown ? st.missed : "–"} tone="text-rose-300" />
-        <Stat label="succeeded" value={st.succeeded} tone="text-yellow-300" />
+        <Stat label="succeeded" value={st.succeeded ?? "–"} tone="text-yellow-300" />
       </div>
+      <RuleNote rule={st.rule} />
     </Panel>
   );
+}
+
+// Which definition of "succeeded" applies, in plain words (one per matchup).
+function RuleNote({ rule }) {
+  return <div className="text-base text-slate-400">★ {SUCCESS_RULES[rule]}</div>;
 }
 
 function LibraryLine({ state }) {
@@ -292,6 +298,7 @@ function Timeline({ state }) {
       </div>
       <div className="text-xl text-slate-200">{normal.text}</div>
       <Legend />
+      <RuleNote rule={successRule(state.matchup)} />
     </div>
   );
 }
@@ -323,6 +330,7 @@ function RunSummary({ state }) {
   return (
     <div className="flip-in rounded-2xl border-2 border-white bg-slate-900 p-5 text-3xl font-black text-white">
       The defender caught {st.caught} of {st.attacks} attacks · {alarms} false alarm{alarms === 1 ? "" : "s"} · {st.succeeded} attack{st.succeeded === 1 ? "" : "s"} succeeded
+      <div className="mt-1 text-lg font-normal text-slate-400">★ {SUCCESS_RULES[st.rule]}</div>
     </div>
   );
 }
@@ -367,7 +375,7 @@ function SideBySide({ state }) {
             </tr>
           </tbody>
         </table>
-        <div className="mt-2"><Legend /></div>
+        <div className="mt-2 flex flex-col gap-1"><Legend /><RuleNote rule={successRule(state.matchup)} /></div>
       </section>
     </div>
   );
@@ -408,6 +416,10 @@ export function SummaryAll({ rows, onCompare }) {
           })}
         </tbody>
       </table>
+      <div className="text-lg text-slate-400">
+        ★ succeeded — matchup 1: {SUCCESS_RULES.mapped.replace("succeeded = ", "")} · matchups 2 and 3:
+        {" "}{SUCCESS_RULES.any.replace("succeeded = ", "")}
+      </div>
       <div>
         <button onClick={onCompare} className="rounded-xl bg-sky-500 px-5 py-3 text-2xl font-black text-slate-950 hover:bg-sky-400">
           Why? → Compare

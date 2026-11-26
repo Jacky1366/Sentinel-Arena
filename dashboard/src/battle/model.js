@@ -272,7 +272,8 @@ export function reduce(state, ev) {
       if (newly.length) {
         s.target = { ...s.target, burst: { names: newly, requestId: row.request_id,
           traffic: row.traffic, seq: (s.target.burst?.seq || 0) + 1 } };
-        const who = row.traffic === "red" ? "The attack succeeded" : "Normal traffic solved a challenge";
+        const who = row.traffic !== "red" ? "Normal traffic solved a challenge"
+          : successRule(s.matchup) === "any" ? "The attack succeeded" : "A challenge was solved";
         feed(s, `${who}: ${newly.join(", ")}`, row.traffic === "red" ? "rose" : "amber", at);
       }
       break;
@@ -528,12 +529,26 @@ export function latestRunOf(runs, matchup) {
 const isRed = (x) => x.kind === "red";
 const judged = (s, round) => (s.results.ready ? s.results.rounds[round] : null);
 
-// Did this attack succeed? The Judge's landed fact once results are in; before, a challenge
-// solved right after the request (the live snapshot).
+// "Succeeded" has ONE definition per matchup (designer, 2026-11-26), shown on screen:
+//   free-play matchups (2, 3): D41 — the attack solved ANY challenge (round record
+//     newly_solved, the same solves the live snapshot shows), as stats/free_play.py;
+//   taxonomy (1) and any other run: the Judge's mapped landing (round record `landed`):
+//     the challenge mapped to the attack's own type. Known only once results are in.
+export const SUCCESS_RULES = {
+  any: "succeeded = the attack solved any challenge in the web shop",
+  mapped: "succeeded = the attack solved the challenge of its own attack type",
+};
+export const successRule = (matchup) => (matchup === "freeplay" || matchup === "open" ? "any" : "mapped");
+
+const roundSucceeded = (rule, r) => (rule === "any" ? (r.newly_solved || []).length > 0 : r.landed === true);
+
+// Did this attack succeed? From the round record once results are in; before, free-play uses
+// the live snapshot (the same solves); the mapped rule is unknown (null) until the Judge.
 export function succeeded(s, slot) {
+  const rule = successRule(s.matchup);
   const r = judged(s, slot.round);
-  if (r) return r.landed === true;
-  return (slot.newlySolved || []).length > 0;
+  if (r) return roundSucceeded(rule, r);
+  return rule === "any" ? (slot.newlySolved || []).length > 0 : null;
 }
 
 // Item 5: one large card per Red turn, one outcome each.
@@ -543,7 +558,7 @@ export function turnCards(s) {
     state: x.state, // pending | active | sent | unsent
     outcome: x.outcome === "TP" ? "caught" : x.outcome === "FN" ? "missed" : x.outcome === "unsent" ? "not sent"
       : x.outcome === "unscored" ? "no result" : null,
-    succeeded: x.state === "sent" && succeeded(s, x),
+    succeeded: x.state === "sent" && succeeded(s, x) === true,
     technique: attackName(x.attack),
   }));
 }
@@ -564,7 +579,9 @@ export function stats4(s) {
     attacks: reds.filter((x) => x.state === "sent").length,
     caught: reds.filter((x) => x.outcome === "TP").length,
     missed: reds.filter((x) => x.outcome === "FN").length,
-    succeeded: reds.filter((x) => x.state === "sent" && succeeded(s, x)).length,
+    succeeded: successRule(s.matchup) === "mapped" && !s.results.ready ? null
+      : reds.filter((x) => x.state === "sent" && succeeded(s, x) === true).length,
+    rule: successRule(s.matchup),
     verdictsShown: s.act === ACTS.VERDICT,
   };
 }
@@ -573,7 +590,7 @@ export function stats4(s) {
 export function missedAttacks(s) {
   return s.slots.filter((x) => isRed(x) && x.outcome === "FN").map((x) => ({
     round: x.round, technique: attackName(x.attack),
-    succeeded: succeeded(s, x),
+    succeeded: succeeded(s, x) === true,
   }));
 }
 
@@ -588,7 +605,7 @@ export function sideBySide(s) {
       technique: attackName(x.attack),
       original: o ? (o.detected ? "caught" : "missed") : null,
       open: x.outcome === "TP" ? "caught" : x.outcome === "FN" ? "missed" : null,
-      succeeded: o ? o.landed === true : succeeded(s, x),
+      succeeded: succeeded(s, x) === true, // the same traffic: matchup 3's own round records
     };
   });
   const benign = s.slots.filter((x) => x.kind === "benign" && x.state === "sent");
@@ -606,14 +623,16 @@ export function sideBySide(s) {
 // whatever the reveal shows). Copy and count only.
 export function summaryRow(s) {
   if (!s || !s.results.ready) return null;
+  const rule = successRule(s.matchup);
   const rounds = Object.values(s.results.rounds);
   const benign = Object.values(s.results.benign);
   return {
     attacks: rounds.length,
     caught: rounds.filter((r) => r.detected === true).length,
     missed: rounds.filter((r) => r.detected === false).length,
-    succeededMissed: rounds.filter((r) => r.landed === true && r.detected === false).length,
-    succeeded: rounds.filter((r) => r.landed === true).length,
+    succeededMissed: rounds.filter((r) => roundSucceeded(rule, r) && r.detected === false).length,
+    succeeded: rounds.filter((r) => roundSucceeded(rule, r)).length,
+    rule,
     falseAlarms: benign.filter((b) => b.false_positive === true).length,
     normal: benign.length,
   };

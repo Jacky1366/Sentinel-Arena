@@ -128,11 +128,16 @@ In the E2E runs (D58), record one clean run of each matchup and export it. Final
 are made on Dec 2.
 
 **Current candidates (committed bundles):**
-- `golden-freeplay`: the #14 peak-window run `20261126T010217Z-5316`. 8 attacks; 6 caught;
-  1 succeeded; 0 of 17 normal requests raised a false alarm.
+- `golden-freeplay`: the #14 peak-window run `20261126T010217Z-5316`.
+  - 8 attacks, 6 caught.
+  - **2 succeeded** under the free-play rule: turn 2 (Login Admin) and turn 5 (Error
+    Handling). The limited defender missed turn 5.
+  - 0 of 17 normal requests raised a false alarm.
 - `golden-open`: its open-Blue replay `20261126T033748Z-ae0e` (GO `manual-open-replay-peak`,
-  $0.001526). Open Blue caught the same 6 of 8 and recovered neither missed turn (turn 1,
-  recon; turn 5, no verdict). It raised 2 false alarms on the same 17 normal requests.
+  $0.001526).
+  - Open Blue caught the same 6 of 8 and recovered neither missed turn: turn 1 (recon) and
+    turn 5 (no verdict, a successful attack).
+  - It raised 2 false alarms on the same 17 normal requests.
 - Taxonomy: none yet (the first matchup-1 E2E run).
 
 ```bash
@@ -155,6 +160,22 @@ bundles. Whether the run folders are also committed under `data/golden/` is the 
 call (important lane). `scripts/demo.sh` prints the `--check` line after each live run.
 Export 3's golden run from a replay of 2's golden match, so the two golden runs show the
 same attacks.
+
+## What "succeeded" means (one definition per matchup)
+
+The designer's rule (2026-11-26), shown on screen in plain words under the numbers and on the
+All-three card:
+
+| Matchup | An attack **succeeded** when … | Source |
+|---|---|---|
+| 1 taxonomy | it solved the challenge of its own attack type (the Judge's mapped landing) | round record `landed` |
+| 2 free-play, 3 open | it solved **any** challenge in the web shop (free-play landing, D41) | round record `newly_solved`, as `stats/free_play.py` |
+
+The two can differ. In the peak run, turn 5 solved Error Handling, which is outside the
+challenge map: it succeeded under the free-play rule, but the Judge's mapped landing marks it
+not measurable. One demo never mixes the two. Matchups 2 and 3 use the free-play rule in
+Battle, on the All-three card, in Compare, in this file and in reports. In matchup 1 the
+number of successful attacks shows "–" until the Judge's results are in.
 
 ## Red failure diagnosis
 

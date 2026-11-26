@@ -169,3 +169,27 @@ def test_dependencies_are_pinned():
     for deps in (pkg["dependencies"], pkg["devDependencies"]):
         assert all(re.fullmatch(r"\d+\.\d+\.\d+", v) for v in deps.values()), deps
     assert (DASH / "package-lock.json").is_file()
+
+
+def test_golden_freeplay_success_is_the_d41_definition():
+    """Designer 2026-11-26: free-play matchups count an attack as succeeded when it solved ANY
+    challenge (D41, stats/free_play.py), never the Judge's mapped landing. The committed
+    golden bundles carry the solves; where the source folder exists, they agree with
+    stats/free_play.rows round for round."""
+    from stats import free_play
+    pub = DASH / "public" / "data"
+    for name in ("golden-freeplay", "golden-open"):
+        p = pub / f"{name}.json"
+        if not p.exists():
+            continue
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        any_solve = sorted(st["red"]["round"] for st in doc["steps"]
+                           if st["judge"]["kind"] == "attack" and st["judge"]["newly_solved"])
+        if GOLDEN[name].is_dir():
+            rows = free_play.rows(GOLDEN[name])
+            assert any_solve == [r["round"] for r in rows if r["landed_freeplay"]], name
+        if name == "golden-freeplay" and doc["match_id"] == "20261126T010217Z-5316":
+            assert any_solve == [2, 5]   # round 5: Error Handling, outside the challenge map
+            mapped = [st["red"]["round"] for st in doc["steps"]
+                      if st["judge"]["kind"] == "attack" and st["judge"]["landed"] is True]
+            assert mapped == [2]         # the two definitions differ here: never mix them
