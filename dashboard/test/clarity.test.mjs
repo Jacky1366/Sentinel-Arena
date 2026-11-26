@@ -190,3 +190,23 @@ test("a recorded run lays out all its turn cards at once", () => {
   const first = bundleToEvents(b).slice(0, 1).reduce(reduce, initialState("replay"));
   assert.deepEqual(turnCards(first).map((c) => [c.round, c.state]), [[1, "pending"], [2, "pending"], [3, "pending"]]);
 });
+
+test("sessions: the stage shows only runs of the current demo session", async () => {
+  const { reduceSession, sessionRuns } = await import("../src/battle/model.js");
+  let runs = [];
+  let cur = null;
+  const feed = (ev) => { runs = reduceRuns(runs, ev); cur = reduceSession(cur, ev); };
+  feed({ type: "match_started", match_id: "rehearsal" });                     // no session yet
+  assert.equal(cur, null);
+  assert.deepEqual(sessionRuns(runs, cur).map((r) => r.id), ["rehearsal"]);  // no sessions: all
+  feed({ type: "session", session_id: "s1", started_at: "2026-12-03T17:00:00Z" });
+  assert.deepEqual(sessionRuns(runs, cur), []);                               // boundary: none yet
+  feed({ type: "match_started", match_id: "m1", session_id: "s1" });
+  feed({ type: "match_started", match_id: "m2", session_id: "s1", matchup: "freeplay" });
+  assert.deepEqual(sessionRuns(runs, cur).map((r) => r.id), ["m1", "m2"]);
+  assert.equal(latestRunOf(sessionRuns(runs, cur), "freeplay").id, "m2");
+  // a reconnect whose history lost the session event still knows it from the run starts
+  let cur2 = null;
+  for (const ev of [{ type: "match_started", match_id: "m1", session_id: "s1" }]) cur2 = reduceSession(cur2, ev);
+  assert.equal(cur2, "s1");
+});

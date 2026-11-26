@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -90,15 +91,41 @@ def test_export_refuses_bad_names_and_the_source_folder(tmp_path):
         ex.bundle(tmp_path / "x", "x")
 
 
+# Golden runs of the demo matchups (#18, D61; tools/export_golden.py): exported from dev
+# folders under data/runs/ and data/replays/, which are git-ignored. Where the folder exists
+# (the demo laptop) the bundle regenerates byte for byte; elsewhere it is schema-checked.
+GOLDEN = {"golden-freeplay": REPO / "data" / "runs" / "20261126T010217Z-5316",
+          "golden-open": REPO / "data" / "replays" / "20261126T033748Z-ae0e"}
+
+
 def test_committed_demo_bundles_regenerate_byte_for_byte(tmp_path):
+    pub = DASH / "public" / "data"
     for name, folder in DEMO.items():
         ex.export(folder, name, tmp_path)
-        assert (tmp_path / f"{name}.json").read_bytes() == \
-            (DASH / "public" / "data" / f"{name}.json").read_bytes(), name
-    assert (tmp_path / "bundles.js").read_bytes() == \
-        (DASH / "public" / "data" / "bundles.js").read_bytes()
-    assert sorted(p.name for p in (DASH / "public" / "data").iterdir()) == \
-        sorted([*(f"{n}.json" for n in DEMO), "bundles.js"])
+        assert (tmp_path / f"{name}.json").read_bytes() == (pub / f"{name}.json").read_bytes(), name
+    goldens = sorted(p.stem for p in pub.glob("golden-*.json"))
+    assert set(goldens) <= {"golden-taxonomy", "golden-freeplay", "golden-open"}
+    assert set(goldens) <= set(GOLDEN), "record the source folder of every golden bundle in GOLDEN"
+    for name in goldens:
+        doc = json.loads((pub / f"{name}.json").read_text(encoding="utf-8"))
+        ex.SCHEMA.validate(doc)
+        assert doc["name"] == name
+        if name == "golden-open":   # a replay; its source is the free-play golden match
+            assert doc["kind"] == "replay"
+        else:
+            assert doc["kind"] == "match" and doc["meta"]["purpose"] == "dev"
+        if GOLDEN[name].is_dir():
+            ex.export(GOLDEN[name], name, tmp_path / "g")
+            assert (tmp_path / "g" / f"{name}.json").read_bytes() == (pub / f"{name}.json").read_bytes(), name
+        shutil.copy(pub / f"{name}.json", tmp_path / f"{name}.json")
+    ex.pack(tmp_path)
+    assert (tmp_path / "bundles.js").read_bytes() == (pub / "bundles.js").read_bytes()
+    assert sorted(p.name for p in pub.iterdir()) == \
+        sorted([*(f"{n}.json" for n in DEMO), *(f"{n}.json" for n in goldens), "bundles.js"])
+    dist = DASH / "dist" / "data"
+    assert sorted(p.name for p in dist.iterdir()) == sorted(p.name for p in pub.iterdir())
+    for p in pub.iterdir():
+        assert (dist / p.name).read_bytes() == p.read_bytes(), p.name
 
 
 NETWORK = re.compile(r"\bfetch\(|XMLHttpRequest|WebSocket|sendBeacon|navigator\.serviceWorker")

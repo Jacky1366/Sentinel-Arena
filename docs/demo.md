@@ -13,11 +13,21 @@ that one command; the script never sets or stores it and refuses a paid mode wit
 presenter starts each matchup separately.
 
 ```bash
+scripts/demo.sh --new-session                    # 0 · start the demo session (free; do it first, once)
 ARENA_GO=<token> scripts/demo.sh --taxonomy      # 1 · Limited attacker vs limited defender   (live match)
 ARENA_GO=<token> scripts/demo.sh                 # 2 · Free attacker vs limited defender      (live match)
 ARENA_GO=<token> scripts/demo.sh --open-replay   # 3 · Free attacker vs free defender (same attacks as 2)
 ```
 
+- `--new-session` marks a boundary. It appends a line to `data/runs/demo/sessions.jsonl`
+  (earlier sessions are kept). From then on:
+  - the dashboard's matchup switcher shows only runs started in this session;
+  - `--open-replay` only considers free-play matches started in this session.
+
+  Rehearsal runs from earlier in the day therefore can't appear on stage or be picked by
+  mistake. Without a session, everything is visible and the live preflight prints a `WARN`
+  line. Start it **before** matchup 1. If you start it later, the earlier matchups of the
+  demo disappear from the switcher.
 - `--luna` added to 1 or 2 uses the backup Red `gpt-6-luna` (D46), e.g.
   `ARENA_GO=<token> scripts/demo.sh --taxonomy --luna`.
 - 3 runs no match. Open Blue re-judges the frozen log of the **latest completed free-play
@@ -69,6 +79,7 @@ Automatic in `scripts/demo.sh` (live modes):
 
 By hand, before the session:
 
+- [ ] Rehearsals done, then `scripts/demo.sh --new-session` (just before matchup 1)
 - [ ] Balances: DeepSeek, OpenAI, Anthropic
 - [ ] `docker compose up -d --wait`, then `docker compose ps`
 - [ ] Red probes, one call each, nothing sent:
@@ -115,6 +126,14 @@ By failure:
 
 In the E2E runs (D58), record one clean run of each matchup and export it. Final versions
 are made on Dec 2.
+
+**Current candidates (committed bundles):**
+- `golden-freeplay`: the #14 peak-window run `20261126T010217Z-5316`. 8 attacks; 6 caught;
+  1 succeeded; 0 of 17 normal requests raised a false alarm.
+- `golden-open`: its open-Blue replay `20261126T033748Z-ae0e` (GO `manual-open-replay-peak`,
+  $0.001526). Open Blue caught the same 6 of 8 and recovered neither missed turn (turn 1,
+  recon; turn 5, no verdict). It raised 2 false alarms on the same 17 normal requests.
+- Taxonomy: none yet (the first matchup-1 E2E run).
 
 ```bash
 .venv/bin/python tools/export_golden.py data/runs/<match_id> --check       # 1 or 2: report only

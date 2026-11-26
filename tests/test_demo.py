@@ -291,7 +291,9 @@ def test_matchup_3_rejudges_the_latest_freeplay_match_end_to_end(lab, tmp_path):
     live, runs, transcript = lab
     assert demo_match.latest_freeplay(runs) is None
     lines: list[str] = []
-    assert demo_match.open_replay(runs, out_fn=lines.append) == 2 and "REFUSED" in lines[0]
+    sess = tmp_path / "sessions.jsonl"
+    assert demo_match.open_replay(runs, out_fn=lines.append, sessions=sess) == 2
+    assert lines[0].startswith("WARNING: no demo session") and lines[1].startswith("REFUSED")
     src = _demo_match(lab)
     _demo_match(lab, "taxonomy")                 # newer, but not free-play
     ev = tmp_path / "ev"                          # newer free-play copy marked eval: test data
@@ -302,12 +304,52 @@ def test_matchup_3_rejudges_the_latest_freeplay_match_end_to_end(lab, tmp_path):
     assert demo_match.latest_freeplay(runs) == src
     lines = []
     code = demo_match.open_replay(runs, out_fn=lines.append, ops=DemoOps(live, tee(transcript)),
-                                  out=tmp_path / "r")
+                                  out=tmp_path / "r", sessions=sess)
     assert code == 0, "\n".join(lines)
-    assert lines[0] == f"matchup 3: open Blue re-judges free-play match {src.name} (same traffic)"
+    assert f"matchup 3: open Blue re-judges free-play match {src.name} (same traffic)" in lines
     r = json.loads((tmp_path / "r" / "replay.json").read_text())
     assert r["source"]["match_id"] == src.name and r["blue_params"]["prompt_version"] == "3-open"
     assert r["blue_params"]["rules"]["mode"] == "on" and r["models"]["blue"]["model"] == demo_match.BLUE
     assert (tmp_path / "r" / "proxy.jsonl").read_bytes() == (src / "proxy.jsonl").read_bytes()
     assert export_golden.classify_run(tmp_path / "r") == ("open", [])
     assert not ev.exists()
+
+
+# ---- demo sessions (designer 2026-11-26): rehearsal runs never reach the stage ----------
+
+def test_sessions_are_append_only_and_the_last_is_current(tmp_path):
+    p = tmp_path / "demo" / "sessions.jsonl"
+    assert demo_match.current_session(p) is None
+    a = demo_match.new_session(p)
+    b = demo_match.new_session(p)
+    assert demo_match.current_session(p) == b and a["session_id"] != b["session_id"]
+    assert len(p.read_text().splitlines()) == 2                  # never overwritten
+    assert b["started_at"].endswith("Z") and b["started_at"] >= a["started_at"]
+
+
+def test_open_replay_ignores_freeplay_matches_from_before_the_session(lab, tmp_path):  # noqa: F811
+    live, runs, transcript = lab
+    rehearsal = _demo_match(lab)                                # before the session
+    sess = tmp_path / "sessions.jsonl"
+    m = json.loads((rehearsal / "match.json").read_text())
+    sess.write_text(json.dumps({"session_id": "s1", "started_at": m["finished_at"]}) + "\n")
+    lines: list[str] = []
+    assert demo_match.open_replay(runs, out_fn=lines.append, sessions=sess) == 2
+    assert lines == ["REFUSED: no completed free-play demo match in demo session s1: run matchup 2 "
+                     "first (scripts/demo.sh)"]
+    assert demo_match.latest_freeplay(runs, since=m["finished_at"]) is None
+    assert demo_match.latest_freeplay(runs, since=m["started_at"]) == rehearsal
+
+
+def test_new_session_cli_is_free_and_needs_no_go(monkeypatch, tmp_path, capsys):
+    monkeypatch.delenv("ARENA_GO", raising=False)
+    monkeypatch.setattr(demo_match, "SESSIONS", tmp_path / "s.jsonl")
+    monkeypatch.setattr(demo_match, "new_session", lambda path=tmp_path / "s.jsonl":
+                        {"session_id": "x", "started_at": "2026-12-03T17:00:00.000Z"})
+    assert demo_match.main(["--new-session"]) == 0
+    assert "demo session x started" in capsys.readouterr().out
+
+
+def test_demo_sh_new_session_mode_exists():
+    text = DEMO_SH.read_text()
+    assert "--new-session)" in text and "tools/demo_match.py --new-session" in text

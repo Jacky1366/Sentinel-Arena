@@ -47,6 +47,7 @@ export function initialState(mode = "live") {
     matchup: null, // D61: taxonomy | freeplay | open (from `demo matchup:` or the bundle name)
     runKind: "match", // match | replay
     sourceMatchId: null, // replay: the match whose log is re-judged
+    sessionId: null, // the demo session the run started in (scripts/demo.sh --new-session)
     source: null, // replay: the re-judged match's own results {rounds, benign} (original Blue)
     results: { rounds: {}, benign: {}, verdicts: 0, ready: false },
     reveal: { index: -1, done: false },
@@ -148,6 +149,7 @@ export function reduce(state, ev) {
     s.matchup = ev.matchup ?? null;
     s.runKind = ev.kind === "replay" ? "replay" : "match";
     s.sourceMatchId = ev.source_match_id ?? null;
+    s.sessionId = ev.session_id ?? null;
     // A recorded run knows its number of Red turns up front (from the bundle): lay out the
     // turn cards at once, as the live plan does. Pending until their own events arrive.
     for (let r = 1; r <= (ev.red_turns || 0); r++) s.slots.push({ kind: "red", round: r, state: "pending" });
@@ -500,6 +502,20 @@ export function reduceRuns(runs, ev) {
   const out = runs.slice();
   out[i] = { ...runs[i], state: next };
   return out;
+}
+
+// The current demo session: the latest `session` event, or the session the latest run
+// started in (a run start carries the session current at that moment). null = no sessions.
+export function reduceSession(cur, ev) {
+  if (!ev || typeof ev !== "object") return cur;
+  if (ev.type === "session") return ev.session_id ?? cur;
+  if (ev.type === "match_started" && ev.session_id) return ev.session_id;
+  return cur;
+}
+
+// Runs the stage may show: only those of the current session (rehearsals stay hidden).
+export function sessionRuns(runs, session) {
+  return session == null ? runs : runs.filter((r) => r.state.sessionId === session);
 }
 
 // The latest live run of a matchup (the switcher's first choice; else its golden run).

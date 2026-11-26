@@ -5,6 +5,11 @@
   3 open      ARENA_GO=… .venv/bin/python -u tools/demo_match.py --open-replay
   probe       ARENA_GO=… .venv/bin/python -u tools/demo_match.py [--matchup …] [--red …] --one-turn
   config      .venv/bin/python tools/demo_match.py --print-config [--matchup …] [--red …]   (zero cost)
+  session     .venv/bin/python tools/demo_match.py --new-session                             (zero cost)
+
+A demo session marks a boundary (data/runs/demo/sessions.jsonl, append-only): the dashboard's
+matchup switcher shows only runs started in the current session, and --open-replay only
+considers free-play matches started in it, so rehearsal runs cannot appear on stage.
 
 1 and 2 run one live match each, against original Blue (D44 default). 3 runs no match: open
 Blue (prompt v3-open, as in the gate-6.3-C-open replays, D42) re-judges the frozen log of the
@@ -21,7 +26,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import secrets
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -36,6 +43,7 @@ import run_match  # noqa: E402
 
 LIB_V5 = REPO / "data" / "library" / "rule_library_v0005.json"
 RUNS = REPO / "data" / "runs"
+SESSIONS = RUNS / "demo" / "sessions.jsonl"  # also read by the live server (liveserver/tailer.py)
 BLUE = "claude-haiku-5-5"
 # Final (#14, closed 2026-11-26): the peak-window run's slowest Red call was 57.0 s for
 # 5,236 output tokens (off-peak max 22.0 s), 0 timeouts in 20 calls. Retries: default.
@@ -86,6 +94,33 @@ def red_config(kw: dict) -> dict:
     return llm_client.with_caps(cfg, kw["caps"])
 
 
+# ---- demo sessions ----------------------------------------------------------------------
+
+def current_session(path: Path = SESSIONS) -> dict | None:
+    """The last session line, or None if no session was ever started."""
+    rows = []
+    if Path(path).is_file():
+        for line in Path(path).read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and isinstance(row.get("session_id"), str):
+                rows.append(row)
+    return rows[-1] if rows else None
+
+
+def new_session(path: Path = SESSIONS) -> dict:
+    """Start a session: append a line (earlier sessions are kept, never deleted)."""
+    now = datetime.now(timezone.utc)
+    row = {"session_id": f"{now:%Y%m%dT%H%M%SZ}-{secrets.token_hex(2)}",
+           "started_at": now.isoformat(timespec="milliseconds").replace("+00:00", "Z")}
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with Path(path).open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
+    return row
+
+
 # ---- matchup 3: the source --------------------------------------------------------------
 
 def is_demo_match(m: dict, prompt_version: str) -> bool:
@@ -101,9 +136,10 @@ def is_demo_match(m: dict, prompt_version: str) -> bool:
             and (bp.get("rules") or {}).get("mode") == "on")
 
 
-def latest_freeplay(runs: Path = RUNS) -> Path | None:
-    """The latest completed free-play demo match under `runs`. Folders are classified by
-    their manifest first (D59); test data and unknown folders are never opened further."""
+def latest_freeplay(runs: Path = RUNS, since: str | None = None) -> Path | None:
+    """The latest completed free-play demo match under `runs` (started at or after `since`,
+    the current session's start, when given). Folders are classified by their manifest first
+    (D59); test data and unknown folders are never opened further."""
     cands = [p for p in sorted(Path(runs).iterdir()) if (p / "match.json").is_file()]
     best = None
     for d in test_data.scannable(cands).folders:
@@ -111,16 +147,23 @@ def latest_freeplay(runs: Path = RUNS) -> Path | None:
             m = json.loads((d / "match.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
+        if since is not None and m.get("started_at", "") < since:
+            continue  # before this demo session: a rehearsal
         if is_demo_match(m, "3") and (best is None or m["started_at"] > best[0]):
             best = (m["started_at"], d)
     return best[1] if best else None
 
 
-def open_replay(runs: Path = RUNS, out_fn=print, **replay_kw) -> int:
+def open_replay(runs: Path = RUNS, out_fn=print, sessions: Path = SESSIONS, **replay_kw) -> int:
     from tools import replay_blue
-    src = latest_freeplay(runs)
+    sess = current_session(sessions)
+    if sess is None:
+        out_fn("WARNING: no demo session started (scripts/demo.sh --new-session): considering "
+               "every free-play demo match, rehearsals included")
+    src = latest_freeplay(runs, since=sess["started_at"] if sess else None)
     if src is None:
-        out_fn("REFUSED: no completed free-play demo match yet: run matchup 2 first "
+        where = f"in demo session {sess['session_id']}" if sess else "yet"
+        out_fn(f"REFUSED: no completed free-play demo match {where}: run matchup 2 first "
                "(scripts/demo.sh)")
         return 2
     out_fn(f"matchup 3: open Blue re-judges free-play match {src.name} (same traffic)")
@@ -185,8 +228,15 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--one-turn", action="store_true",
                       help="one Red proposal, dry run (paid: one call)")
     mode.add_argument("--print-config", action="store_true", help="print the config (zero cost)")
+    mode.add_argument("--new-session", action="store_true",
+                      help="start a demo session: only runs from now on reach the stage (zero cost)")
     args = ap.parse_args(argv)
     kw = demo_kwargs(args.red, args.red_timeout_s, args.seed, args.matchup)
+    if args.new_session:
+        row = new_session()
+        print(f"demo session {row['session_id']} started at {row['started_at']}: the stage "
+              f"shows only runs from now on")
+        return 0
     if args.print_config:
         print(json.dumps({k: (str(v) if isinstance(v, Path) else v) for k, v in kw.items()},
                          indent=1, sort_keys=True))
@@ -195,6 +245,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"REFUSED: a paid mode needs {go_token.ENV}=<the designer's token> on this "
               f"command (never set by this tool)", file=sys.stderr)
         return 2
+    sess = current_session()
+    print(f"demo session: {sess['session_id'] if sess else 'none (scripts/demo.sh --new-session)'}",
+          flush=True)
     if args.open_replay:
         print("demo matchup: open", flush=True)  # the live server's matchup line (D61)
         return open_replay()

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import {
   ACTS, MATCHUPS, MATCHUP_ORDER, UNSENT_WHAT, attackName, blueProgress, bundleToEvents, initialState, latestRunOf,
-  matchupOfBundle, missedAttacks, normalLine, playAll, reduce, reduceRuns, replayDelay, sideBySide,
+  matchupOfBundle, missedAttacks, normalLine, playAll, reduce, reduceRuns, reduceSession, replayDelay,
+  sessionRuns, sideBySide,
   sourceBundleFor, stats4, summaryRow, turnCards,
 } from "./model.js";
 import { connectLive } from "./live.js";
@@ -514,14 +515,18 @@ export function summaryRowsFor(runs, bundles) {
 
 // Battle: the matchup switcher (item 2) over live runs and recorded golden runs.
 export default function Battle({ live, bundles, initial, onCompare }) {
-  const [runs, dispatchLive] = useReducer(reduceRuns, []);
+  const [allRuns, dispatchRuns] = useReducer(reduceRuns, []);
+  const [session, dispatchSession] = useReducer(reduceSession, null);
+  const dispatchLive = (ev) => { dispatchRuns(ev); dispatchSession(ev); };
+  // Only the current demo session's runs reach the stage (scripts/demo.sh --new-session).
+  const runs = sessionRuns(allRuns, session);
   const [conn, setConn] = useState("connecting");
   const [sel, setSel] = useState(initial || (live ? { kind: "follow" } : { kind: "none" }));
   const now = useNow();
   const lastId = runs.length ? runs[runs.length - 1].id : null;
   const seen = useRef(lastId);
 
-  useEffect(() => (live ? connectLive((ev) => dispatchLive(ev), setConn) : undefined), [live]);
+  useEffect(() => (live ? connectLive((ev) => { dispatchRuns(ev); dispatchSession(ev); }, setConn) : undefined), [live]);
   // A new live run (the presenter started the next matchup) is shown at once.
   useEffect(() => {
     if (lastId && lastId !== seen.current) setSel({ kind: "follow" });
