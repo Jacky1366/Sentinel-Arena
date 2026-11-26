@@ -41,7 +41,8 @@ docs/contract.md        data contract v0 (SOURCE OF TRUTH)
 docs/progress.md        human-readable build progress (not authoritative)
 docs/stage5_decisions.md  locked Stage 5 decisions D1–D18 + sub-stage map
 docs/stage6_decisions.md  Stage 6 decisions D19, S6-1..S6-3, D20–D41 (+ D24 amendment, criterion d′; D34 amendment; D15 amendment, D41)
-docs/stage7_decisions.md  Stage 7 decisions D45–D59 (live demo, compare view, analyst report; plan in docs/plans/stage7_plan.md)
+docs/stage7_decisions.md  Stage 7 decisions D45–D61 (live demo, compare view, analyst report, D61 three demo matchups; plan in docs/plans/stage7_plan.md)
+docs/demo.md            Stage 7 #18 demo checklist: demo session, the three matchup commands, preflight, fallbacks per matchup, golden runs
 docs/plans/             stage plans (Step 0) as written before building
 docs/ops.md             keys (ARENA_* names), gitleaks hook, key-leak playbook, exit codes
 .githooks/pre-commit    gitleaks scan of staged changes (enable: git config core.hooksPath .githooks)
@@ -135,7 +136,7 @@ runner/schedule.py      seeded interleaving; preserves Red order AND benign orde
 runner/go_token.py      the GO token: gate tools need ARENA_GO=<gate id>; any real AI client a well-formed token (6.1b)
 run_match.py            orchestrator: one complete match -> frozen data/runs/<match_id>/
 red/scripted_red.py     write labeled record, then fire one attack (one step at a time); write_and_send shared with AI Red
-red/ai_red.py           AI Red (5.6): versioned prompts (v1; v2 = D40 evasion; v3 = D41 free-play: any attack + other/technique/headers), one proposal per slot, reply validation
+red/ai_red.py           AI Red (5.6): versioned prompts (v1; v2 = D40 evasion; v3 = D41 free-play: any attack + other/technique/headers), one proposal per slot, reply validation; #18 brain-failure diagnosis (one redacted stdout line, never an artifact)
 red/red_guard.py        rules of engagement (D15; D41 free-play mode: label other + Cookie/Authorization headers): scope/method/encoding/above-root/label/header/size guards
 runner/match_ops.py     the ONE code path for preflight/lock/reset/rotate/snapshot/freeze
 stats/match_stats.py    pure counts + rates over rounds.jsonl (terminal summary); rule vs AI split, rules block (5.5)
@@ -147,7 +148,7 @@ analyst/fmt.py          #17: report number formats (designer Q4: % with count, 9
 analyst/draft.py        #17: the AI analyst: prompt v3 (v1, v2 frozen; short prose labels; data not instructions, no recommendation, key figures + decision required, plain language), values + labels + confidence + CI shown, retry with grounding errors (max 3)
 analyst/render.py       #17: Jinja2 (pinned, autoescape) render of the frozen template analyst/templates/report.html.j2 (D56/D57): decision brief + full report, labels in the body, glossary
 analyst/grounding.py    #16: grounding check (placeholders, bare numbers, number words, refs, recommendation; D55, D60 b)
-liveserver/             Stage 7 #12: read-only live server (stdlib, 127.0.0.1, SSE) + tailer; `python -m liveserver` (README)
+liveserver/             Stage 7 #12: read-only live server (stdlib, 127.0.0.1, SSE) + tailer; `python -m liveserver` (README); keeps the last 10 runs, follows replays under data/replays/ (D61 matchup 3) with the source's results, demo matchup + session events
 stats/test_data.py      D59: is a folder TEST data? by manifest (match_id, purpose, replay source), never by name; scannable() for any folder scan
 stats/free_play.py      free-play measurement (D41): landing = any solve (+ category), detection binary over audited attempts; pure stats layer over the Judge
 blue/signatures.py      generic OWASP-style CWE signatures (no payload-file peeking)
@@ -191,6 +192,9 @@ tools/free_play.py            free-play (D41): binary audit scaffold/sheet + rep
 tools/build_report.py         #17: --probe (GO manual-analyst-probe) / --run (GO manual-analyst-report) / --render; analyst cap $1
 tools/build_summary.py        #16: build / --check the analyst summary.json; refuses test or unknown sources without ARENA_GO (D59)
 config/analyst_sources.json   #16: the summary's source groups (paths and roles only)
+scripts/demo.sh               #18 demo launcher (D61): --new-session, --taxonomy / default free-play / --open-replay (+ --luna), --replay taxonomy|freeplay|open; preflight, caffeinate, live server; ARENA_GO only from the caller
+tools/demo_match.py           #18: the three matchup configs as code (red_timeout_s 120, #14), --open-replay (latest free-play match of the session, D59 scan), --one-turn probe, --new-session
+tools/export_golden.py        #18: a clean demo run -> golden-taxonomy / golden-freeplay / golden-open bundle (+ dist sync); --check
 tools/export_compare.py       #15: N Blue arms on the same traffic -> dashboard/public/compare/<name>.json + compare.js (D59 + GO gate)
 tools/export_dashboard.py     one frozen folder -> dashboard bundle + bundles.js (6.4, read-only)
 tools/promote_rules.py        the ONLY path into the rule library: a train match -> retention evidence + a new library version
@@ -199,13 +203,15 @@ tools/stage6_1_check.py       6.1b: Gate 1 (5 train matches) / --promote / --pre
 tools/stage6_3_check.py       6.3 flagship gate: A (--estimate zero token; --probe), B (3 eval matches, Sol Red), C (Sonnet / empty-library replays); GO + token only
 tools/stage5_7_gate1.py       Gate 1 (5.7): cached-token mapping, Blue 3 calls + Red dry run, raw usage (--real-calls; GO only)
 tools/stage5_7_check.py       Gates 2-3 (5.7): caching effect on the gate-5.5 sources; 3 AI-vs-AI matches + audits (--real-calls; GO only)
-dashboard/src/battle/    Stage 7 #13: Battle view (three acts), pure model.js (LIVE + REPLAY), live.js (the ONE EventSource)
-dashboard/test/         node:test for the Battle model (run by tests/test_dashboard_battle.py)
+dashboard/src/battle/    Stage 7 #13 + #29: Battle view (D61 matchup switcher over live runs of the current session and golden runs; three acts; matchup 3 side by side; All-three summary), pure model.js (LIVE + REPLAY), live.js (the ONE EventSource)
+dashboard/src/labels.js  #29: reader-facing names for recorded runs (Battle other-runs menu, Audit)
+dashboard/test/         node:test for the Battle, Compare and Report models; clarity.test.mjs = #29 selectors, runs, sessions (run by tests/test_dashboard_battle.py)
 dashboard/src/report/   Stage 7 #17: Report tab (opens on the decision brief, "Full report" button; sandboxed iframe, print links); dashboard/public/report/{report.js,brief.html,report.html} from tools/build_report.py
-dashboard/src/compare/  Stage 7 #15: Compare view (D52) + pure compareModel.js (node:test in dashboard/test/compare.test.mjs)
+dashboard/src/compare/  Stage 7 #15 + #29: Compare view (D52; false alarms in the cards, takeaway, Limitations expander, described match tabs) + pure compareModel.js
 dashboard/public/compare/  committed Compare bundles (freeplay: 3 free-play eval matches, original live vs open replay; GO manual-freeplay-export)
-dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README)
+dashboard/              offline match playback (React + Tailwind; 6.4): open dashboard/dist/index.html; bundles in public/data/ (README; golden-<matchup> = demo golden runs, #18); tabs Battle / Compare / Report, Inspect behind the small Audit link (#29)
 data/runs/live/         nginx stages proxy.jsonl here (+ archive/, match.lock); git-ignored
+data/runs/demo/         scripts/demo.sh: transcript.log (+ transcripts/), sessions.jsonl (append-only demo sessions), liveserver.log; git-ignored
 data/runs/<match_id>/   frozen match output incl. match.json (git-ignored)
 data/replays/<replay_id>/  Blue replays incl. replay.json (git-ignored, D17)
 data/library/           rule library versions v0000.. + retention/<match_id>/ evidence (ALL committed: raw evidence is never deleted)
@@ -314,6 +320,8 @@ tests/test_live_server.py   live server: SSE in order, reconnect, static, read-o
 tests/test_dashboard_battle.py  Battle model via node --test: a fake live match + every committed bundle through three acts
 tests/test_export_compare.py  Compare exporter: join, divergence, aggregates = free-play stats, same-traffic check, D59 gate (synthetic); committed bundle = 12/19, 14/19
 tests/test_test_data.py     D59 helper: manifest not folder name (the slip reproduced), eval purpose, replays, unknown skipped, only manifests opened
+tests/test_red_diagnosis.py  #18: Red brain-failure diagnosis: redacted, capped, stdout only (never an artifact, Red's feedback or the dashboard), ignored by the tailer
+tests/test_demo.py          #18: matchup configs = gate arms, demo config through the real orchestrator (fakes), one-turn probe, matchup 3 end to end, sessions, golden export, demo.sh refusals
 tests/test_go_token.py      every paid entry point (gate tools, direct run_match / replay_blue, real clients) refuses without ARENA_GO; only llm_client imports an SDK
 ```
 
