@@ -280,8 +280,12 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
               blue_rules_mode: str | None = None, blue_caching: str | None = None,
               red_caching: str | None = None, purpose: str = "dev",
               library: Path | None = None,
+              red_abort_after_connection_failures: int | None = None,
               out=print) -> tuple[int, Path | None]:
-    """Run one match. Returns (exit_code, match_dir or None if never started)."""
+    """Run one match. Returns (exit_code, match_dir or None if never started).
+    red_abort_after_connection_failures (AI Red only; None = off, every gate): stop the match
+    when Red's first N turns all fail with connection errors (match_ops.RedUnreachable ->
+    status failed, failed_step traffic). Used by the demo (tools/demo_match.py)."""
     ops = ops or Ops()
 
     # 1. Preflight (no match exists yet: on failure, nothing to finalize).
@@ -301,6 +305,9 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         if red_max_output_tokens is not None and red_engine != "ai":
             raise ValueError("--red-max-output-tokens needs --red ai (an AI-call setting)")
         llm_config = llm_client.with_max_output_tokens(llm_config, "red", red_max_output_tokens)
+        if red_abort_after_connection_failures is not None and (
+                red_engine != "ai" or red_abort_after_connection_failures < 1):
+            raise ValueError("red_abort_after_connection_failures needs --red ai and N >= 1")
         if red_provider is not None and red_engine != "ai":
             raise ValueError("--red-provider needs --red ai (an AI-call setting)")
         llm_config = llm_client.with_provider(llm_config, "red", red_provider)
@@ -430,7 +437,8 @@ def run_match(ops: Ops | None = None, live_dir: Path = match_ops.LIVE,
         if red_engine == "ai":
             red = ai_red.AIRed(red_llm, red_m, match_dir,
                                match_id, n_red, prompt_version=red_pv)
-            red_driver = match_ops.AIDriver(red)
+            red_driver = match_ops.AIDriver(
+                red, abort_after_connection_failures=red_abort_after_connection_failures)
         ops.traffic(match_id, match_dir, attacks, bset["entries"], schedule, settle,
                     red_driver=red_driver)
         if red_pv == ai_red.FREEPLAY_PROMPT_VERSION:  # D41: capture challenge categories

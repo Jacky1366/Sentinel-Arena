@@ -535,8 +535,8 @@ class AnthropicAdapter:
     def __init__(self, http_client_factory: Callable[[], Any] | None = None):
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
-    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
-             request, output_schema, cache=False, cache_turns=False):
+    def _client(self, api_key, timeout):
+        """THE client for call() and probe(): a probe connects exactly as a call does."""
         if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
             raise ConfigError("no API key passed")
         if self.http_client_factory is None:  # a real client: the GO token, before the SDK
@@ -547,9 +547,19 @@ class AnthropicAdapter:
         # ANTHROPIC_BASE_URL can never redirect the key. No OpenTelemetry spans.
         extra = {} if self.http_client_factory is None else \
             {"http_client": self.http_client_factory()}
-        client = anthropic.Anthropic(api_key=api_key, base_url=ANTHROPIC_BASE_URL,
-                                     timeout=timeout, max_retries=0, open_telemetry=False,
-                                     **extra)
+        return anthropic.Anthropic(api_key=api_key, base_url=ANTHROPIC_BASE_URL,
+                                   timeout=timeout, max_retries=0, open_telemetry=False,
+                                   **extra)
+
+    def probe(self, *, api_key, timeout) -> None:
+        """GET /v1/models with the real key: reachability + key, no tokens, no ledger line."""
+        self._client(api_key, timeout).models.list()
+
+    def call(self, *, model, system, messages, max_output_tokens, timeout, api_key,
+             request, output_schema, cache=False, cache_turns=False):
+        if not api_key:  # never let the SDK fall back to ANTHROPIC_API_KEY
+            raise ConfigError("no API key passed")
+        client = self._client(api_key, timeout)
         resp = client.messages.create(model=model, system=anthropic_system(system, cache),
                                       messages=anthropic_messages(messages,
                                                                   cache and cache_turns),
@@ -668,6 +678,27 @@ class OpenAIAdapter:
     def __init__(self, http_client_factory: Callable[[], Any] | None = None):
         self.http_client_factory = http_client_factory  # tests: a mock transport
 
+    def _client(self, api_key, timeout):
+        """THE client for call() and probe(): a probe connects exactly as a call does."""
+        if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
+            raise ConfigError("no API key passed")
+        if self.http_client_factory is None:  # a real client: the GO token, before the SDK
+            require_go()
+        import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
+        extra = {} if self.http_client_factory is None else \
+            {"http_client": self.http_client_factory()}
+        # The client is built with every OPENAI_* variable removed, and the key and
+        # base URL passed explicitly: no environment value can choose the key, the
+        # host, the organization, the project or extra headers.
+        with scrubbed_env("OPENAI_"):
+            return openai.OpenAI(api_key=api_key, base_url=self.base_url,
+                                 timeout=timeout, max_retries=0, **extra)
+
+    def probe(self, *, api_key, timeout) -> None:
+        """GET <base_url>/models with the real key: reachability + key, no tokens, no
+        ledger line (DeepSeek: https://api.deepseek.com/models)."""
+        self._client(api_key, timeout).models.list()
+
     def _shape(self, request, output_schema, cache, messages):
         """(request kwargs, input items, unpriced-TTL flag)."""
         kwargs = openai_request_kwargs(request, output_schema, cache)
@@ -680,17 +711,7 @@ class OpenAIAdapter:
         if not api_key:  # never let the SDK fall back to OPENAI_API_KEY
             raise ConfigError("no API key passed")
         kwargs, items, unpriced_ttl = self._shape(request, output_schema, cache, messages)
-        if self.http_client_factory is None:  # a real client: the GO token, before the SDK
-            require_go()
-        import openai  # lazy; pinned in requirements.txt (openai==3.41.0)
-        extra = {} if self.http_client_factory is None else \
-            {"http_client": self.http_client_factory()}
-        # The client is built with every OPENAI_* variable removed, and the key and
-        # base URL passed explicitly: no environment value can choose the key, the
-        # host, the organization, the project or extra headers.
-        with scrubbed_env("OPENAI_"):
-            client = openai.OpenAI(api_key=api_key, base_url=self.base_url,
-                                   timeout=timeout, max_retries=0, **extra)
+        client = self._client(api_key, timeout)
         resp = client.responses.create(model=model, instructions=system, input=items,
                                        max_output_tokens=max_output_tokens, **kwargs)
         text, stop = openai_reply_parts(resp)
@@ -721,6 +742,24 @@ class DeepSeekAdapter(OpenAIAdapter):
 DEFAULT_ADAPTERS: dict[str, Adapter] = {"anthropic": AnthropicAdapter(),
                                         "openai": OpenAIAdapter(),
                                         "deepseek": DeepSeekAdapter()}
+
+
+def cause_chain(exc: BaseException, depth: int = 4) -> str:
+    """' [cause: ConnectError <- gaierror]': the exception's cause chain as TYPE NAMES ONLY.
+    The SDKs wrap every transport failure as one 'Connection error.', so without this a DNS
+    failure, a refused connection and a request that could not even be built (httpx
+    LocalProtocolError: an illegal character in a header, e.g. the key) look the same
+    (the 2026-11-27 demo incident). Never the messages: a LocalProtocolError's message
+    quotes the header value, i.e. the key."""
+    names, seen, e = [], {id(exc)}, exc
+    while len(names) < depth:
+        e = e.__cause__ if e.__cause__ is not None else \
+            (None if e.__suppress_context__ else e.__context__)
+        if e is None or id(e) in seen:
+            break
+        seen.add(id(e))
+        names.append(type(e).__name__)
+    return f" [cause: {' <- '.join(names)}]" if names else ""
 
 
 def classify(exc: BaseException) -> tuple[str, int | None, float | None]:
@@ -812,6 +851,21 @@ def stopped_by(calls: list[dict], prices: dict) -> dict | None:
 # The client
 # --------------------------------------------------------------------------
 
+REACH_TIMEOUT_S = 10.0
+
+
+@dataclass(frozen=True)
+class Reach:
+    """A reachability probe's result. Never carries an error MESSAGE (a provider's 401
+    text can echo the key's last characters): kind, status and the cause's type names."""
+    ok: bool
+    provider: str
+    kind: str              # ok | no_network | missing_key | connection | timeout | auth | ...
+    http_status: int | None
+    cause: str             # cause_chain(): " [cause: A <- B]" or ""
+    latency_ms: int
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -840,6 +894,34 @@ class LLMClient:
 
     def _redact(self, text: str) -> str:
         return redact(text, key_values(self.env, self.dotenv_path))
+
+    # -- reachability (free) -------------------------------------------------
+    def reachable(self, agent: str, timeout: float = REACH_TIMEOUT_S) -> "Reach":
+        """Is the agent's provider reachable WITH its key? One models-list request through
+        the same client a call builds (same key loading, base URL, env scrub, GO check).
+        No model call: no tokens, no cost, no api_calls.jsonl line. Never retried: a
+        preflight reports what it sees. An adapter without a network (fake) has no probe."""
+        provider = self.cfg["agents"][agent]["provider"]
+        if provider is None:
+            raise ConfigError(f"agents.{agent}.provider is not set in config/llm.json")
+        adapter = self.adapters.get(provider)
+        if adapter is None:
+            raise ConfigError(f"no adapter for provider {provider!r}")
+        if not hasattr(adapter, "probe"):
+            return Reach(True, provider, "no_network", None, "", 0)
+        key = self._key(provider)
+        if adapter.needs_key and not key:
+            return Reach(False, provider, "missing_key", None, "", 0)
+        t0 = self.clock()
+        try:
+            adapter.probe(api_key=key, timeout=timeout)
+        except GoTokenError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - reported, never raised
+            kind, status, _ = classify(exc)
+            return Reach(False, provider, kind, status, cause_chain(exc),
+                         max(0, round_ms(self.clock() - t0)))
+        return Reach(True, provider, "ok", 200, "", max(0, round_ms(self.clock() - t0)))
 
     # -- log ----------------------------------------------------------------
     def _write(self, run_dir: Path, line: dict) -> None:
@@ -940,7 +1022,7 @@ class LLMClient:
             except Exception as exc:  # noqa: BLE001 - one failed call never crashes a match
                 latency = max(0, round_ms(self.clock() - t0))
                 kind, status, retry_after = classify(exc)
-                error = self._redact(f"{type(exc).__name__}: {exc}")[:500]
+                error = self._redact(f"{type(exc).__name__}: {exc}{cause_chain(exc)}")[:500]
                 self._write(run_dir, {**base, "ok": False, "error_type": kind,
                                       "http_status": status, "refusal": None,
                                       "stop_reason": None,

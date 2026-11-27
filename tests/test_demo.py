@@ -361,9 +361,14 @@ def test_demo_sh_new_session_mode_exists():
 # live server, the browser and tools/demo_match.py: nothing reaches a network or a provider.
 
 FAKE_PY = """#!/bin/sh
-# stub venv python: only the GO well-formedness check is reachable
-[ "$1" = "-c" ] || { echo "stub python reached: $*" >&2; exit 97; }
-exit "${FAKE_GO_RC:-0}"
+# stub venv python: only the GO check and demo_match.py --check-red are reachable
+[ "$1" = "-c" ] && exit "${FAKE_GO_RC:-0}"
+case " $* " in *" tools/demo_match.py "*" --check-red "*)
+  echo "$* " >> "${FAKE_LOG:-/dev/null}"
+  echo "${FAKE_REACH_OUT:-Red provider deepseek (deepseek-v4-pro) reachable with its key (9 ms)}"
+  exit "${FAKE_REACH_RC:-0}" ;;
+esac
+echo "stub python reached: $*" >&2; exit 97
 """
 FAKE_DOCKER = """#!/bin/sh
 [ -z "$FAKE_DOCKER_FAIL" ] || { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
@@ -468,3 +473,104 @@ def test_demo_sh_every_pipeline_before_the_run_is_guarded():
     pre_run = text.split("# ---- the run")[0]
     assert pre_run.index("' ERR") < pre_run.index("# ---- options")
     assert "trap - ERR" in text.split("# ---- the run")[1].split('"$PY" -u tools/demo_match.py')[0]
+
+
+# ---- Red provider reachability (2026-11-27 incident: 40 DeepSeek calls, all 'connection') --
+
+UNREACH = ("Red provider deepseek (deepseek-v4-pro) NOT reachable: connection "
+           "[cause: ConnectError] after 41 ms -- could not connect: network, DNS or firewall")
+
+
+@pytest.mark.parametrize("args, fallback", [
+    ([], "ARENA_GO=<token> scripts/demo.sh --luna  (or the recording: scripts/demo.sh --replay freeplay)"),
+    (["--taxonomy"], "ARENA_GO=<token> scripts/demo.sh --taxonomy --luna  (or the recording: "
+                     "scripts/demo.sh --replay taxonomy)"),
+    (["--luna"], "scripts/demo.sh --replay freeplay  (recorded run, no network)"),
+    (["--taxonomy", "--luna"], "scripts/demo.sh --replay taxonomy  (recorded run, no network)"),
+])
+def test_demo_sh_unreachable_red_stops_with_the_fallback(tmp_path, args, fallback):
+    root, bin_ = _sandbox(tmp_path, dist=True)
+    r = _sh_in(root, bin_, *args, FAKE_REACH_RC="1", FAKE_REACH_OUT=f"noise\n{UNREACH}")
+    _assert_stopped_with_message(r, UNREACH, f"Fallback: {fallback}")
+    assert "noise" not in r.stderr  # the last line, the verdict, only
+
+
+def test_demo_sh_checks_the_matchups_own_red_and_not_for_matchup_3(tmp_path):
+    root, bin_ = _sandbox(tmp_path, sessions='{"session_id": "s1"}\n')
+    log = tmp_path / "reach.log"
+    for args in ([], ["--taxonomy", "--luna"], ["--open-replay"]):
+        r = _sh_in(root, bin_, *args, FAKE_LOG=str(log))
+        assert "ok    Red provider deepseek" in r.stdout or args == ["--open-replay"]
+        _assert_stopped_with_message(r, "dashboard not built")  # the check comes before it
+    calls = log.read_text().splitlines()
+    assert len(calls) == 2  # none for --open-replay (no Red)
+    assert "--matchup freeplay --red deepseek --check-red" in calls[0]
+    assert "--matchup taxonomy --red luna --check-red" in calls[1]
+
+
+def _reach_factory(handler):
+    import httpx2
+
+    def make(cfg):
+        a = lc.DeepSeekAdapter(
+            http_client_factory=lambda: httpx2.Client(transport=httpx2.MockTransport(handler)))
+        key = "-".join(["demo", "reach", "test", "value"])
+        return lc.LLMClient(config=cfg, adapters={"deepseek": a},
+                            env={"ARENA_DEEPSEEK_API_KEY": key},
+                            dotenv_path=REPO / "nonexistent" / "no.env")
+    return make
+
+
+def test_check_red_uses_the_matchups_red_config_and_reports_ok():
+    seen, out = [], []
+
+    def handler(req):
+        seen.append(str(req.url))
+        return __import__("httpx2").Response(200, json={"object": "list", "data": []})
+    assert demo_match.check_red(demo_match.demo_kwargs(), _reach_factory(handler),
+                                out=out.append) == 0
+    assert seen == ["https://api.deepseek.com/models"]
+    assert out[0].startswith("Red provider deepseek (deepseek-v4-pro) reachable with its key")
+
+
+@pytest.mark.parametrize("raise_, needle", [
+    ("ConnectError", "connection [cause: ConnectError]"),
+    ("LocalProtocolError", "connection [cause: LocalProtocolError]"),
+    (401, "auth HTTP 401"),
+])
+def test_check_red_failure_names_kind_cause_and_a_hint(raise_, needle):
+    import httpx2
+
+    def handler(req):
+        if raise_ == 401:
+            return httpx2.Response(401, json={"error": {"message": "Your api key: ****alue"}})
+        raise getattr(httpx2, raise_)("detail that is never printed")
+    out: list[str] = []
+    assert demo_match.check_red(demo_match.demo_kwargs(), _reach_factory(handler),
+                                out=out.append) == 1
+    [line] = out
+    assert "NOT reachable" in line and needle in line and " -- " in line
+    assert "never printed" not in line and "****" not in line
+    if raise_ == "LocalProtocolError":
+        assert "the API key" in line
+
+
+def test_demo_live_matches_fail_fast_after_two_connection_failures():
+    for m, r in demo_match.REDS:
+        assert demo_match.demo_kwargs(r, matchup=m)["red_abort_after_connection_failures"] == 2
+
+
+def test_stopped_match_prints_the_fallback(tmp_path):
+    def manifest(error):
+        (tmp_path / "match.json").write_text(json.dumps({"match_id": "m1", "error": error}))
+    out: list[str] = []
+    manifest("RedUnreachable: the first 2 Red turns all failed with connection errors")
+    assert demo_match.report_red_unreachable(tmp_path, "taxonomy", "deepseek", out.append)
+    text = "\n".join(out)
+    assert "DEMO FALLBACK" in text and "scripts/demo.sh --taxonomy --luna" in text
+    assert "scripts/demo.sh --replay taxonomy" in text
+    out.clear()
+    manifest("RuntimeError: something else")
+    assert not demo_match.report_red_unreachable(tmp_path, "freeplay", "deepseek", out.append)
+    assert not demo_match.report_red_unreachable(None, "freeplay", "deepseek", out.append)
+    assert out == []

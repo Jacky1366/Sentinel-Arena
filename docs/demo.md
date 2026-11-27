@@ -74,6 +74,9 @@ Automatic in `scripts/demo.sh` (live modes):
 - [ ] 1 and 2 only: Docker `juice-shop` running and healthy, `nginx` running;
       `data/runs/live/` holds only `proxy.jsonl` and `archive/`
 - [ ] No `data/runs/live/match.lock` (nothing running)
+- [ ] 1 and 2 only: the Red provider reachable with its key (free: one request to its models
+      endpoint, no tokens). On failure: `DEMO STOP: Red provider … NOT reachable: <kind> [cause: …]`
+      with the fallback (`--luna`, or the `--replay` when already on Luna)
 - [ ] Demo session read from `data/runs/demo/sessions.jsonl` (no file yet = `WARN`, not a stop:
       rehearsals before `--new-session` warn and continue)
 - [ ] `dashboard/dist/index.html` built
@@ -123,9 +126,11 @@ By failure:
 |---|---|---|
 | Network down | `Call failed` turns, `api_error` | Hotspot; if still down: the matchup's `--replay` |
 | DeepSeek slow | a turn waits (timer runs) up to 120 s | Nothing: a normal event (D50). The screen still shows the timer, so it is not stuck |
-| DeepSeek down / no balance | `Call failed` from the first turn | `--luna` (matchups 1 and 2) |
+| DeepSeek down / no balance | `Call failed` from the first turn (connection errors: the match stops after 2 turns; no balance is not caught by the free preflight: it reaches the models endpoint, not a paid call) | `--luna` (matchups 1 and 2) |
 | Anthropic (Blue) down | Act 2 shows failed Blue calls | the matchup's `--replay` |
 | Docker fails | `DEMO STOP: Docker service …` | the matchup's `--replay` |
+| Red provider unreachable before the match | `DEMO STOP: Red provider … NOT reachable` | the fallback it prints (`--luna`, or the `--replay`) |
+| Red provider unreachable during the match | `RED UNREACHABLE` after Red's first 2 turns both fail with connection errors; the match stops (kept, status failed) and prints `DEMO FALLBACK` | the fallback it prints |
 | Live server / dashboard crash | blank page or no events | the matchup's `--replay` (file://) |
 | Match too long | still in Act 1 at the cut-over point | the matchup's `--replay` in a second terminal; the live match keeps running, return to it at the end |
 | Launcher bug | `DEMO STOP: unexpected failure … line N` | the matchup's `--replay`; report the line |
