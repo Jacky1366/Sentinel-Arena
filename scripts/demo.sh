@@ -31,6 +31,10 @@ LIVE=data/runs/live
 DIST=dashboard/dist
 
 die() { echo "DEMO STOP: $*" >&2; exit 1; }
+# No silent exits: any command that fails outside a `|| die` (set -e) prints a DEMO STOP too.
+# Not inherited by functions or $(...) (no set -E), so one failure prints one line. Removed
+# around the run itself, whose exit status is reported below.
+trap 'rc=$?; echo "DEMO STOP: unexpected failure (exit $rc) at scripts/demo.sh line $LINENO: $BASH_COMMAND -- a launcher bug, please report it. Fallback: the matchup'"'"'s --replay (docs/demo.md)" >&2; exit $rc' ERR
 ok() { echo "  ok    $*"; }
 usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
 
@@ -125,7 +129,13 @@ fi
 [ ! -e "$LIVE/match.lock" ] \
   || die "stale lock $LIVE/match.lock (a match is running, or one crashed: check, then remove it by hand)"
 ok "no match running (no $LIVE/match.lock)"
-sess="$(sed -n '$p' "$DEMO_DIR/sessions.jsonl" 2>/dev/null | sed -n 's/.*"session_id": *"\([^"]*\)".*/\1/p')"
+# No sessions file yet (before the first --new-session) is a WARN, not a stop: guard it, as a
+# missing file makes sed fail and pipefail + set -e would exit here silently.
+sess=""
+if [ -e "$DEMO_DIR/sessions.jsonl" ]; then
+  sess="$(sed -n '$p' "$DEMO_DIR/sessions.jsonl" | sed -n 's/.*"session_id": *"\([^"]*\)".*/\1/p')" \
+    || die "cannot read $DEMO_DIR/sessions.jsonl (check it, or start a session: scripts/demo.sh --new-session)"
+fi
 if [ -n "$sess" ]; then
   ok "demo session $sess (the stage shows only its runs)"
 else
@@ -162,14 +172,16 @@ open_url "$URL"
 
 # ---- the run ---------------------------------------------------------------------------
 echo "Sentinel Arena demo: starting $title (transcript $TX)"
+trap - ERR  # the run's own exit status is reported below, not as a launcher failure
 set +e
 "$PY" -u tools/demo_match.py "${args[@]}" 2>&1 | tee "$TX"
 status=${PIPESTATUS[0]}
 set -e
+# best effort (|| true): a SIGPIPE from head under pipefail must not end the script silently
 if [ "$matchup" = open ]; then
-  folder="$(sed -n 's/^replay [^ ]* of [^ ]* -> \(.*\)$/\1/p' "$TX" | head -1 | sed 's/ .*//')"
+  folder="$(sed -n 's/^replay [^ ]* of [^ ]* -> \(.*\)$/\1/p' "$TX" | head -1 | sed 's/ .*//' || true)"
 else
-  folder="$(sed -n 's/^match [^ ]* -> \(.*\)$/\1/p' "$TX" | head -1)"
+  folder="$(sed -n 's/^match [^ ]* -> \(.*\)$/\1/p' "$TX" | head -1 || true)"
 fi
 echo
 if [ "$status" = 0 ]; then

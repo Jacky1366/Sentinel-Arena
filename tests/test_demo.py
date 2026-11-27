@@ -353,3 +353,118 @@ def test_new_session_cli_is_free_and_needs_no_go(monkeypatch, tmp_path, capsys):
 def test_demo_sh_new_session_mode_exists():
     text = DEMO_SH.read_text()
     assert "--new-session)" in text and "tools/demo_match.py --new-session" in text
+
+
+# ---- demo.sh preflight: every failure prints DEMO STOP (2026-11-26 silent-exit bug) ------
+# demo.sh runs from a COPY in a throwaway repo: a stub venv python (the GO check only), a stub
+# docker on PATH, no dashboard build unless asked. Every case stops before caffeinate, the
+# live server, the browser and tools/demo_match.py: nothing reaches a network or a provider.
+
+FAKE_PY = """#!/bin/sh
+# stub venv python: only the GO well-formedness check is reachable
+[ "$1" = "-c" ] || { echo "stub python reached: $*" >&2; exit 97; }
+exit "${FAKE_GO_RC:-0}"
+"""
+FAKE_DOCKER = """#!/bin/sh
+[ -z "$FAKE_DOCKER_FAIL" ] || { echo "Cannot connect to the Docker daemon" >&2; exit 1; }
+printf '%s\\n' "${FAKE_DOCKER_PS:-juice-shop running healthy
+nginx running }"
+"""
+
+
+def _sandbox(tmp_path, *, dist=False, sessions=None, lock=False, venv=True, demo_is_file=False):
+    root = tmp_path / "repo"
+    (root / "scripts").mkdir(parents=True)
+    shutil.copy2(DEMO_SH, root / "scripts" / "demo.sh")
+    if venv:
+        (root / ".venv" / "bin").mkdir(parents=True)
+        (root / ".venv" / "bin" / "python").write_text(FAKE_PY)
+        (root / ".venv" / "bin" / "python").chmod(0o755)
+    live = root / "data" / "runs" / "live"
+    (live / "archive").mkdir(parents=True)
+    (live / "proxy.jsonl").write_text("")
+    if lock:
+        (live / "match.lock").write_text("")
+    demo = root / "data" / "runs" / "demo"
+    if demo_is_file:
+        demo.write_text("")  # makes `mkdir -p data/runs/demo/transcripts` fail: an unguarded step
+    elif sessions is not None:
+        demo.mkdir(parents=True)
+        (demo / "sessions.jsonl").write_text(sessions)
+    if dist:
+        (root / "dashboard" / "dist").mkdir(parents=True)
+        (root / "dashboard" / "dist" / "index.html").write_text("")
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "docker").write_text(FAKE_DOCKER)
+    (bin_ / "docker").chmod(0o755)
+    return root, bin_
+
+
+def _sh_in(root, bin_, *args, go="manual-test-preflight", **env_extra):
+    env = {k: v for k, v in os.environ.items() if not k.startswith(("ARENA_", "FAKE_"))}
+    env.update({"DEMO_DRY": "1", "PATH": f"{bin_}:{env['PATH']}", **env_extra})
+    if go is not None:
+        env["ARENA_GO"] = go  # a well-formed placeholder; the stub python never calls anything
+    return subprocess.run(["bash", str(root / "scripts" / "demo.sh"), *args],
+                          capture_output=True, text=True, env=env, timeout=30)
+
+
+def _assert_stopped_with_message(r, *needles):
+    assert r.returncode != 0
+    stops = [ln for ln in r.stderr.splitlines() if ln.startswith("DEMO STOP: ")]
+    assert len(stops) == 1, (r.stdout, r.stderr)  # exactly one message, never zero
+    for n in needles:
+        assert n in stops[0], (n, stops[0])
+    assert "live server" not in r.stdout and "starting" not in r.stdout and "stub python reached" not in r.stderr
+
+
+@pytest.mark.parametrize("args", [[], ["--taxonomy"], ["--open-replay"]])
+def test_demo_sh_no_sessions_file_warns_and_continues(tmp_path, args):
+    """The 2026-11-26 bug: no data/runs/demo/sessions.jsonl -> sed failed under pipefail and
+    set -e exited 1 with no message. Now: WARN, then the next check (here: dashboard)."""
+    root, bin_ = _sandbox(tmp_path)
+    r = _sh_in(root, bin_, *args)
+    assert "WARN  no demo session" in r.stdout
+    _assert_stopped_with_message(r, "dashboard not built")
+
+
+def test_demo_sh_reads_the_current_session(tmp_path):
+    root, bin_ = _sandbox(tmp_path, sessions='{"session_id": "s1"}\n{"session_id": "s2"}\n')
+    r = _sh_in(root, bin_, "--open-replay")
+    assert "ok    demo session s2" in r.stdout
+    _assert_stopped_with_message(r, "dashboard not built")
+
+
+@pytest.mark.parametrize("case, args, kw, env, needles", [
+    ("no venv", [], {"venv": False}, {}, ["no project venv"]),
+    ("no GO", [], {}, {"go": None}, ["ARENA_GO is not set", "ARENA_GO=<token> scripts/demo.sh"]),
+    ("bad GO", [], {}, {"FAKE_GO_RC": "1"}, ["not a well-formed token"]),
+    ("docker down", [], {}, {"FAKE_DOCKER_FAIL": "1"},
+     ["docker compose ps failed", "docker compose up -d --wait"]),
+    ("juice-shop absent", [], {}, {"FAKE_DOCKER_PS": "nginx running "},
+     ["juice-shop is 'absent'", "docker compose up -d --wait"]),
+    ("juice-shop starting", ["--taxonomy"], {},
+     {"FAKE_DOCKER_PS": "juice-shop running starting\nnginx running "},
+     ["juice-shop is starting", "docker compose up -d --wait"]),
+    ("stale lock", [], {"lock": True}, {}, ["stale lock", "remove it by hand"]),
+    ("stale lock, matchup 3", ["--open-replay"], {"lock": True}, {}, ["stale lock"]),
+    ("dashboard missing", [], {"sessions": '{"session_id": "s1"}\n'}, {}, ["dashboard not built"]),
+    ("unguarded step fails", ["--open-replay"], {"dist": True, "demo_is_file": True}, {},
+     ["unexpected failure", "line ", "--replay"]),
+])
+def test_demo_sh_every_failing_preflight_prints_one_demo_stop(tmp_path, case, args, kw, env,
+                                                               needles):
+    root, bin_ = _sandbox(tmp_path, **kw)
+    r = _sh_in(root, bin_, *args, **env)
+    _assert_stopped_with_message(r, *needles)
+
+
+def test_demo_sh_every_pipeline_before_the_run_is_guarded():
+    """Static backstop: under set -euo pipefail, a $(a | b) assignment before the run must be
+    guarded (|| die / || true / inside an if on the file's existence), or carry the ERR trap."""
+    text = DEMO_SH.read_text()
+    assert "set -euo pipefail" in text and "trap '" in text and "' ERR" in text
+    pre_run = text.split("# ---- the run")[0]
+    assert pre_run.index("' ERR") < pre_run.index("# ---- options")
+    assert "trap - ERR" in text.split("# ---- the run")[1].split('"$PY" -u tools/demo_match.py')[0]

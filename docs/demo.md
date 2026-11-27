@@ -74,14 +74,24 @@ Automatic in `scripts/demo.sh` (live modes):
 - [ ] 1 and 2 only: Docker `juice-shop` running and healthy, `nginx` running;
       `data/runs/live/` holds only `proxy.jsonl` and `archive/`
 - [ ] No `data/runs/live/match.lock` (nothing running)
+- [ ] Demo session read from `data/runs/demo/sessions.jsonl` (no file yet = `WARN`, not a stop:
+      rehearsals before `--new-session` warn and continue)
 - [ ] `dashboard/dist/index.html` built
 - [ ] `caffeinate -dims`; live server up on 127.0.0.1:8765; browser opened
+
+Every failed check prints one `DEMO STOP: <reason>` line with its fix, and exits 1. A
+failure outside the named checks prints `DEMO STOP: unexpected failure … line N`: a launcher
+bug; switch to the matchup's `--replay`. Exit 1 with no `DEMO STOP` line should no longer
+happen (tests/test_demo.py).
 
 By hand, before the session:
 
 - [ ] Rehearsals done, then `scripts/demo.sh --new-session` (just before matchup 1)
 - [ ] Balances: DeepSeek, OpenAI, Anthropic
 - [ ] `docker compose up -d --wait`, then `docker compose ps`
+- [ ] Do not start the live server by hand: `demo.sh` starts it on 127.0.0.1:8765 with the demo
+      transcript. Anything else on port 8765 (e.g. a `python -m liveserver` from development) is a
+      `DEMO STOP: port 8765 is served by something else`: stop it first
 - [ ] Red probes, one call each, nothing sent:
       `ARENA_GO=<token> .venv/bin/python -u tools/demo_match.py --one-turn`, plus
       `--matchup taxonomy` (and `--red luna` for each, if time allows)
@@ -118,6 +128,7 @@ By failure:
 | Docker fails | `DEMO STOP: Docker service …` | the matchup's `--replay` |
 | Live server / dashboard crash | blank page or no events | the matchup's `--replay` (file://) |
 | Match too long | still in Act 1 at the cut-over point | the matchup's `--replay` in a second terminal; the live match keeps running, return to it at the end |
+| Launcher bug | `DEMO STOP: unexpected failure … line N` | the matchup's `--replay`; report the line |
 | Stale lock / dirty `live/` | `DEMO STOP: stale lock …` | `--replay` now; clear it by hand after the demo, never on stage |
 | Laptop sleeps | — | prevented by `caffeinate -dims` |
 | Laptop / projector failure | — | Screen recording |
