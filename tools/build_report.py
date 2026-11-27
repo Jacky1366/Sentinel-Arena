@@ -14,6 +14,11 @@ designer's exact GO token for that mode.
           read the text (D60 c).
 --render  re-renders report.html from a report folder (summary + draft + grounding + meta).
 
+Before any folder, summary read or paid call, both modes check that every provider in the
+run's model order is reachable with its key (free: the models endpoint, no tokens). If one is
+not, the run stops and names the fallback: --run --models with the reachable models, or
+the committed report (data/golden/analyst-report-7).
+
 The analyst cap is $1 for the whole run folder (D53): agents.analyst and the match cap are
 both set to $1 for analyst runs. Every call goes through agents/llm_client.py.
 """
@@ -53,6 +58,37 @@ CANDIDATES = [  # designer Q1 (2026-11-24): this order, stop at the first that a
 # designer (2026-11-24): gpt-6.1-sol, falling back in order to gpt-6.1-terra, then claude-sonnet-5-5
 REPORT_ORDER = ("gpt-6.1-sol", "gpt-6.1-terra", "claude-sonnet-5-5")
 ANALYST_CAP = {"max_calls": 12, "max_tokens": 600000, "max_usd": 1.0}
+
+
+COMMITTED_REPORT = "data/golden/analyst-report-7"
+
+
+class ProviderUnreachable(RuntimeError):
+    """A provider in the run's model order is not reachable: raised BEFORE any paid call."""
+
+
+def _real_reach(cfg: dict):
+    return lc.LLMClient(config=cfg, prices=cost_mod.load_prices()).reachable("analyst")
+
+
+def preflight_reach(cands, reach=_real_reach) -> None:
+    """Free: one models-endpoint request per provider in the order (same client as a call).
+    Raises ProviderUnreachable naming each failure and the fallback. reach: cfg -> lc.Reach."""
+    base = lc.load_config()
+    by_provider: dict = {}
+    for cand in cands:
+        if cand["provider"] not in by_provider:
+            by_provider[cand["provider"]] = reach(analyst_config(base, cand))
+    bad = {p: r for p, r in by_provider.items() if not r.ok}
+    if not bad:
+        return
+    why = "; ".join(f"{p} NOT reachable: {r.kind}"
+                    + (f" HTTP {r.http_status}" if r.http_status else "") + r.cause
+                    for p, r in bad.items())
+    usable = [c["model"] for c in cands if c["provider"] not in bad]
+    fb = (f"--run --models {','.join(usable)} (the reachable models, in order)" if usable else
+          f"keep the committed report ({COMMITTED_REPORT}, the dashboard's Report tab)")
+    raise ProviderUnreachable(f"{why}. Nothing was called. Fallback: {fb}")
 
 
 class LedgerPreflightError(ValueError):
@@ -133,15 +169,17 @@ def _calls_for(run_dir: Path, model: str, prices: dict) -> dict:
 
 
 def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
-          client_factory=None, summary: dict | None = None) -> dict:
+          client_factory=None, summary: dict | None = None, reach=None) -> dict:
     """One call per candidate; stop at the first schema-valid draft. client_factory (tests):
-    cfg -> client."""
+    cfg -> client. reach (tests): cfg -> lc.Reach; by default only real clients are checked
+    (an injected client_factory has no network to reach)."""
     env = os.environ if env is None else env
     msg = go_token.check(PROBE_TOKEN, env)
     if msg:
         raise PermissionError(msg)
     run_id = run_match.new_match_id()  # api_call.schema.json: a match-id-shaped id
     preflight_ledger(run_id, CANDIDATES)  # before any folder, summary read or paid call
+    _reach_check(CANDIDATES, client_factory, reach)
     run_dir = out / f"probe-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     summary = summary if summary is not None else build_the_summary(manifest, env, run_dir)
@@ -180,7 +218,7 @@ def probe(env=None, manifest: Path = build_summary.MANIFEST, out: Path = OUT,
 
 def report(env=None, models=None, manifest: Path = build_summary.MANIFEST,
            out: Path = OUT, client_factory=None, summary: dict | None = None,
-           publish: bool = False, dash: Path = DASH_REPORT) -> dict:
+           publish: bool = False, dash: Path = DASH_REPORT, reach=None) -> dict:
     """The report run: the analyst loop (max 3 attempts per model) with the designer's
     fallback order, all inside ONE run folder (one $1 cap). Renders on the first grounded
     draft. publish=False by default: nothing in the repo changes until the designer has read
@@ -198,6 +236,7 @@ def report(env=None, models=None, manifest: Path = build_summary.MANIFEST,
         cands.append(c)
     run_id = run_match.new_match_id()
     preflight_ledger(run_id, cands)  # before any folder, summary read or paid call
+    _reach_check(cands, client_factory, reach)
     run_dir = out / f"report-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=False)
     summary = summary if summary is not None else build_the_summary(manifest, env, run_dir)
@@ -237,6 +276,13 @@ def report(env=None, models=None, manifest: Path = build_summary.MANIFEST,
     elif o.grounding is not None:
         _write(run_dir / "grounding_result.json", o.grounding)
     return {**meta, "ok": o.ok, "run_dir": str(run_dir)}
+
+
+def _reach_check(cands, client_factory, reach) -> None:
+    if reach is None and client_factory is None:
+        reach = _real_reach
+    if reach is not None:
+        preflight_reach(cands, reach)
 
 
 def publish_dashboard(html: str, meta: dict, dash: Path = DASH_REPORT, brief: str = "") -> None:
@@ -307,6 +353,9 @@ def main(argv: list[str] | None = None) -> int:
     except PermissionError as exc:
         print(str(exc))
         return 2
+    except ProviderUnreachable as exc:
+        print(f"STOP: {exc}")
+        return 1
 
 
 if __name__ == "__main__":

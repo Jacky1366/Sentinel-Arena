@@ -9,8 +9,10 @@
 #   scripts/demo.sh --new-session                            start the demo session: from now on the stage
 #                                                            shows only new runs, and 3 picks only from them
 #
-# Live modes: preflight (ARENA_GO given; for 1 and 2 also the Docker stack healthy and
-# data/runs/live/ clean; no stale lock; dashboard built), then caffeinate for the whole
+# Live modes: preflight (ARENA_GO given; for 1 and 2 also the Docker stack healthy,
+# data/runs/live/ clean and the Red provider reachable with its key; for all three the Blue
+# provider reachable with its key (free: models endpoint, no tokens); no stale lock;
+# dashboard built), then caffeinate for the whole
 # session, the live server on 127.0.0.1:8765 if not already running, the dashboard opened in
 # the browser, and tools/demo_match.py with python -u, its stdout tee'd to the transcript the
 # server follows.
@@ -129,6 +131,25 @@ fi
 [ ! -e "$LIVE/match.lock" ] \
   || die "stale lock $LIVE/match.lock (a match is running, or one crashed: check, then remove it by hand)"
 ok "no match running (no $LIVE/match.lock)"
+if [ "$matchup" != open ]; then  # free: the Red provider's models endpoint, with its key; no tokens
+  if red_out="$("$PY" -u tools/demo_match.py "${args[@]}" --check-red 2>&1)"; then
+    ok "$red_out"
+  else
+    flag=""; [ "$matchup" = taxonomy ] && flag=" --taxonomy"
+    if [ "$red" = deepseek ]; then
+      fb="ARENA_GO=<token> scripts/demo.sh${flag} --luna  (or the recording: scripts/demo.sh --replay $matchup)"
+    else
+      fb="scripts/demo.sh --replay $matchup  (recorded run, no network)"
+    fi
+    die "$(printf '%s' "$red_out" | tail -1). Fallback: $fb"
+  fi
+fi
+# Blue (all three matchups; 3 is Blue only). --luna does not help: Blue is the same.
+if blue_out="$("$PY" -u tools/demo_match.py --check-blue 2>&1)"; then
+  ok "$blue_out"
+else
+  die "$(printf '%s' "$blue_out" | tail -1). Fallback: scripts/demo.sh --replay $matchup  (recorded run, no network)"
+fi
 # No sessions file yet (before the first --new-session) is a WARN, not a stop: guard it, as a
 # missing file makes sed fail and pipefail + set -e would exit here silently.
 sess=""

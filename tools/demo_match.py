@@ -4,6 +4,9 @@
   2 freeplay  ARENA_GO=… .venv/bin/python -u tools/demo_match.py [--red luna]
   3 open      ARENA_GO=… .venv/bin/python -u tools/demo_match.py --open-replay
   probe       ARENA_GO=… .venv/bin/python -u tools/demo_match.py [--matchup …] [--red …] --one-turn
+  reach       ARENA_GO=… .venv/bin/python -u tools/demo_match.py [--matchup …] [--red …] --check-red
+              ARENA_GO=… .venv/bin/python -u tools/demo_match.py --check-blue
+                (free: the provider's models endpoint with the key; no tokens; demo.sh preflight)
   config      .venv/bin/python tools/demo_match.py --print-config [--matchup …] [--red …]   (zero cost)
   session     .venv/bin/python tools/demo_match.py --new-session                             (zero cost)
 
@@ -48,6 +51,9 @@ BLUE = "claude-haiku-5-5"
 # Final (#14, closed 2026-11-26): the peak-window run's slowest Red call was 57.0 s for
 # 5,236 output tokens (off-peak max 22.0 s), 0 timeouts in 20 calls. Retries: default.
 DEMO_RED_TIMEOUT_S = 120.0
+# Fail fast (2026-11-27 incident: 10 DeepSeek turns, 40 calls, all connection errors): stop a
+# live demo match when its first 2 Red turns both fail with connection errors.
+DEMO_RED_ABORT_AFTER = 2
 MATCHUPS = ("taxonomy", "freeplay")
 # Blue = the D44 default (original Blue): rules on, caching on, library v5 read-only.
 COMMON = {"red_engine": "ai", "red_caching": "on", "engine": "claude", "blue_model": BLUE,
@@ -80,7 +86,64 @@ OPEN_REPLAY = {"engine": "claude", "model": BLUE, "rules_mode": "on", "caching":
 def demo_kwargs(red: str = "deepseek", red_timeout_s: float = DEMO_RED_TIMEOUT_S,
                 seed: int | None = None, matchup: str = "freeplay") -> dict:
     return {**COMMON, **REDS[(matchup, red)], "red_timeout_s": red_timeout_s, "seed": seed,
-            "library": LIB_V5}
+            "library": LIB_V5, "red_abort_after_connection_failures": DEMO_RED_ABORT_AFTER}
+
+
+def fallback(matchup: str, red: str) -> list[str]:
+    """What to run instead when this matchup's Red cannot run (docs/demo.md Fallbacks)."""
+    flag = " --taxonomy" if matchup == "taxonomy" else ""
+    replay = f"scripts/demo.sh --replay {matchup}"
+    if red == "deepseek":
+        return [f"ARENA_GO=<token> scripts/demo.sh{flag} --luna   (backup Red, OpenAI)",
+                f"{replay}   (recorded run, no network)"]
+    return [f"{replay}   (recorded run, no network)"]
+
+
+HINTS = {  # cause type name -> what it usually means (the excerpt carries no message)
+    "LocalProtocolError": "the request could not be built: an illegal character in a header, "
+                          "usually the API key (a newline, a space, a quote): check the key",
+    "gaierror": "DNS lookup failed: network / DNS (hotspot? VPN?)",
+    "ConnectError": "could not connect: network, DNS or firewall",
+    "SSLError": "TLS failed: a proxy or captive portal intercepting HTTPS?",
+    "SSLCertVerificationError": "TLS certificate rejected: a proxy or captive portal?",
+}
+
+
+def blue_config(kw: dict) -> dict:
+    """The llm config the match (or matchup 3's replay) builds for Blue: provider from
+    config/llm.json (anthropic), caching on."""
+    return llm_client.with_caching(llm_client.load_config(), "blue", kw["blue_caching"])
+
+
+def check_red(kw: dict, client_factory=None, out=print) -> int:
+    """Free preflight: the matchup's Red provider, reached the way a Red call is (same
+    config, key loading, client), via its models endpoint. No tokens, no ledger line."""
+    return _check("red", red_config(kw), kw["red_model"], client_factory, out)
+
+
+def check_blue(kw: dict, client_factory=None, out=print) -> int:
+    """Free preflight: Blue's provider (all three matchups; matchup 3 is Blue only)."""
+    return _check("blue", blue_config(kw), kw["blue_model"], client_factory, out)
+
+
+def _check(agent: str, cfg: dict, model: str, client_factory, out) -> int:
+    from stats import cost as cost_stats
+    make = client_factory or (lambda c: llm_client.LLMClient(config=c,
+                                                              prices=cost_stats.load_prices()))
+    r = make(cfg).reachable(agent)
+    where = f"{agent.capitalize()} provider {r.provider} ({model})"
+    if r.ok:
+        out(f"{where} reachable with its key ({r.latency_ms} ms; models endpoint, no tokens)")
+        return 0
+    status = f" HTTP {r.http_status}" if r.http_status else ""
+    hint = next((h for name, h in HINTS.items() if name in r.cause), None)
+    if r.kind == "auth":
+        hint = "the provider rejected the key (wrong / revoked key, or no balance)"
+    elif r.kind == "missing_key":
+        hint = f"no {llm_client.KEY_ENV.get(r.provider, 'API key')} in the environment or .env"
+    out(f"{where} NOT reachable: {r.kind}{status}{r.cause} after {r.latency_ms} ms"
+        + (f" -- {hint}" if hint else ""))
+    return 1
 
 
 def red_config(kw: dict) -> dict:
@@ -227,6 +290,10 @@ def main(argv: list[str] | None = None) -> int:
                       help="matchup 3: open Blue re-judges the latest free-play demo match")
     mode.add_argument("--one-turn", action="store_true",
                       help="one Red proposal, dry run (paid: one call)")
+    mode.add_argument("--check-red", action="store_true",
+                      help="is the Red provider reachable with its key? (free: models endpoint)")
+    mode.add_argument("--check-blue", action="store_true",
+                      help="is the Blue provider reachable with its key? (free: models endpoint)")
     mode.add_argument("--print-config", action="store_true", help="print the config (zero cost)")
     mode.add_argument("--new-session", action="store_true",
                       help="start a demo session: only runs from now on reach the stage (zero cost)")
@@ -253,9 +320,30 @@ def main(argv: list[str] | None = None) -> int:
         return open_replay()
     if args.one_turn:
         return one_turn(kw)
+    if args.check_red:
+        return check_red(kw)
+    if args.check_blue:
+        return check_blue(kw)
     print(f"demo matchup: {args.matchup}", flush=True)
-    code, _ = run_match.run_match(**kw)
+    code, match_dir = run_match.run_match(**kw)
+    report_red_unreachable(match_dir, args.matchup, args.red)
     return code
+
+
+def report_red_unreachable(match_dir: Path | None, matchup: str, red: str, out=print) -> bool:
+    """After a match the fail-fast stopped: say so and print the fallback commands."""
+    try:
+        m = json.loads((match_dir / "match.json").read_text(encoding="utf-8"))
+    except (TypeError, OSError, ValueError):
+        return False
+    if not (m.get("error") or "").startswith("RedUnreachable"):
+        return False
+    out("")
+    out(f"DEMO FALLBACK: Red could not reach its provider; match {m['match_id']} stopped early "
+        f"(kept, status failed). Run instead:")
+    for line in fallback(matchup, red):
+        out(f"  {line}")
+    return True
 
 
 if __name__ == "__main__":

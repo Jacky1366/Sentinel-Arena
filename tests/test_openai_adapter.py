@@ -204,3 +204,119 @@ def test_openai_bytes_are_unchanged_by_the_deepseek_subclass():
     sent = json.loads(seen[0].content)
     assert str(seen[0].url) == "https://api.openai.com/v1/responses"
     assert sent["prompt_cache_options"] == {"mode": "explicit"}
+
+
+# -- reachability probe + cause chain (2026-11-27 demo incident) --------------------------
+
+def _probe_client(handler, key=TEST_KEY):
+    """An LLMClient whose deepseek adapter is the real one on a mock transport (not real:
+    no GO needed); the key comes from the client's env, as in a match."""
+    a = lc.DeepSeekAdapter(
+        http_client_factory=lambda: httpx2.Client(transport=httpx2.MockTransport(handler)))
+    cfg = lc.load_config()
+    cfg["agents"]["red"]["provider"] = "deepseek"
+    env = {} if key is None else {"ARENA_DEEPSEEK_API_KEY": key}
+    return lc.LLMClient(config=cfg, adapters={"deepseek": a}, env=env,
+                        dotenv_path=lc.REPO / "nonexistent" / "no.env")
+
+
+def test_probe_is_one_get_of_the_models_endpoint_with_our_key_and_writes_nothing(
+        hostile_env, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    seen = []
+
+    def handler(req):
+        seen.append(req)
+        return httpx2.Response(200, json={"object": "list", "data": []})
+    r = _probe_client(handler).reachable("red")
+    assert (r.ok, r.provider, r.kind, r.http_status, r.cause) == (True, "deepseek", "ok", 200, "")
+    [req] = seen
+    assert req.method == "GET" and str(req.url) == "https://api.deepseek.com/models"
+    assert req.headers["authorization"] == f"Bearer {TEST_KEY}"
+    assert "env-sentinel" not in "\n".join(f"{k}: {v}" for k, v in req.headers.items())
+    assert list(tmp_path.iterdir()) == []  # no api_calls.jsonl, nothing anywhere
+
+
+@pytest.mark.parametrize("status, kind", [(401, "auth"), (403, "auth"), (503, "server_error"),
+                                          (429, "rate_limit")])
+def test_probe_reports_http_failures_by_kind_never_the_message(status, kind):
+    # DeepSeek's real 401 text echoes the key's last characters: never in the result.
+    msg = f"Authentication Fails, Your api key: ****{TEST_KEY[-4:]} is invalid"
+    r = _probe_client(lambda req: httpx2.Response(status, json={"error": {"message": msg}})) \
+        .reachable("red")
+    assert (r.ok, r.kind, r.http_status) == (False, kind, status)
+    assert TEST_KEY[-4:] not in repr(r) and "Authentication" not in repr(r)
+
+
+def test_probe_connection_failure_names_the_cause_type():
+    def handler(req):
+        raise httpx2.ConnectError("[Errno 8] nodename nor servname provided")
+    r = _probe_client(handler).reachable("red")
+    assert (r.ok, r.kind, r.http_status) == (False, "connection", None)
+    assert r.cause == " [cause: ConnectError]" and "nodename" not in repr(r)
+
+
+def test_probe_without_a_key_sends_nothing():
+    seen = []
+    r = _probe_client(lambda req: seen.append(req), key=None).reachable("red")
+    assert (r.ok, r.kind) == (False, "missing_key") and seen == []
+
+
+def test_probe_needs_the_go_token_like_a_call(monkeypatch):
+    monkeypatch.delenv("ARENA_GO", raising=False)
+    with pytest.raises(lc.GoTokenError):
+        lc.DeepSeekAdapter().probe(api_key=TEST_KEY, timeout=1)
+
+
+def test_fake_adapters_have_no_network_to_probe():
+    from llm_fakes import FakeAdapter, make_client
+    r = make_client(FakeAdapter())[0].reachable("red")
+    assert (r.ok, r.kind) == (True, "no_network")
+
+
+def test_call_and_probe_build_the_same_client():
+    """'Reached the way a Red call is': one builder, used by both."""
+    import inspect
+    for cls in (lc.OpenAIAdapter, lc.AnthropicAdapter):
+        assert "self._client(api_key, timeout)" in inspect.getsource(cls.call)
+        assert "self._client(api_key, timeout)" in inspect.getsource(cls.probe)
+
+
+def test_ledger_excerpt_carries_the_cause_chain_types_only(tmp_path):
+    """The incident's ledger said only 'APIConnectionError: Connection error.'. A key with an
+    illegal header character and a DNS failure must now be told apart, by type name, and
+    the cause's message (which can quote the header, i.e. the key) is never written."""
+    from llm_fakes import FakeAdapter, lines, make_client
+
+    class APIConnectionError(Exception):
+        pass
+
+    class LocalProtocolError(Exception):
+        pass
+    key_like = "-".join(["sk", "quoted", "in", "the", "header"])
+    exc = APIConnectionError("Connection error.")
+    exc.__cause__ = LocalProtocolError(f"Illegal header value b'Bearer {key_like}\\n'")
+    client, _ = make_client(FakeAdapter([exc] * 9))
+    res = client.complete("red", "fake-small", "s", [{"role": "user", "content": "u"}],
+                          run_dir=tmp_path, round=1, match_id="m001")
+    assert not res.ok and res.error_type == "connection"
+    rows = lines(tmp_path)
+    assert rows and all(r["error_excerpt"] == "APIConnectionError: Connection error. "
+                                              "[cause: LocalProtocolError]" for r in rows)
+    assert key_like not in (tmp_path / lc.API_CALLS).read_text()
+
+
+def test_cause_chain_follows_cause_then_context_and_stops():
+    try:
+        try:
+            raise OSError("inner")
+        except OSError as inner:
+            raise ValueError("mid") from inner
+    except ValueError as mid:
+        top = RuntimeError("top")
+        top.__context__ = mid
+    assert lc.cause_chain(top) == " [cause: ValueError <- OSError]"
+    assert lc.cause_chain(RuntimeError("alone")) == ""
+    a, b = RuntimeError("a"), RuntimeError("b")
+    a.__cause__, b.__cause__ = b, a  # a cycle never loops
+    assert lc.cause_chain(a) == " [cause: RuntimeError]"

@@ -317,11 +317,19 @@ class RedDriver:
         raise NotImplementedError
 
 
+class RedUnreachable(RuntimeError):
+    """Fail fast (2026-11-27 demo incident): Red's first N turns all failed with connection
+    errors, so the provider is unreachable and the remaining turns would fail the same way.
+    Raised by run_traffic AFTER the last such turn's red_unsent line is written; run_match
+    finalizes it like any failure (proxy log frozen, match.json status failed, lock freed)."""
+
+
 class RedAction:
     SEND, NO_SEND, EXHAUSTED = "send", "no_send", "exhausted"
 
     def __init__(self, kind: str, send=None, guard_line: dict | None = None,
-                 diagnosis: str | None = None):
+                 diagnosis: str | None = None, abort: str | None = None):
+        self.abort = abort            # NO_SEND: stop the match after recording this slot
         self.kind = kind
         self.send = send              # SEND: () -> result dict (writes record, sends)
         self.guard_line = guard_line  # NO_SEND: red_guard fields (kind/reason/detail/proposed)
@@ -352,9 +360,13 @@ class AIDriver(RedDriver):
     """AI Red: propose one request, guard it, then send or record a no-send. Feedback
     to Red is only its own HTTP result or rules-of-engagement text (D6)."""
 
-    def __init__(self, red: ai_red.AIRed):
+    def __init__(self, red: ai_red.AIRed, abort_after_connection_failures: int | None = None):
         self.red = red
         self._feedback: str | None = None
+        # None (default: every gate and direct run_match): all turns run, as before. N: if
+        # the FIRST N turns all fail with a connection error, stop the match (demo only).
+        self.abort_after = abort_after_connection_failures
+        self._turns = self._leading_connection_failures = 0
 
     def _proposed_fields(self, a: dict) -> dict:
         return {"method": a["method"][:16], "path": a["path"][:red_guard.MAX_PATH_CHARS],
@@ -364,10 +376,23 @@ class AIDriver(RedDriver):
     def red_action(self, round_num, match_id, match_dir):
         free_play = self.red.free_play
         prop = self.red.propose(self._feedback, round_num)
+        self._turns += 1
+        connection = (prop.kind == "instrument_failure" and prop.reason == "api_error"
+                      and prop.detail == "connection")
+        if connection and self._leading_connection_failures == self._turns - 1:
+            self._leading_connection_failures += 1  # counts only an unbroken run from turn 1
         if prop.kind == "instrument_failure":  # no model turn; feedback unchanged
+            n = self.abort_after
+            abort = None
+            if n is not None and self._turns == n and self._leading_connection_failures == n:
+                cfg = getattr(self.red.client, "cfg", None) or {}
+                prov = cfg.get("agents", {}).get("red", {}).get("provider") or "?"
+                abort = (f"the first {n} Red turns all failed with connection errors "
+                         f"(provider {prov}): match stopped early, the remaining turns "
+                         f"would fail the same way")
             return RedAction(RedAction.NO_SEND, guard_line={
                 "kind": "instrument_failure", "reason": prop.reason,
-                "detail": prop.detail, "proposed": None})
+                "detail": prop.detail, "proposed": None}, abort=abort)
         if prop.kind == "brain_failure":
             self._feedback = ai_red.feedback_brain(prop.reason)
             return RedAction(RedAction.NO_SEND, guard_line={
@@ -433,6 +458,9 @@ def run_traffic(match_id: str, match_dir: Path, attacks: list[dict],
                     log(f"slot {slot.slot:>2} round {slot.round} RED {line['kind']} "
                         f"({line['reason']}); nothing sent")
                     results.append({**line, "slot": slot.slot, "kind": "red_no_send"})
+                    if action.abort:
+                        log(f"RED UNREACHABLE: {action.abort}")
+                        raise RedUnreachable(action.abort)
                     continue
             before = solved_now()
             if slot.kind == "red":

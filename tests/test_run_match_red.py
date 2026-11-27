@@ -245,3 +245,104 @@ def test_cli_flags_red(monkeypatch):
     monkeypatch.setattr(run_match, "run_match", lambda **kw: (seen.update(kw), (0, None))[1])
     assert run_match.main(["--red", "ai", "--red-model", "gpt-6-luna"]) == 0
     assert seen["red_engine"] == "ai" and seen["red_model"] == "gpt-6-luna"
+
+
+# ---- fail fast on an unreachable Red provider (2026-11-27 demo incident) -------------------
+
+class APIConnectionError(Exception):
+    """Named like the SDKs' class: classify() -> 'connection'."""
+
+
+class APITimeoutError(Exception):
+    """Named like the SDKs' class: classify() -> 'timeout'."""
+
+
+def conn():
+    return APIConnectionError("Connection error.")
+
+
+def _driver(tmp_path, script, n_red, abort_after):
+    cfg = config()
+    cfg["agents"]["red"].update(provider="fake", model="fake-small")
+    client, _ = make_client(FakeAdapter(script, text=attack_json()), cfg=cfg)
+    red = ai_red.AIRed(client, "fake-small", tmp_path, M, round_cap=n_red)
+    return match_ops.AIDriver(red, abort_after_connection_failures=abort_after)
+
+
+def _traffic(tmp_path, driver, n_red, log=None):
+    return match_ops.run_traffic(M, tmp_path, [], [], Schedule(n_red, [], 1), settle=0,
+                                 log=log or (lambda *a: None), red_driver=driver)
+
+
+def _unsent(tmp_path):
+    return [json.loads(l) for l in (tmp_path / match_ops.RED_UNSENT).read_text().splitlines()]
+
+
+ATTEMPTS = CONFIG["max_retries"] + 1  # one Red turn = this many failed calls
+
+
+def test_first_two_connection_failures_stop_after_recording_both(no_target, tmp_path):
+    log: list[str] = []
+    d = _driver(tmp_path, [conn()] * (10 * ATTEMPTS), 10, 2)
+    with pytest.raises(match_ops.RedUnreachable, match="first 2 Red turns"):
+        _traffic(tmp_path, d, 10, log.append)
+    assert [(u["round"], u["reason"], u["detail"]) for u in _unsent(tmp_path)] == [
+        (1, "api_error", "connection"), (2, "api_error", "connection")]  # both recorded
+    calls = [json.loads(l) for l in (tmp_path / lc.API_CALLS).read_text().splitlines()]
+    assert len(calls) == 2 * ATTEMPTS  # not 10 turns' worth
+    assert any(l.startswith("RED UNREACHABLE") for l in log) and no_target == []
+
+
+@pytest.mark.parametrize("script, why", [
+    (["ok"], "turn 1 succeeded"),
+    ([conn()] * ATTEMPTS + ["ok"], "turn 2 succeeded"),
+    ([conn()] * ATTEMPTS + [APITimeoutError("t")] * ATTEMPTS,
+     "turn 2 timed out, not a connection error"),
+])
+def test_no_stop_unless_the_first_two_turns_are_both_connection_failures(
+        no_target, tmp_path, script, why):
+    d = _driver(tmp_path, script + [conn()] * (10 * ATTEMPTS), 4, 2)
+    _traffic(tmp_path, d, 4)  # all 4 turns run
+    assert len([r for r in _unsent(tmp_path)]) + len(no_target) == 4, why
+
+
+def test_default_is_off_every_turn_runs(no_target, tmp_path):
+    _traffic(tmp_path, _driver(tmp_path, [conn()] * (4 * ATTEMPTS), 4, None), 4)
+    assert len(_unsent(tmp_path)) == 4
+
+
+class UnreachableRedOps(AIRedSimOps):
+    """The real traffic loop and driver (network stubbed by no_target), Red always failing
+    with connection errors, no benign slots."""
+
+    def red_client(self, config, prices):
+        return make_client(FakeAdapter([conn()] * 99, text=attack_json()), cfg=config)[0]
+
+    def traffic(self, match_id, match_dir, attacks, benign_entries, schedule, settle,
+                red_driver=None):
+        match_ops.run_traffic(match_id, match_dir, attacks, [], Schedule(2 + 3, [], 1), 0,
+                              log=lambda *a: None, red_driver=red_driver)
+
+
+def test_run_match_finalizes_a_stopped_match_as_failed_and_frees_the_lock(no_target, dirs):
+    live, runs = dirs
+    out: list[str] = []
+    code, match_dir = run_match.run_match(ops=UnreachableRedOps(live), live_dir=live,
+                                          runs_dir=runs, red_engine="ai",
+                                          red_abort_after_connection_failures=2,
+                                          out=out.append)
+    m = json.loads((match_dir / "match.json").read_text())
+    assert code != 0 and m["status"] == "failed" and m["failed_step"] == "traffic"
+    assert m["error"].startswith("RedUnreachable: the first 2 Red turns all failed")
+    assert run_match.validate_manifest(m) == [] and (match_dir / "proxy.jsonl").exists()
+    assert not (live / "match.lock").exists() and len(_unsent(match_dir)) == 2
+
+
+@pytest.mark.parametrize("kw", [{"red_abort_after_connection_failures": 2},
+                                {"red_engine": "ai", "red_abort_after_connection_failures": 0}])
+def test_fail_fast_needs_ai_red_and_n_at_least_1(dirs, kw):
+    live, runs = dirs
+    out: list[str] = []
+    code, match_dir = run_match.run_match(ops=AIRedSimOps(live), live_dir=live, runs_dir=runs,
+                                          out=out.append, **kw)
+    assert (code, match_dir) == (2, None) and "needs --red ai and N >= 1" in "\n".join(out)
