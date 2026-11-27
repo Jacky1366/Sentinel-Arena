@@ -10,8 +10,9 @@
 #                                                            shows only new runs, and 3 picks only from them
 #
 # Live modes: preflight (ARENA_GO given; for 1 and 2 also the Docker stack healthy,
-# data/runs/live/ clean and the Red provider reachable with its key (free: its models
-# endpoint, no tokens); no stale lock; dashboard built), then caffeinate for the whole
+# data/runs/live/ clean and the Red provider reachable with its key; for all three the Blue
+# provider reachable with its key (free: models endpoint, no tokens); no stale lock;
+# dashboard built), then caffeinate for the whole
 # session, the live server on 127.0.0.1:8765 if not already running, the dashboard opened in
 # the browser, and tools/demo_match.py with python -u, its stdout tee'd to the transcript the
 # server follows.
@@ -142,6 +143,12 @@ if [ "$matchup" != open ]; then  # free: the Red provider's models endpoint, wit
     fi
     die "$(printf '%s' "$red_out" | tail -1). Fallback: $fb"
   fi
+fi
+# Blue (all three matchups; 3 is Blue only). --luna does not help: Blue is the same.
+if blue_out="$("$PY" -u tools/demo_match.py --check-blue 2>&1)"; then
+  ok "$blue_out"
+else
+  die "$(printf '%s' "$blue_out" | tail -1). Fallback: scripts/demo.sh --replay $matchup  (recorded run, no network)"
 fi
 # No sessions file yet (before the first --new-session) is a WARN, not a stop: guard it, as a
 # missing file makes sed fail and pipefail + set -e would exit here silently.

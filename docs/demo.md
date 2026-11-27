@@ -77,6 +77,9 @@ Automatic in `scripts/demo.sh` (live modes):
 - [ ] 1 and 2 only: the Red provider reachable with its key (free: one request to its models
       endpoint, no tokens). On failure: `DEMO STOP: Red provider … NOT reachable: <kind> [cause: …]`
       with the fallback (`--luna`, or the `--replay` when already on Luna)
+- [ ] All three: the Blue provider (Anthropic) reachable with its key (free, the same way). On
+      failure: `DEMO STOP: Blue provider anthropic … NOT reachable` with the matchup's `--replay`
+      (`--luna` does not help: Blue is the same)
 - [ ] Demo session read from `data/runs/demo/sessions.jsonl` (no file yet = `WARN`, not a stop:
       rehearsals before `--new-session` warn and continue)
 - [ ] `dashboard/dist/index.html` built
@@ -129,6 +132,7 @@ By failure:
 | DeepSeek down / no balance | `Call failed` from the first turn (connection errors: the match stops after 2 turns; no balance is not caught by the free preflight: it reaches the models endpoint, not a paid call) | `--luna` (matchups 1 and 2) |
 | Anthropic (Blue) down | Act 2 shows failed Blue calls | the matchup's `--replay` |
 | Docker fails | `DEMO STOP: Docker service …` | the matchup's `--replay` |
+| Blue provider unreachable before the match | `DEMO STOP: Blue provider … NOT reachable` | the matchup's `--replay` |
 | Red provider unreachable before the match | `DEMO STOP: Red provider … NOT reachable` | the fallback it prints (`--luna`, or the `--replay`) |
 | Red provider unreachable during the match | `RED UNREACHABLE` after Red's first 2 turns both fail with connection errors; the match stops (kept, status failed) and prints `DEMO FALLBACK` | the fallback it prints |
 | Live server / dashboard crash | blank page or no events | the matchup's `--replay` (file://) |

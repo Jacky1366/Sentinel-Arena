@@ -5,7 +5,8 @@
   3 open      ARENA_GO=… .venv/bin/python -u tools/demo_match.py --open-replay
   probe       ARENA_GO=… .venv/bin/python -u tools/demo_match.py [--matchup …] [--red …] --one-turn
   reach       ARENA_GO=… .venv/bin/python -u tools/demo_match.py [--matchup …] [--red …] --check-red
-                (free: the Red provider's models endpoint with the key; no tokens; demo.sh preflight)
+              ARENA_GO=… .venv/bin/python -u tools/demo_match.py --check-blue
+                (free: the provider's models endpoint with the key; no tokens; demo.sh preflight)
   config      .venv/bin/python tools/demo_match.py --print-config [--matchup …] [--red …]   (zero cost)
   session     .venv/bin/python tools/demo_match.py --new-session                             (zero cost)
 
@@ -108,15 +109,29 @@ HINTS = {  # cause type name -> what it usually means (the excerpt carries no me
 }
 
 
+def blue_config(kw: dict) -> dict:
+    """The llm config the match (or matchup 3's replay) builds for Blue: provider from
+    config/llm.json (anthropic), caching on."""
+    return llm_client.with_caching(llm_client.load_config(), "blue", kw["blue_caching"])
+
+
 def check_red(kw: dict, client_factory=None, out=print) -> int:
     """Free preflight: the matchup's Red provider, reached the way a Red call is (same
     config, key loading, client), via its models endpoint. No tokens, no ledger line."""
+    return _check("red", red_config(kw), kw["red_model"], client_factory, out)
+
+
+def check_blue(kw: dict, client_factory=None, out=print) -> int:
+    """Free preflight: Blue's provider (all three matchups; matchup 3 is Blue only)."""
+    return _check("blue", blue_config(kw), kw["blue_model"], client_factory, out)
+
+
+def _check(agent: str, cfg: dict, model: str, client_factory, out) -> int:
     from stats import cost as cost_stats
-    cfg = red_config(kw)
     make = client_factory or (lambda c: llm_client.LLMClient(config=c,
                                                               prices=cost_stats.load_prices()))
-    r = make(cfg).reachable("red")
-    where = f"Red provider {r.provider} ({kw['red_model']})"
+    r = make(cfg).reachable(agent)
+    where = f"{agent.capitalize()} provider {r.provider} ({model})"
     if r.ok:
         out(f"{where} reachable with its key ({r.latency_ms} ms; models endpoint, no tokens)")
         return 0
@@ -277,6 +292,8 @@ def main(argv: list[str] | None = None) -> int:
                       help="one Red proposal, dry run (paid: one call)")
     mode.add_argument("--check-red", action="store_true",
                       help="is the Red provider reachable with its key? (free: models endpoint)")
+    mode.add_argument("--check-blue", action="store_true",
+                      help="is the Blue provider reachable with its key? (free: models endpoint)")
     mode.add_argument("--print-config", action="store_true", help="print the config (zero cost)")
     mode.add_argument("--new-session", action="store_true",
                       help="start a demo session: only runs from now on reach the stage (zero cost)")
@@ -305,6 +322,8 @@ def main(argv: list[str] | None = None) -> int:
         return one_turn(kw)
     if args.check_red:
         return check_red(kw)
+    if args.check_blue:
+        return check_blue(kw)
     print(f"demo matchup: {args.matchup}", flush=True)
     code, match_dir = run_match.run_match(**kw)
     report_red_unreachable(match_dir, args.matchup, args.red)

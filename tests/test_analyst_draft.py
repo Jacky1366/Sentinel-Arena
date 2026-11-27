@@ -10,6 +10,7 @@ import pytest
 import analyst_fakes as af
 from analyst import draft as D
 from analyst import grounding
+from agents import llm_client as lc
 from tools import build_report as br
 
 
@@ -234,3 +235,63 @@ def test_rerender_makes_no_call_and_records_a_template_change(tmp_path):
     assert m2["rerenders"][-1]["previous_template_sha256"] == "0" * 64
     assert m2["rerenders"][-1]["ai_calls"] == 0 and m2["rerenders"][-1]["reason"] == "test"
     assert (d / "brief.html").exists()
+
+
+# ---- provider reachability before any paid call (2026-11-27 incident follow-up) ------------
+
+def _reach(down: dict):
+    """cfg -> lc.Reach; providers in `down` map to their failure kind."""
+    seen = []
+
+    def reach(cfg):
+        p = cfg["agents"]["analyst"]["provider"]
+        seen.append((p, cfg["agents"]["analyst"]["model"]))
+        if p in down:
+            return lc.Reach(False, p, down[p], None, " [cause: ConnectError]", 5)
+        return lc.Reach(True, p, "ok", 200, "", 5)
+    return reach, seen
+
+
+def test_reach_checks_each_provider_once_then_runs(tmp_path):
+    reach, seen = _reach({})
+    r = br.report(env={"ARENA_GO": br.RUN_TOKEN}, out=tmp_path, reach=reach,
+                  client_factory=lambda cfg: af.StubClient([af.draft()]), summary=af.summary())
+    assert r["ok"] and [p for p, _ in seen] == ["openai", "anthropic"]  # one probe per provider
+
+
+@pytest.mark.parametrize("down, fallback", [
+    ({"openai": "connection"}, "--run --models claude-sonnet-5-5"),
+    ({"anthropic": "connection"}, "--run --models gpt-6.1-sol,gpt-6.1-terra"),
+    ({"openai": "connection", "anthropic": "auth"},
+     "keep the committed report (data/golden/analyst-report-7"),
+])
+def test_unreachable_provider_stops_before_anything_with_the_fallback(tmp_path, down, fallback):
+    called = []
+    for fn, tok in ((br.probe, br.PROBE_TOKEN), (br.report, br.RUN_TOKEN)):
+        reach, _ = _reach(down)
+        with pytest.raises(br.ProviderUnreachable) as ei:
+            fn(env={"ARENA_GO": tok}, out=tmp_path, reach=reach, summary=af.summary(),
+               client_factory=lambda c: called.append(c))
+        msg = str(ei.value)
+        assert all(f"{p} NOT reachable: {k}" in msg for p, k in down.items())
+        assert "[cause: ConnectError]" in msg and "Nothing was called" in msg
+        if fn is br.report or "--models" not in fallback:
+            assert f"Fallback: {fallback}" in msg
+    assert called == [] and not list(tmp_path.iterdir())  # no client, no folder, no summary
+
+
+def test_cli_prints_stop_and_exits_1(monkeypatch, capsys):
+    def boom(**kw):
+        raise br.ProviderUnreachable("openai NOT reachable: connection. Nothing was called. "
+                                     "Fallback: --models claude-sonnet-5-5")
+    monkeypatch.setattr(br, "report", boom)
+    assert br.main(["--run"]) == 1
+    assert capsys.readouterr().out.startswith("STOP: openai NOT reachable")
+
+
+def test_real_runs_are_checked_by_default_injected_clients_are_not(monkeypatch):
+    seen = []
+    monkeypatch.setattr(br, "preflight_reach", lambda cands, reach: seen.append(reach))
+    br._reach_check(br.CANDIDATES, None, None)
+    br._reach_check(br.CANDIDATES, lambda c: None, None)
+    assert seen == [br._real_reach]

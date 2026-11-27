@@ -361,12 +361,17 @@ def test_demo_sh_new_session_mode_exists():
 # live server, the browser and tools/demo_match.py: nothing reaches a network or a provider.
 
 FAKE_PY = """#!/bin/sh
-# stub venv python: only the GO check and demo_match.py --check-red are reachable
+# stub venv python: only the GO check and demo_match.py --check-red / --check-blue are reachable
 [ "$1" = "-c" ] && exit "${FAKE_GO_RC:-0}"
 case " $* " in *" tools/demo_match.py "*" --check-red "*)
   echo "$* " >> "${FAKE_LOG:-/dev/null}"
   echo "${FAKE_REACH_OUT:-Red provider deepseek (deepseek-v4-pro) reachable with its key (9 ms)}"
   exit "${FAKE_REACH_RC:-0}" ;;
+esac
+case " $* " in *" tools/demo_match.py "*"--check-blue "*)
+  echo "$* " >> "${FAKE_LOG:-/dev/null}"
+  echo "${FAKE_BLUE_OUT:-Blue provider anthropic (claude-haiku-5-5) reachable with its key (9 ms)}"
+  exit "${FAKE_BLUE_RC:-0}" ;;
 esac
 echo "stub python reached: $*" >&2; exit 97
 """
@@ -503,9 +508,11 @@ def test_demo_sh_checks_the_matchups_own_red_and_not_for_matchup_3(tmp_path):
         assert "ok    Red provider deepseek" in r.stdout or args == ["--open-replay"]
         _assert_stopped_with_message(r, "dashboard not built")  # the check comes before it
     calls = log.read_text().splitlines()
-    assert len(calls) == 2  # none for --open-replay (no Red)
+    assert len(calls) == 5  # Red + Blue for 1 and 2; Blue only for --open-replay (no Red)
     assert "--matchup freeplay --red deepseek --check-red" in calls[0]
-    assert "--matchup taxonomy --red luna --check-red" in calls[1]
+    assert "--check-blue" in calls[1]
+    assert "--matchup taxonomy --red luna --check-red" in calls[2]
+    assert "--check-blue" in calls[3] and "--check-blue" in calls[4]
 
 
 def _reach_factory(handler):
@@ -574,3 +581,58 @@ def test_stopped_match_prints_the_fallback(tmp_path):
     assert not demo_match.report_red_unreachable(tmp_path, "freeplay", "deepseek", out.append)
     assert not demo_match.report_red_unreachable(None, "freeplay", "deepseek", out.append)
     assert out == []
+
+
+# ---- Blue provider reachability (all three matchups) ---------------------------------------
+
+BLUE_UNREACH = ("Blue provider anthropic (claude-haiku-5-5) NOT reachable: auth HTTP 401 after "
+                "88 ms -- the provider rejected the key (wrong / revoked key, or no balance)")
+
+
+@pytest.mark.parametrize("args, replay", [([], "freeplay"), (["--taxonomy"], "taxonomy"),
+                                          (["--luna"], "freeplay"), (["--open-replay"], "open")])
+def test_demo_sh_unreachable_blue_stops_with_the_replay_fallback(tmp_path, args, replay):
+    root, bin_ = _sandbox(tmp_path, dist=True)
+    r = _sh_in(root, bin_, *args, FAKE_BLUE_RC="1", FAKE_BLUE_OUT=BLUE_UNREACH)
+    _assert_stopped_with_message(
+        r, BLUE_UNREACH, f"Fallback: scripts/demo.sh --replay {replay}  (recorded run, no network)")
+    assert "--luna" not in r.stderr  # the backup Red does not help when Blue is down
+
+
+def _anthropic_factory(handler):
+    import httpx2
+
+    def make(cfg):
+        a = lc.AnthropicAdapter(
+            http_client_factory=lambda: httpx2.Client(transport=httpx2.MockTransport(handler)))
+        key = "-".join(["demo", "blue", "reach", "value"])
+        return lc.LLMClient(config=cfg, adapters={"anthropic": a},
+                            env={"ARENA_ANTHROPIC_API_KEY": key},
+                            dotenv_path=REPO / "nonexistent" / "no.env")
+    return make
+
+
+def test_check_blue_reaches_anthropics_models_endpoint():
+    import httpx2
+    seen, out = [], []
+
+    def handler(req):
+        seen.append(str(req.url).split("?")[0])
+        return httpx2.Response(200, json={"data": [], "has_more": False,
+                                          "first_id": None, "last_id": None})
+    assert demo_match.check_blue(demo_match.demo_kwargs(), _anthropic_factory(handler),
+                                 out=out.append) == 0
+    assert seen == ["https://api.anthropic.com/v1/models"]
+    assert out[0].startswith("Blue provider anthropic (claude-haiku-5-5) reachable")
+
+
+def test_check_blue_failure_is_reported_without_the_message():
+    import httpx2
+
+    def handler(req):
+        raise httpx2.ConnectError("secret-ish detail")
+    out: list[str] = []
+    assert demo_match.check_blue(demo_match.demo_kwargs(), _anthropic_factory(handler),
+                                 out=out.append) == 1
+    assert "NOT reachable: connection [cause: ConnectError]" in out[0]
+    assert "secret-ish" not in out[0]
